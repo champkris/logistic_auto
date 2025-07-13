@@ -1,0 +1,115 @@
+{
+  "project_cost_summary": {
+    "total_budget": 2450000,
+    "currency": "THB",
+    "development_cost": 2080000,
+    "infrastructure_cost": 370000,
+    "development_percentage": 85,
+    "infrastructure_percentage": 15,
+    "updated_at": "2025-07-14T00:00:00Z"
+  },
+  "phase_costs": [
+    {
+      "phase_id": "setup",
+      "phase_name": "Setup Phase",
+      "total_cost": 300000,
+      "development_cost": 260000,
+      "infrastructure_cost": 40000,
+      "duration_weeks": 7,
+      "cost_per_week": 42857
+    },
+    {
+      "phase_id": "phase1", 
+      "phase_name": "High Priority Phase",
+      "total_cost": 975000,
+      "development_cost": 880000,
+      "infrastructure_cost": 95000,
+      "duration_weeks": 19,
+      "cost_per_week": 51316
+    },
+    {
+      "phase_id": "phase2",
+      "phase_name": "Medium Priority Phase", 
+      "total_cost": 855000,
+      "development_cost": 760000,
+      "infrastructure_cost": 95000,
+      "duration_weeks": 18,
+      "cost_per_week": 47500
+    },
+    {
+      "phase_id": "phase3",
+      "phase_name": "Long-term Phase",
+      "total_cost": 860000,
+      "development_cost": 770000,
+      "infrastructure_cost": 90000,
+      "duration_weeks": 20,
+      "cost_per_week": 43000
+    }
+  ],
+  "cost_categories": [
+    {
+      "category": "Development Team",
+      "annual_cost": 1680000,
+      "monthly_cost": 140000,
+      "percentage": 68.6,
+      "description": "Salaries for development team"
+    },
+    {
+      "category": "External Contractors", 
+      "total_cost": 400000,
+      "percentage": 16.3,
+      "description": "Integration and compliance specialists"
+    },
+    {
+      "category": "Infrastructure & Hosting",
+      "annual_cost": 180000,
+      "monthly_cost": 15000, 
+      "percentage": 7.3,
+      "description": "Cloud hosting, databases, services"
+    },
+    {
+      "category": "Tools & Software",
+      "annual_cost": 190000,
+      "monthly_cost": 15833,
+      "percentage": 7.8,
+      "description": "Development tools, project management, design software"
+    }
+  ],
+  "roi_analysis": {
+    "current_monthly_cost": 180000,
+    "future_monthly_cost": 45000,
+    "monthly_savings": 135000,
+    "annual_savings": 1620000,
+    "break_even_months": 18,
+    "three_year_roi": 198,
+    "five_year_roi": 431
+  },
+  "operational_improvements": {
+    "staff_reduction": {
+      "current_staff": 6,
+      "future_staff": 2,
+      "reduction_percentage": 67
+    },
+    "processing_time": {
+      "current_hours_per_day": 8,
+      "future_hours_per_day": 2,
+      "reduction_percentage": 75
+    },
+    "error_rate": {
+      "current_percentage": 6.5,
+      "future_percentage": 1.5,
+      "improvement_percentage": 77
+    }
+  },
+  "budget_tracking": {
+    "contingency_fund": 245000,
+    "contingency_percentage": 10,
+    "api_changes_buffer": 100000,
+    "scope_creep_buffer": 145000,
+    "monthly_burn_rate": 204167,
+    "budget_alerts": {
+      "warning_threshold": 80,
+      "critical_threshold": 95
+    }
+  }
+}
