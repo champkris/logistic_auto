@@ -1,0 +1,20 @@
+{
+  "name": "cs-shipping-browser-automation",
+  "version": "1.0.0",
+  "description": "Browser automation for CS Shipping LCB vessel tracking",
+  "main": "vessel-scraper.js",
+  "scripts": {
+    "start": "node vessel-scraper.js",
+    "lcb1": "node scrapers/lcb1-scraper.js",
+    "test": "node test-scrapers.js"
+  },
+  "dependencies": {
+    "puppeteer": "^22.10.0",
+    "axios": "^1.6.0",
+    "cron": "^3.1.0",
+    "winston": "^3.11.0"
+  },
+  "keywords": ["vessel", "tracking", "automation", "shipping"],
+  "author": "CS Shipping LCB",
+  "license": "MIT"
+}
