@@ -37,7 +37,7 @@ class VesselTrackingService
         'A0B1' => [
             'name' => 'LCB1',
             'url' => 'https://www.lcb1.com/BerthSchedule',
-            'vessel_full' => 'MARSA PRIDE V.528S',
+            'vessel_full' => 'MARSA PRIDE 528S',
             'method' => 'lcb1'
         ],
         'B2' => [
