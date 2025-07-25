@@ -84,7 +84,7 @@
                         <h3 class="font-semibold text-blue-600">Terminal A0/B1</h3>
                         <p class="text-sm text-gray-600">LCB1</p>
                         <p class="text-xs text-gray-500 mt-1">Vessel: MARSA PRIDE</p>
-                        <p class="text-xs text-gray-400">Voyage: V.528S</p>
+                        <p class="text-xs text-gray-400">Voyage: 528S</p>
                     </div>
                     <div class="border rounded-lg p-4">
                         <h3 class="font-semibold text-blue-600">Terminal B2</h3>

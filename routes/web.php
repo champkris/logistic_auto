@@ -156,9 +156,9 @@ Route::get('/vessel-test/run', function () {
         'A0B1' => [
             'name' => 'LCB1',
             'url' => 'https://www.lcb1.com/BerthSchedule',
-            'vessel_full' => 'MARSA PRIDE V.528S',
+            'vessel_full' => 'MARSA PRIDE 528S',
             'vessel_name' => 'MARSA PRIDE',
-            'voyage_code' => 'V.528S',
+            'voyage_code' => '528S',
             'note' => 'JavaScript-dependent - requires vessel selection and search',
             'status' => 'requires_js'
         ],
