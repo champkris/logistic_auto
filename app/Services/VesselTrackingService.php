@@ -233,18 +233,61 @@ class VesselTrackingService
 
     protected function lcb1($config)
     {
-        // LCB1 - Berth Schedule
-        $response = Http::timeout(30)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            ])
-            ->get($config['url']);
-
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
+        // LCB1 - Use Browser Automation (required for dynamic content)
+        try {
+            $vesselName = $config['vessel_name'] ?? 'MARSA PRIDE';
+            
+            // Call the browser automation wrapper
+            $browserAutomationPath = base_path('browser-automation');
+            $command = "cd {$browserAutomationPath} && timeout 60 node laravel-wrapper.js '{$vesselName}' 2>&1";
+            
+            // Execute browser automation
+            $output = shell_exec($command);
+            
+            if (!$output) {
+                throw new \Exception("Browser automation failed: no output");
+            }
+            
+            // Parse the JSON result
+            $result = json_decode(trim($output), true);
+            
+            if (!$result) {
+                throw new \Exception("Invalid JSON from browser automation: " . substr($output, 0, 200));
+            }
+            
+            if (!$result['success']) {
+                throw new \Exception("Browser automation error: " . ($result['error'] ?? 'Unknown error'));
+            }
+            
+            // Convert to Laravel expected format
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => !empty($result['voyage_code']),
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'],
+                'eta' => $result['eta'],
+                'etd' => $result['etd'],
+                'search_method' => 'browser_automation',
+                'raw_data' => $result['raw_data'] ?? null,
+                'checked_at' => now()
+            ];
+            
+        } catch (\Exception $e) {
+            \Log::error("LCB1 Browser Automation Error: " . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'terminal' => $config['name'],
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'eta' => null,
+                'error' => 'Browser automation failed: ' . $e->getMessage(),
+                'search_method' => 'browser_automation_failed',
+                'checked_at' => now()
+            ];
         }
-
-        return $this->parseVesselData($response->body(), $config);
     }
 
     protected function ectt($config)
