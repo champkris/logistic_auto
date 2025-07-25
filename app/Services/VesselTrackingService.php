@@ -239,10 +239,46 @@ class VesselTrackingService
             
             // Call the browser automation wrapper
             $browserAutomationPath = base_path('browser-automation');
-            $command = "cd {$browserAutomationPath} && timeout 60 node laravel-wrapper.js '{$vesselName}' 2>&1";
             
-            // Execute browser automation
-            $output = shell_exec($command);
+            // FIXED: Use proc_open to separate stdout (JSON) from stderr (logs)
+            $command = "cd {$browserAutomationPath} && timeout 60 node laravel-wrapper.js '{$vesselName}'";
+            
+            $descriptors = [
+                0 => ['pipe', 'r'],  // stdin
+                1 => ['pipe', 'w'],  // stdout (JSON)
+                2 => ['pipe', 'w']   // stderr (logs)
+            ];
+            
+            $process = proc_open($command, $descriptors, $pipes);
+            
+            if (is_resource($process)) {
+                fclose($pipes[0]); // Close stdin
+                
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
+                
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                
+                $returnCode = proc_close($process);
+                
+                // Log the browser automation logs for debugging
+                if (!empty($logOutput)) {
+                    \Log::info("Browser automation logs:", ['logs' => $logOutput]);
+                }
+                
+                if (!$jsonOutput) {
+                    throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
+                }
+                
+                $output = $jsonOutput;
+            } else {
+                throw new \Exception("Failed to start browser automation process");
+            }
+            
+            if (!$output) {
+                throw new \Exception("Browser automation failed: no output");
+            }
             
             if (!$output) {
                 throw new \Exception("Browser automation failed: no output");

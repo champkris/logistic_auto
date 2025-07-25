@@ -1,6 +1,6 @@
 const { LCB1VesselScraper } = require('./scrapers/lcb1-scraper');
 
-// Simple command-line wrapper for Laravel integration
+// FIXED Laravel wrapper - logs to stderr, clean JSON to stdout
 (async () => {
     const vesselName = process.argv[2] || 'MARSA PRIDE';
     
@@ -10,11 +10,15 @@ const { LCB1VesselScraper } = require('./scrapers/lcb1-scraper');
         await scraper.initialize();
         const result = await scraper.scrapeVesselSchedule(vesselName);
         
-        // Output clean JSON for Laravel to parse
-        console.log(JSON.stringify(result, null, 0));
+        // ONLY clean JSON to stdout - logs go to stderr via winston config
+        console.log(JSON.stringify(result));
+        
+        process.exit(result.success ? 0 : 1);
         
     } catch (error) {
-        // Output error in same format
+        // Send error details to stderr, clean error JSON to stdout
+        console.error(`Laravel Wrapper Error: ${error.message}`);
+        
         const errorResult = {
             success: false,
             error: error.message,
@@ -23,10 +27,10 @@ const { LCB1VesselScraper } = require('./scrapers/lcb1-scraper');
             scraped_at: new Date().toISOString()
         };
         
-        console.log(JSON.stringify(errorResult, null, 0));
+        console.log(JSON.stringify(errorResult));
+        process.exit(1);
         
     } finally {
         await scraper.cleanup();
-        process.exit(0);
     }
 })();

@@ -2,7 +2,7 @@ const { LCB1VesselScraper } = require('./scrapers/lcb1-scraper');
 const cron = require('cron');
 const winston = require('winston');
 
-// Configure logging
+// Configure logging - FIXED: logs go to stderr, not stdout
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -12,7 +12,10 @@ const logger = winston.createLogger({
     })
   ),
   transports: [
-    new winston.transports.Console(),
+    // Console logs go to stderr to avoid contaminating JSON output
+    new winston.transports.Console({
+      stderrLevels: ['error', 'warn', 'info', 'debug']
+    }),
     new winston.transports.File({ filename: 'vessel-automation.log' })
   ]
 });
@@ -159,10 +162,16 @@ async function main() {
       logger.info('🧪 Running test mode...');
       try {
         const results = await orchestrator.testRun();
-        console.log('🎉 Test Results:', JSON.stringify(results, null, 2));
+        // ONLY clean JSON to stdout - logs go to stderr
+        console.log(JSON.stringify(results, null, 2));
         process.exit(0);
       } catch (error) {
-        console.error('💥 Test failed:', error.message);
+        logger.error(`Test failed: ${error.message}`);
+        console.log(JSON.stringify({
+          success: false,
+          error: error.message,
+          scraped_at: new Date().toISOString()
+        }, null, 2));
         process.exit(1);
       }
       break;
@@ -192,10 +201,17 @@ async function main() {
         const result = await scraper.scrapeVesselSchedule('MARSA PRIDE');
         await scraper.cleanup();
         
-        console.log('🎉 LCB1 Result:', JSON.stringify(result, null, 2));
+        // ONLY clean JSON to stdout - logs go to stderr
+        console.log(JSON.stringify(result, null, 2));
         process.exit(result.success ? 0 : 1);
       } catch (error) {
-        console.error('💥 LCB1 scraper failed:', error.message);
+        logger.error(`LCB1 scraper failed: ${error.message}`);
+        console.log(JSON.stringify({
+          success: false,
+          error: error.message,
+          terminal: 'LCB1',
+          scraped_at: new Date().toISOString()
+        }, null, 2));
         process.exit(1);
       }
       break;
