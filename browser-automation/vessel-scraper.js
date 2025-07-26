@@ -1,4 +1,5 @@
 const { LCB1VesselScraper } = require('./scrapers/lcb1-scraper');
+const { EverbuildVesselScraper } = require('./scrapers/everbuild-scraper');
 const cron = require('cron');
 const winston = require('winston');
 
@@ -27,7 +28,8 @@ class VesselAutomationOrchestrator {
     
     // Initialize scrapers
     this.scrapers = {
-      lcb1: new LCB1VesselScraper(laravelApiUrl)
+      lcb1: new LCB1VesselScraper(laravelApiUrl),
+      everbuild: new EverbuildVesselScraper(laravelApiUrl)
     };
   }
 
@@ -53,6 +55,23 @@ class VesselAutomationOrchestrator {
       } catch (error) {
         results.lcb1 = { success: false, error: error.message };
         logger.error(`❌ LCB1 scraper failed: ${error.message}`);
+      }
+
+      // Everbuild Scraper
+      logger.info('📋 Running Everbuild scraper...');
+      try {
+        await this.scrapers.everbuild.initialize();
+        results.everbuild = await this.scrapers.everbuild.scrapeVesselSchedule('EVER BUILD');
+        
+        if (results.everbuild.success) {
+          await this.scrapers.everbuild.sendToLaravel(results.everbuild);
+        }
+        
+        await this.scrapers.everbuild.cleanup();
+        logger.info('✅ Everbuild scraper completed');
+      } catch (error) {
+        results.everbuild = { success: false, error: error.message };
+        logger.error(`❌ Everbuild scraper failed: ${error.message}`);
       }
 
       // Add more scrapers here (LCIT, ECTT)
@@ -216,18 +235,43 @@ async function main() {
       }
       break;
       
+    case 'everbuild':
+      logger.info('🚢 Running Everbuild scraper only...');
+      try {
+        const scraper = new EverbuildVesselScraper();
+        await scraper.initialize();
+        const result = await scraper.scrapeVesselSchedule('EVER BUILD');
+        await scraper.cleanup();
+        
+        // ONLY clean JSON to stdout - logs go to stderr
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(result.success ? 0 : 1);
+      } catch (error) {
+        logger.error(`Everbuild scraper failed: ${error.message}`);
+        console.log(JSON.stringify({
+          success: false,
+          error: error.message,
+          terminal: 'Everbuild',
+          scraped_at: new Date().toISOString()
+        }, null, 2));
+        process.exit(1);
+      }
+      break;
+      
     default:
       console.log(`
 🚢 CS Shipping LCB - Vessel Automation
 
 Usage:
-  node vessel-scraper.js test      # Run test automation
-  node vessel-scraper.js schedule  # Start scheduled automation (every 6 hours)
-  node vessel-scraper.js lcb1      # Run LCB1 scraper only
+  node vessel-scraper.js test       # Run test automation (all terminals)
+  node vessel-scraper.js schedule   # Start scheduled automation (every 6 hours)
+  node vessel-scraper.js lcb1       # Run LCB1 scraper only
+  node vessel-scraper.js everbuild  # Run Everbuild scraper only
 
 Examples:
-  npm start                        # Same as 'test'
-  npm run lcb1                     # Run LCB1 scraper
+  npm start                         # Same as 'test'
+  npm run lcb1                      # Run LCB1 scraper
+  npm run everbuild                 # Run Everbuild scraper
       `);
       process.exit(0);
   }

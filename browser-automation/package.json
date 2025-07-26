@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node vessel-scraper.js",
     "lcb1": "node scrapers/lcb1-scraper.js",
+    "everbuild": "node scrapers/everbuild-scraper.js",
     "test": "node test-scrapers.js"
   },
   "dependencies": {

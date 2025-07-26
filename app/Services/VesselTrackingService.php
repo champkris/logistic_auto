@@ -41,10 +41,10 @@ class VesselTrackingService
             'method' => 'lcb1'
         ],
         'B2' => [
-            'name' => 'ECTT',
-            'url' => 'https://www.ectt.co.th/cookie-policy/',
+            'name' => 'ECTT/Everbuild',
+            'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp',
             'vessel_full' => 'EVER BUILD V.0794-074S',
-            'method' => 'ectt'
+            'method' => 'everbuild_browser'
         ]
     ];
 
@@ -312,6 +312,96 @@ class VesselTrackingService
             
         } catch (\Exception $e) {
             \Log::error("LCB1 Browser Automation Error: " . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'terminal' => $config['name'],
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'eta' => null,
+                'error' => 'Browser automation failed: ' . $e->getMessage(),
+                'search_method' => 'browser_automation_failed',
+                'checked_at' => now()
+            ];
+        }
+    }
+
+    protected function everbuild_browser($config)
+    {
+        try {
+            $vesselName = $config['vessel_name'];
+            \Log::info("Starting Everbuild browser automation for vessel: {$vesselName}");
+            
+            $browserAutomationPath = base_path('browser-automation');
+            
+            // FIXED: Use proc_open to separate stdout (JSON) from stderr (logs)
+            $command = "cd {$browserAutomationPath} && timeout 60 node everbuild-wrapper.js '{$vesselName}'";
+            
+            $descriptors = [
+                0 => ['pipe', 'r'],  // stdin
+                1 => ['pipe', 'w'],  // stdout (JSON)
+                2 => ['pipe', 'w']   // stderr (logs)
+            ];
+            
+            $process = proc_open($command, $descriptors, $pipes);
+            
+            if (is_resource($process)) {
+                fclose($pipes[0]); // Close stdin
+                
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
+                
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                
+                $returnCode = proc_close($process);
+                
+                // Log the browser automation logs for debugging
+                if (!empty($logOutput)) {
+                    \Log::info("Everbuild browser automation logs:", ['logs' => $logOutput]);
+                }
+                
+                if (!$jsonOutput) {
+                    throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
+                }
+                
+                $output = $jsonOutput;
+            } else {
+                throw new \Exception("Failed to start browser automation process");
+            }
+            
+            if (!$output) {
+                throw new \Exception("Browser automation failed: no output");
+            }
+            
+            // Parse the JSON result
+            $result = json_decode(trim($output), true);
+            
+            if (!$result) {
+                throw new \Exception("Invalid JSON from browser automation: " . substr($output, 0, 200));
+            }
+            
+            if (!$result['success']) {
+                throw new \Exception("Browser automation error: " . ($result['error'] ?? 'Unknown error'));
+            }
+            
+            // Convert to Laravel expected format
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => !empty($result['voyage_code']),
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'],
+                'eta' => $result['eta'],
+                'etd' => $result['etd'],
+                'search_method' => 'browser_automation',
+                'raw_data' => $result['raw_data'] ?? null,
+                'checked_at' => now()
+            ];
+            
+        } catch (\Exception $e) {
+            \Log::error("Everbuild Browser Automation Error: " . $e->getMessage());
             
             return [
                 'success' => false,
