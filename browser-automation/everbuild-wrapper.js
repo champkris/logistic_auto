@@ -2,7 +2,7 @@ const { EverbuildVesselScraper } = require('./scrapers/everbuild-scraper');
 
 // FIXED Everbuild Laravel wrapper - logs to stderr, clean JSON to stdout
 (async () => {
-    const vesselName = process.argv[2] || 'EVER BUILD';
+    const vesselName = process.argv[2] || 'EVER BUILD 0815-079S';
     
     const scraper = new EverbuildVesselScraper();
     

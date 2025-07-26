@@ -61,7 +61,7 @@ class VesselAutomationOrchestrator {
       logger.info('📋 Running Everbuild scraper...');
       try {
         await this.scrapers.everbuild.initialize();
-        results.everbuild = await this.scrapers.everbuild.scrapeVesselSchedule('EVER BUILD');
+        results.everbuild = await this.scrapers.everbuild.scrapeVesselSchedule('EVER BUILD 0815-079S');
         
         if (results.everbuild.success) {
           await this.scrapers.everbuild.sendToLaravel(results.everbuild);
@@ -240,7 +240,7 @@ async function main() {
       try {
         const scraper = new EverbuildVesselScraper();
         await scraper.initialize();
-        const result = await scraper.scrapeVesselSchedule('EVER BUILD');
+        const result = await scraper.scrapeVesselSchedule('EVER BUILD 0815-079S');
         await scraper.cleanup();
         
         // ONLY clean JSON to stdout - logs go to stderr

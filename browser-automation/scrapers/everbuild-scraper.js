@@ -105,7 +105,7 @@ class EverbuildVesselScraper {
     await new Promise(resolve => setTimeout(resolve, Math.max(50, actualDelay)));
   }
   
-  async scrapeVesselSchedule(vesselName = 'EVER BUILD') {
+  async scrapeVesselSchedule(vesselName = 'EVER BUILD 0815-079S') {
     try {
       logger.info(`🔍 Scraping Everbuild schedule for vessel: ${vesselName}`);
       
@@ -489,7 +489,7 @@ class EverbuildVesselScraper {
 
 // Main function for direct execution - outputs clean JSON to stdout
 async function main() {
-  const vesselName = process.argv[2] || 'EVER BUILD';
+  const vesselName = process.argv[2] || 'EVER BUILD 0815-079S';
   const scraper = new EverbuildVesselScraper();
   
   try {

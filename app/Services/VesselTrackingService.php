@@ -43,7 +43,7 @@ class VesselTrackingService
         'B2' => [
             'name' => 'ECTT/Everbuild',
             'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp',
-            'vessel_full' => 'EVER BUILD V.0794-074S',
+            'vessel_full' => 'EVER BUILD 0815-079S',
             'method' => 'everbuild_browser'
         ]
     ];
