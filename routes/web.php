@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 
 Route::get('/', App\Livewire\Dashboard::class)->name('dashboard');
+Route::get('/customers', App\Livewire\CustomerManager::class)->name('customers');
+Route::get('/shipments', App\Livewire\ShipmentManager::class)->name('shipments');
 
 Route::get('/welcome', function () {
     return view('welcome');
