@@ -1,85 +1,36 @@
 <!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ isset($title) ? $title . ' - ' : '' }}@yield('title', 'Logistics Automation - CS Shipping LCB')</title>
-    
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-    
-    <!-- TailwindCSS CDN (temporary fix) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Livewire Styles -->
-    @livewireStyles
-</head>
-<body class="bg-gray-100 font-sans antialiased">
-    <!-- Navigation -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <h1 class="text-xl font-bold text-gray-900">
-                            🚢 Logistics Automation
-                        </h1>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+
+        <title>{{ config('app.name', 'Laravel') }}</title>
+
+        <!-- Fonts -->
+        <link rel="preconnect" href="https://fonts.bunny.net">
+        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+
+        <!-- Scripts -->
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
+    </head>
+    <body class="font-sans antialiased">
+        <div class="min-h-screen bg-gray-100">
+            <livewire:layout.navigation />
+
+            <!-- Page Heading -->
+            @if (isset($header))
+                <header class="bg-white shadow">
+                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                        {{ $header }}
                     </div>
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="/" 
-                           class="border-blue-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Dashboard
-                        </a>
-                        <a href="/vessel-test" 
-                           class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            🚢 Vessel Test
-                        </a>
-                        <a href="#" 
-                           class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Shipments
-                        </a>
-                        <a href="#" 
-                           class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Documents
-                        </a>
-                        <a href="#" 
-                           class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Customers
-                        </a>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <div class="text-sm text-gray-500">
-                        CS Shipping LCB
-                    </div>
-                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span class="text-blue-600 font-medium">CS</span>
-                    </div>
-                </div>
-            </div>
+                </header>
+            @endif
+
+            <!-- Page Content -->
+            <main>
+                {{ $slot }}
+            </main>
         </div>
-    </nav>
-
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        @if(isset($slot))
-            {{ $slot }}
-        @else
-            @yield('content')
-        @endif
-    </main>
-
-    <!-- Livewire Scripts -->
-    @livewireScripts
-    
-    <!-- Additional Scripts -->
-    <script>
-        // Auto-refresh functionality for real-time updates
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Logistics Automation System Loaded');
-        });
-    </script>
-</body>
+    </body>
 </html>
