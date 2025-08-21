@@ -23,9 +23,9 @@ new class extends Component
             <div class="flex items-center">
                 <!-- Logo -->
                 <div class="flex-shrink-0">
-                    <h1 class="text-xl font-bold text-gray-900">
-                        🚢 Logistics Automation
-                    </h1>
+                    <a href="{{ route('dashboard') }}" wire:navigate>
+                        <x-application-logo class="h-10 w-auto" />
+                    </a>
                 </div>
 
                 <!-- Navigation Links -->
@@ -60,7 +60,7 @@ new class extends Component
             <!-- Settings Dropdown -->
             <div class="hidden sm:flex sm:items-center sm:space-x-4">
                 <div class="text-sm text-gray-500">
-                    CS Shipping LCB
+                    Eastern Air
                 </div>
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">

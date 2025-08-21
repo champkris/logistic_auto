@@ -1,6 +1,6 @@
-<div {{ $attributes->merge(['class' => 'flex items-center']) }}>
-    <div class="text-2xl mr-2">🚢</div>
-    <div class="font-bold text-lg text-gray-800">
-        CS Logistics
-    </div>
-</div>
+<img 
+    {{ $attributes->merge(['class' => 'h-12 w-auto']) }} 
+    src="{{ asset('assets/easternair_logo.png') }}" 
+    alt="Eastern Air Logo"
+    style="max-height: 48px; width: auto;"
+/>
