@@ -102,6 +102,9 @@
                                                 @if($shipment->mbl_number)
                                                     <br>MBL: {{ $shipment->mbl_number }}
                                                 @endif
+                                                @if($shipment->vessel_code)
+                                                    <br>Vessel Code: {{ $shipment->vessel_code }}
+                                                @endif
                                             </div>
                                         </div>
                                     </td>
@@ -276,6 +279,16 @@
                                    id="invoice_number"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                             @error('invoice_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Vessel Code -->
+                        <div class="md:col-span-1">
+                            <label for="vessel_code" class="block text-sm font-medium text-gray-700">Vessel Code</label>
+                            <input wire:model="vessel_code" 
+                                   type="text" 
+                                   id="vessel_code"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('vessel_code') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- Vessel -->

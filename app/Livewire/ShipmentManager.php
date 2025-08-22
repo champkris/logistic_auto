@@ -19,6 +19,7 @@ class ShipmentManager extends Component
     public $hbl_number = '';
     public $mbl_number = '';
     public $invoice_number = '';
+    public $vessel_code = '';
     public $customer_id = '';
     public $vessel_id = '';
     public $port_of_discharge = '';
@@ -64,6 +65,7 @@ class ShipmentManager extends Component
         'hbl_number' => 'nullable|string|max:255',
         'mbl_number' => 'nullable|string|max:255',
         'invoice_number' => 'nullable|string|max:255',
+        'vessel_code' => 'nullable|string|max:255',
         'vessel_id' => 'nullable|exists:vessels,id',
         'port_of_discharge' => 'required|string|max:255',
         'status' => 'required|in:new,planning,documents_preparation,customs_clearance,ready_for_delivery,in_transit,delivered,completed',
@@ -106,6 +108,7 @@ class ShipmentManager extends Component
                   ->orWhere('consignee', 'like', '%' . $this->search . '%')
                   ->orWhere('hbl_number', 'like', '%' . $this->search . '%')
                   ->orWhere('mbl_number', 'like', '%' . $this->search . '%')
+                  ->orWhere('vessel_code', 'like', '%' . $this->search . '%')
                   ->orWhereHas('customer', function ($q) {
                       $q->where('company', 'like', '%' . $this->search . '%');
                   });
@@ -144,6 +147,7 @@ class ShipmentManager extends Component
         $this->hbl_number = '';
         $this->mbl_number = '';
         $this->invoice_number = '';
+        $this->vessel_code = '';
         $this->customer_id = '';
         $this->vessel_id = '';
         $this->port_of_discharge = '';
@@ -193,6 +197,7 @@ class ShipmentManager extends Component
                 'hbl_number' => $this->hbl_number,
                 'mbl_number' => $this->mbl_number,
                 'invoice_number' => $this->invoice_number,
+                'vessel_code' => $this->vessel_code,
                 'customer_id' => $this->customer_id,
                 'vessel_id' => $this->vessel_id ?: null,
                 'port_of_discharge' => $this->port_of_discharge,
@@ -231,6 +236,7 @@ class ShipmentManager extends Component
             $this->hbl_number = $this->editingShipment->hbl_number;
             $this->mbl_number = $this->editingShipment->mbl_number;
             $this->invoice_number = $this->editingShipment->invoice_number;
+            $this->vessel_code = $this->editingShipment->vessel_code;
             $this->customer_id = $this->editingShipment->customer_id;
             $this->vessel_id = $this->editingShipment->vessel_id;
             $this->port_of_discharge = $this->editingShipment->port_of_discharge;

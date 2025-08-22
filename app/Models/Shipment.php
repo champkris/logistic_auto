@@ -15,6 +15,7 @@ class Shipment extends Model
         'hbl_number',
         'mbl_number',
         'invoice_number',
+        'vessel_code',
         'vessel_id',
         'customer_id',
         'port_of_discharge',
