@@ -105,6 +105,15 @@
                                                 @if($shipment->vessel_code)
                                                     <br>Vessel Code: {{ $shipment->vessel_code }}
                                                 @endif
+                                                @if($shipment->weight_kgm)
+                                                    <br>Weight: {{ $shipment->weight_kgm }} KGM
+                                                @endif
+                                                @if($shipment->fcl_type)
+                                                    <br>FCL: {{ $shipment->fcl_type }}
+                                                @endif
+                                                @if($shipment->thai_status)
+                                                    <br>Thai Status: {{ $shipment->thai_status }}
+                                                @endif
                                             </div>
                                         </div>
                                     </td>
@@ -137,9 +146,19 @@
                                                 📅 {{ $shipment->planned_delivery_date->format('M j, Y') }}
                                             </div>
                                         @endif
+                                        @if($shipment->do_pickup_date)
+                                            <div class="text-sm text-gray-500">
+                                                📦 DO: {{ $shipment->do_pickup_date->format('M j, Y H:i') }}
+                                            </div>
+                                        @endif
                                         @if($shipment->vessel)
                                             <div class="text-sm text-gray-500">
                                                 🚢 {{ $shipment->vessel->name }}
+                                            </div>
+                                        @endif
+                                        @if($shipment->berth_location)
+                                            <div class="text-sm text-gray-500">
+                                                🏗️ Berth: {{ $shipment->berth_location }}
                                             </div>
                                         @endif
                                     </td>
@@ -382,10 +401,111 @@
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                         </div>
 
+                        <!-- Quantity Days -->
+                        <div class="md:col-span-1">
+                            <label for="quantity_days" class="block text-sm font-medium text-gray-700">Quantity (Days)</label>
+                            <input wire:model="quantity_days"
+                                   type="number"
+                                   id="quantity_days"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('quantity_days') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- DO Pickup Date -->
+                        <div class="md:col-span-1">
+                            <label for="do_pickup_date" class="block text-sm font-medium text-gray-700">DO Pickup Date</label>
+                            <input wire:model="do_pickup_date"
+                                   type="datetime-local"
+                                   id="do_pickup_date"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('do_pickup_date') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Weight KGM -->
+                        <div class="md:col-span-1">
+                            <label for="weight_kgm" class="block text-sm font-medium text-gray-700">Weight (KGM)</label>
+                            <input wire:model="weight_kgm"
+                                   type="number"
+                                   step="0.01"
+                                   id="weight_kgm"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('weight_kgm') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- FCL Type -->
+                        <div class="md:col-span-1">
+                            <label for="fcl_type" class="block text-sm font-medium text-gray-700">FCL Type</label>
+                            <input wire:model="fcl_type"
+                                   type="text"
+                                   id="fcl_type"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('fcl_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Container Arrival -->
+                        <div class="md:col-span-1">
+                            <label for="container_arrival" class="block text-sm font-medium text-gray-700">Container Arrival</label>
+                            <input wire:model="container_arrival"
+                                   type="text"
+                                   id="container_arrival"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('container_arrival') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Berth Location -->
+                        <div class="md:col-span-1">
+                            <label for="berth_location" class="block text-sm font-medium text-gray-700">Berth Location</label>
+                            <input wire:model="berth_location"
+                                   type="text"
+                                   id="berth_location"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('berth_location') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Joint Pickup -->
+                        <div class="md:col-span-1">
+                            <label for="joint_pickup" class="block text-sm font-medium text-gray-700">Joint Pickup</label>
+                            <input wire:model="joint_pickup"
+                                   type="text"
+                                   id="joint_pickup"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('joint_pickup') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Customs Entry -->
+                        <div class="md:col-span-1">
+                            <label for="customs_entry" class="block text-sm font-medium text-gray-700">Customs Entry</label>
+                            <input wire:model="customs_entry"
+                                   type="text"
+                                   id="customs_entry"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('customs_entry') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Vessel Loading Status -->
+                        <div class="md:col-span-1">
+                            <label for="vessel_loading_status" class="block text-sm font-medium text-gray-700">Vessel Loading Status</label>
+                            <input wire:model="vessel_loading_status"
+                                   type="text"
+                                   id="vessel_loading_status"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('vessel_loading_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Thai Status -->
+                        <div class="md:col-span-1">
+                            <label for="thai_status" class="block text-sm font-medium text-gray-700">Thai Status</label>
+                            <input wire:model="thai_status"
+                                   type="text"
+                                   id="thai_status"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('thai_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
                         <!-- Notes -->
                         <div class="md:col-span-3">
                             <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
-                            <textarea wire:model="notes" 
+                            <textarea wire:model="notes"
                                       id="notes"
                                       rows="3"
                                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>

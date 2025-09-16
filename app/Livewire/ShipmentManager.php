@@ -7,7 +7,6 @@ use Livewire\WithPagination;
 use App\Models\Shipment;
 use App\Models\Customer;
 use App\Models\Vessel;
-use Illuminate\Validation\Rule;
 
 class ShipmentManager extends Component
 {
@@ -19,11 +18,21 @@ class ShipmentManager extends Component
     public $hbl_number = '';
     public $mbl_number = '';
     public $invoice_number = '';
+    public $quantity_days = '';
+    public $do_pickup_date = '';
+    public $weight_kgm = '';
+    public $fcl_type = '';
+    public $container_arrival = '';
     public $vessel_code = '';
     public $customer_id = '';
     public $vessel_id = '';
     public $port_of_discharge = '';
+    public $berth_location = '';
+    public $joint_pickup = '';
+    public $customs_entry = '';
+    public $vessel_loading_status = '';
     public $status = 'new';
+    public $thai_status = '';
     public $planned_delivery_date = '';
     public $total_cost = '';
     public $notes = '';
@@ -65,10 +74,20 @@ class ShipmentManager extends Component
         'hbl_number' => 'nullable|string|max:255',
         'mbl_number' => 'nullable|string|max:255',
         'invoice_number' => 'nullable|string|max:255',
+        'quantity_days' => 'nullable|integer|min:0',
+        'do_pickup_date' => 'nullable|date',
+        'weight_kgm' => 'nullable|numeric|min:0',
+        'fcl_type' => 'nullable|string|max:255',
+        'container_arrival' => 'nullable|string|max:255',
         'vessel_code' => 'nullable|string|max:255',
         'vessel_id' => 'nullable|exists:vessels,id',
         'port_of_discharge' => 'required|string|max:255',
+        'berth_location' => 'nullable|string|max:255',
+        'joint_pickup' => 'nullable|string|max:255',
+        'customs_entry' => 'nullable|string|max:255',
+        'vessel_loading_status' => 'nullable|string|max:255',
         'status' => 'required|in:new,planning,documents_preparation,customs_clearance,ready_for_delivery,in_transit,delivered,completed',
+        'thai_status' => 'nullable|string|max:255',
         'planned_delivery_date' => 'nullable|date|after_or_equal:today',
         'total_cost' => 'nullable|numeric|min:0',
         'notes' => 'nullable|string|max:1000',
@@ -122,8 +141,7 @@ class ShipmentManager extends Component
 
         $shipments = $query->orderBy('created_at', 'desc')->paginate(10);
 
-        return view('livewire.shipment-manager', compact('shipments'))
-            ->layout('layouts.app', ['title' => 'Shipment Management']);
+        return view('livewire.shipment-manager', compact('shipments'));
     }
 
     public function openModal()
@@ -147,11 +165,21 @@ class ShipmentManager extends Component
         $this->hbl_number = '';
         $this->mbl_number = '';
         $this->invoice_number = '';
+        $this->quantity_days = '';
+        $this->do_pickup_date = '';
+        $this->weight_kgm = '';
+        $this->fcl_type = '';
+        $this->container_arrival = '';
         $this->vessel_code = '';
         $this->customer_id = '';
         $this->vessel_id = '';
         $this->port_of_discharge = '';
+        $this->berth_location = '';
+        $this->joint_pickup = '';
+        $this->customs_entry = '';
+        $this->vessel_loading_status = '';
         $this->status = 'new';
+        $this->thai_status = '';
         $this->planned_delivery_date = '';
         $this->total_cost = '';
         $this->notes = '';
@@ -197,11 +225,21 @@ class ShipmentManager extends Component
                 'hbl_number' => $this->hbl_number,
                 'mbl_number' => $this->mbl_number,
                 'invoice_number' => $this->invoice_number,
+                'quantity_days' => $this->quantity_days ?: null,
+                'do_pickup_date' => $this->do_pickup_date ?: null,
+                'weight_kgm' => $this->weight_kgm ?: null,
+                'fcl_type' => $this->fcl_type,
+                'container_arrival' => $this->container_arrival,
                 'vessel_code' => $this->vessel_code,
                 'customer_id' => $this->customer_id,
                 'vessel_id' => $this->vessel_id ?: null,
                 'port_of_discharge' => $this->port_of_discharge,
+                'berth_location' => $this->berth_location,
+                'joint_pickup' => $this->joint_pickup,
+                'customs_entry' => $this->customs_entry,
+                'vessel_loading_status' => $this->vessel_loading_status,
                 'status' => $this->status,
+                'thai_status' => $this->thai_status,
                 'planned_delivery_date' => $this->planned_delivery_date ?: null,
                 'total_cost' => $this->total_cost ?: null,
                 'notes' => $this->notes,
@@ -236,20 +274,30 @@ class ShipmentManager extends Component
             $this->hbl_number = $this->editingShipment->hbl_number;
             $this->mbl_number = $this->editingShipment->mbl_number;
             $this->invoice_number = $this->editingShipment->invoice_number;
+            $this->quantity_days = $this->editingShipment->quantity_days;
+            $this->do_pickup_date = $this->editingShipment->do_pickup_date?->format('Y-m-d\\TH:i');
+            $this->weight_kgm = $this->editingShipment->weight_kgm;
+            $this->fcl_type = $this->editingShipment->fcl_type;
+            $this->container_arrival = $this->editingShipment->container_arrival;
             $this->vessel_code = $this->editingShipment->vessel_code;
             $this->customer_id = $this->editingShipment->customer_id;
             $this->vessel_id = $this->editingShipment->vessel_id;
             $this->port_of_discharge = $this->editingShipment->port_of_discharge;
+            $this->berth_location = $this->editingShipment->berth_location;
+            $this->joint_pickup = $this->editingShipment->joint_pickup;
+            $this->customs_entry = $this->editingShipment->customs_entry;
+            $this->vessel_loading_status = $this->editingShipment->vessel_loading_status;
             $this->status = $this->editingShipment->status;
+            $this->thai_status = $this->editingShipment->thai_status;
             $this->planned_delivery_date = $this->editingShipment->planned_delivery_date?->format('Y-m-d');
             $this->total_cost = $this->editingShipment->total_cost;
             $this->notes = $this->editingShipment->notes;
-            
+
             $cargoDetails = $this->editingShipment->cargo_details ?? [];
             $this->cargo_description = $cargoDetails['description'] ?? '';
             $this->cargo_weight = $cargoDetails['weight_kg'] ?? '';
             $this->cargo_volume = $cargoDetails['volume_cbm'] ?? '';
-            
+
             $this->showModal = true;
         }
     }
