@@ -78,115 +78,146 @@
         <div class="px-4 py-5 sm:p-6">
             @if($shipments->count() > 0)
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200 text-xs">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shipment</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consignee</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">CUSTOMERS</th>
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">INV.</th>
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">HBL</th>
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">MBL</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">สถานะใบขน</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ล่วงเวลา(OT)</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">สถานะDO</th>
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">สถานที่รับ</th>
+                                <th class="px-1 py-2 text-right text-xs font-medium text-gray-700 uppercase">KGM</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">FCL</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">วันจริง</th>
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">VESSEL NAME</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Voyage</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ท่าเรือ</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ขนส่ง</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">CS</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">จ่าย VSL</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">สถานะ</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($shipments as $shipment)
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div>
-                                            <div class="text-sm font-medium text-gray-900">{{ $shipment->shipment_number }}</div>
-                                            <div class="text-sm text-gray-500">
-                                                @if($shipment->hbl_number)
-                                                    HBL: {{ $shipment->hbl_number }}
-                                                @endif
-                                                @if($shipment->mbl_number)
-                                                    <br>MBL: {{ $shipment->mbl_number }}
-                                                @endif
-                                                @if($shipment->vessel_code)
-                                                    <br>Vessel Code: {{ $shipment->vessel_code }}
-                                                @endif
-                                                @if($shipment->weight_kgm)
-                                                    <br>Weight: {{ $shipment->weight_kgm }} KGM
-                                                @endif
-                                                @if($shipment->fcl_type)
-                                                    <br>FCL: {{ $shipment->fcl_type }}
-                                                @endif
-                                                @if($shipment->thai_status)
-                                                    <br>Thai Status: {{ $shipment->thai_status }}
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">{{ $shipment->customer->company ?? 'N/A' }}</div>
-                                        <div class="text-sm text-gray-500">{{ $shipment->customer->name ?? 'N/A' }}</div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">{{ $shipment->consignee }}</div>
-                                        <div class="text-sm text-gray-500">{{ $shipment->port_of_discharge }}</div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                            @switch($shipment->status_color)
-                                                @case('blue') bg-blue-100 text-blue-800 @break
-                                                @case('yellow') bg-yellow-100 text-yellow-800 @break
-                                                @case('orange') bg-orange-100 text-orange-800 @break
-                                                @case('purple') bg-purple-100 text-purple-800 @break
-                                                @case('green') bg-green-100 text-green-800 @break
-                                                @case('indigo') bg-indigo-100 text-indigo-800 @break
-                                                @case('emerald') bg-emerald-100 text-emerald-800 @break
-                                                @default bg-gray-100 text-gray-800
-                                            @endswitch">
-                                            {{ $statusOptions[$shipment->status] ?? $shipment->status }}
+                                @php
+                                    $rowClass = '';
+                                    if($shipment->customs_clearance_status === 'has_clearance' && $shipment->overtime_status === 'no_ot') {
+                                        $rowClass = 'bg-red-50';
+                                    } elseif($shipment->customs_clearance_status === 'has_clearance' && $shipment->overtime_status !== 'no_ot') {
+                                        $rowClass = 'bg-yellow-50';
+                                    }
+                                @endphp
+                                <tr class="hover:bg-gray-100 {{ $rowClass }}">
+                                    <!-- Customer -->
+                                    <td class="px-1 py-1 text-xs">{{ $shipment->customer->company ?? 'N/A' }}</td>
+
+                                    <!-- Invoice -->
+                                    <td class="px-1 py-1 text-xs">{{ $shipment->invoice_number ?? '-' }}</td>
+
+                                    <!-- HBL -->
+                                    <td class="px-1 py-1 text-xs">{{ $shipment->hbl_number ?? '-' }}</td>
+
+                                    <!-- MBL -->
+                                    <td class="px-1 py-1 text-xs">{{ $shipment->mbl_number ?? '-' }}</td>
+
+                                    <!-- Customs Status -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        <span class="px-1 py-0.5 rounded text-xs font-medium
+                                            @if($shipment->customs_clearance_status === 'has_clearance')
+                                                bg-yellow-200 text-yellow-800
+                                            @else
+                                                bg-gray-100 text-gray-700
+                                            @endif">
+                                            {{ $customsClearanceOptions[$shipment->customs_clearance_status] ?? '-' }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        @if($shipment->planned_delivery_date)
-                                            <div class="text-sm text-gray-900">
-                                                📅 {{ $shipment->planned_delivery_date->format('M j, Y') }}
-                                            </div>
-                                        @endif
-                                        @if($shipment->do_pickup_date)
-                                            <div class="text-sm text-gray-500">
-                                                📦 DO: {{ $shipment->do_pickup_date->format('M j, Y H:i') }}
-                                            </div>
-                                        @endif
-                                        @if($shipment->vessel)
-                                            <div class="text-sm text-gray-500">
-                                                🚢 {{ $shipment->vessel->name }}
-                                            </div>
-                                        @endif
-                                        @if($shipment->berth_location)
-                                            <div class="text-sm text-gray-500">
-                                                🏗️ Berth: {{ $shipment->berth_location }}
-                                            </div>
+
+                                    <!-- OT Status -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        <span class="px-1 py-0.5 rounded text-xs font-medium
+                                            @if($shipment->overtime_status === 'no_ot')
+                                                bg-red-200 text-red-800
+                                            @else
+                                                bg-yellow-200 text-yellow-800
+                                            @endif">
+                                            {{ $overtimeOptions[$shipment->overtime_status] ?? '-' }}
+                                        </span>
+                                    </td>
+
+                                    <!-- DO Status -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        <span class="px-1 py-0.5 rounded text-xs font-medium
+                                            @if($shipment->do_status === 'received')
+                                                bg-green-200 text-green-800
+                                            @else
+                                                bg-gray-100 text-gray-700
+                                            @endif">
+                                            {{ $doStatusOptions[$shipment->do_status] ?? '-' }}
+                                        </span>
+                                    </td>
+
+                                    <!-- Pickup Location (สถานที่รับ) -->
+                                    <td class="px-1 py-1 text-xs">{{ $shipment->shipping_line ?? '-' }}</td>
+
+                                    <!-- KGM -->
+                                    <td class="px-1 py-1 text-xs text-right">
+                                        @if($shipment->weight_kgm)
+                                            {{ number_format($shipment->weight_kgm, 2) }}
+                                        @else
+                                            -
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                        <button wire:click="edit({{ $shipment->id }})" 
-                                                class="text-blue-600 hover:text-blue-900">
-                                            ✏️ Edit
-                                        </button>
-                                        
-                                        <!-- Quick Status Updates -->
-                                        @if($shipment->status !== 'completed')
-                                            <div class="relative inline-block text-left">
-                                                <select wire:change="updateStatus({{ $shipment->id }}, $event.target.value)" 
-                                                        class="text-xs border-gray-300 rounded-md">
-                                                    <option value="">Status...</option>
-                                                    @foreach($statusOptions as $value => $label)
-                                                        @if($value !== $shipment->status)
-                                                            <option value="{{ $value }}">{{ $label }}</option>
-                                                        @endif
-                                                    @endforeach
-                                                </select>
-                                            </div>
+
+                                    <!-- FCL -->
+                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->fcl_type ?? '-' }}</td>
+
+                                    <!-- Actual Date -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        @if($shipment->actual_delivery_date)
+                                            {{ $shipment->actual_delivery_date->format('d-M') }}
+                                        @elseif($shipment->planned_delivery_date)
+                                            {{ $shipment->planned_delivery_date->format('d-M') }}
+                                        @else
+                                            -
                                         @endif
-                                        
-                                        <button wire:click="delete({{ $shipment->id }})" 
+                                    </td>
+
+                                    <!-- Vessel Name -->
+                                    <td class="px-1 py-1 text-xs">{{ $shipment->vessel->name ?? $shipment->vessel_code ?? '-' }}</td>
+
+                                    <!-- Voyage -->
+                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->voyage ?? '-' }}</td>
+
+                                    <!-- Port Terminal -->
+                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->port_terminal ?? '-' }}</td>
+
+                                    <!-- Transport Type -->
+                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->transport_type ?? '-' }}</td>
+
+                                    <!-- CS Reference -->
+                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->cs_reference ?? '-' }}</td>
+
+                                    <!-- VSL Payment -->
+                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->vsl_payment_status ?? '-' }}</td>
+
+                                    <!-- Final Status -->
+                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->final_status ?? '-' }}</td>
+
+                                    <!-- Actions -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        <button wire:click="edit({{ $shipment->id }})"
+                                                class="text-blue-600 hover:text-blue-900 text-xs">
+                                            ✏️
+                                        </button>
+                                        <button wire:click="delete({{ $shipment->id }})"
                                                 onclick="return confirm('Are you sure you want to delete this shipment?')"
-                                                class="text-red-600 hover:text-red-900">
-                                            🗑️ Delete
+                                                class="text-red-600 hover:text-red-900 text-xs ml-2">
+                                            🗑️
                                         </button>
                                     </td>
                                 </tr>
@@ -235,85 +266,138 @@
 
                 <!-- Modal Body -->
                 <form wire:submit.prevent="save" class="mt-4">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <!-- Shipment Number -->
-                        <div class="md:col-span-1">
-                            <label for="shipment_number" class="block text-sm font-medium text-gray-700">Shipment Number *</label>
-                            <input wire:model="shipment_number" 
-                                   type="text" 
-                                   id="shipment_number"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('shipment_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <!-- Row 1: Basic Info -->
                         <!-- Customer -->
-                        <div class="md:col-span-1">
+                        <div>
                             <label for="customer_id" class="block text-sm font-medium text-gray-700">Customer *</label>
-                            <select wire:model="customer_id" 
+                            <select wire:model="customer_id"
                                     id="customer_id"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 <option value="">Select Customer</option>
                                 @foreach($customers as $customer)
-                                    <option value="{{ $customer->id }}">{{ $customer->company }} ({{ $customer->name }})</option>
+                                    <option value="{{ $customer->id }}">{{ $customer->company }}</option>
                                 @endforeach
                             </select>
                             @error('customer_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Consignee -->
-                        <div class="md:col-span-1">
-                            <label for="consignee" class="block text-sm font-medium text-gray-700">Consignee *</label>
-                            <input wire:model="consignee" 
-                                   type="text" 
-                                   id="consignee"
+                        <!-- Invoice Number -->
+                        <div>
+                            <label for="invoice_number" class="block text-sm font-medium text-gray-700">INV.</label>
+                            <input wire:model="invoice_number"
+                                   type="text"
+                                   id="invoice_number"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('consignee') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            @error('invoice_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- HBL Number -->
-                        <div class="md:col-span-1">
-                            <label for="hbl_number" class="block text-sm font-medium text-gray-700">HBL Number</label>
-                            <input wire:model="hbl_number" 
-                                   type="text" 
+                        <div>
+                            <label for="hbl_number" class="block text-sm font-medium text-gray-700">HBL</label>
+                            <input wire:model="hbl_number"
+                                   type="text"
                                    id="hbl_number"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                             @error('hbl_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- MBL Number -->
-                        <div class="md:col-span-1">
-                            <label for="mbl_number" class="block text-sm font-medium text-gray-700">MBL Number</label>
-                            <input wire:model="mbl_number" 
-                                   type="text" 
+                        <div>
+                            <label for="mbl_number" class="block text-sm font-medium text-gray-700">MBL</label>
+                            <input wire:model="mbl_number"
+                                   type="text"
                                    id="mbl_number"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                             @error('mbl_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Invoice Number -->
-                        <div class="md:col-span-1">
-                            <label for="invoice_number" class="block text-sm font-medium text-gray-700">Invoice Number</label>
-                            <input wire:model="invoice_number" 
-                                   type="text" 
-                                   id="invoice_number"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('invoice_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        <!-- Row 2: Status Fields -->
+                        <!-- Customs Clearance Status -->
+                        <div>
+                            <label for="customs_clearance_status" class="block text-sm font-medium text-gray-700">สถานะใบขน *</label>
+                            <select wire:model="customs_clearance_status"
+                                    id="customs_clearance_status"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                @foreach($customsClearanceOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('customs_clearance_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Vessel Code -->
-                        <div class="md:col-span-1">
-                            <label for="vessel_code" class="block text-sm font-medium text-gray-700">Vessel Code</label>
-                            <input wire:model="vessel_code" 
-                                   type="text" 
-                                   id="vessel_code"
+                        <!-- Overtime Status -->
+                        <div>
+                            <label for="overtime_status" class="block text-sm font-medium text-gray-700">ล่วงเวลา (OT) *</label>
+                            <select wire:model="overtime_status"
+                                    id="overtime_status"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                @foreach($overtimeOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('overtime_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- DO Status -->
+                        <div>
+                            <label for="do_status" class="block text-sm font-medium text-gray-700">สถานะ DO *</label>
+                            <select wire:model="do_status"
+                                    id="do_status"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                @foreach($doStatusOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('do_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Pickup Location (สถานที่รับ) -->
+                        <div>
+                            <label for="shipping_line" class="block text-sm font-medium text-gray-700">สถานที่รับ</label>
+                            <input wire:model="shipping_line"
+                                   type="text"
+                                   id="shipping_line"
+                                   placeholder="เช่น โกดัง A, ลานจอดรถ B, ศูนย์กระจายสินค้า"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('vessel_code') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Row 3: Weight and Container Info -->
+                        <!-- Weight KGM -->
+                        <div>
+                            <label for="weight_kgm" class="block text-sm font-medium text-gray-700">KGM</label>
+                            <input wire:model="weight_kgm"
+                                   type="number"
+                                   step="0.01"
+                                   id="weight_kgm"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('weight_kgm') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- FCL Type -->
+                        <div>
+                            <label for="fcl_type" class="block text-sm font-medium text-gray-700">FCL</label>
+                            <input wire:model="fcl_type"
+                                   type="text"
+                                   id="fcl_type"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('fcl_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Planned Delivery Date (วันจริง) -->
+                        <div>
+                            <label for="planned_delivery_date" class="block text-sm font-medium text-gray-700">วันจริง</label>
+                            <input wire:model="planned_delivery_date"
+                                   type="date"
+                                   id="planned_delivery_date"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('planned_delivery_date') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- Vessel -->
-                        <div class="md:col-span-1">
-                            <label for="vessel_id" class="block text-sm font-medium text-gray-700">Vessel</label>
-                            <select wire:model="vessel_id" 
+                        <div>
+                            <label for="vessel_id" class="block text-sm font-medium text-gray-700">VESSEL NAME</label>
+                            <select wire:model="vessel_id"
                                     id="vessel_id"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 <option value="">Select Vessel</option>
@@ -324,10 +408,94 @@
                             @error('vessel_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
+                        <!-- Row 4: Additional Fields -->
+                        <!-- Voyage -->
+                        <div>
+                            <label for="voyage" class="block text-sm font-medium text-gray-700">Voyage</label>
+                            <input wire:model="voyage"
+                                   type="text"
+                                   id="voyage"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('voyage') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Port Terminal -->
+                        <div>
+                            <label for="port_terminal" class="block text-sm font-medium text-gray-700">ท่าเรือ</label>
+                            <select wire:model="port_terminal"
+                                    id="port_terminal"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="">Select Terminal</option>
+                                @foreach($portTerminalOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('port_terminal') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Transport Type -->
+                        <div>
+                            <label for="transport_type" class="block text-sm font-medium text-gray-700">ขนส่ง</label>
+                            <select wire:model="transport_type"
+                                    id="transport_type"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="">Select Transport</option>
+                                @foreach($transportTypeOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('transport_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- CS Reference -->
+                        <div>
+                            <label for="cs_reference" class="block text-sm font-medium text-gray-700">CS</label>
+                            <input wire:model="cs_reference"
+                                   type="text"
+                                   id="cs_reference"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('cs_reference') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- VSL Payment Status -->
+                        <div>
+                            <label for="vsl_payment_status" class="block text-sm font-medium text-gray-700">จ่าย VSL</label>
+                            <input wire:model="vsl_payment_status"
+                                   type="text"
+                                   id="vsl_payment_status"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('vsl_payment_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Final Status -->
+                        <div>
+                            <label for="final_status" class="block text-sm font-medium text-gray-700">สถานะ</label>
+                            <select wire:model="final_status"
+                                    id="final_status"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="">Select Final Status</option>
+                                @foreach($finalStatusOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('final_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Row 4: Additional Info -->
+                        <!-- Shipment Number -->
+                        <div>
+                            <label for="shipment_number" class="block text-sm font-medium text-gray-700">Shipment Number *</label>
+                            <input wire:model="shipment_number"
+                                   type="text"
+                                   id="shipment_number"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('shipment_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
                         <!-- Port of Discharge -->
-                        <div class="md:col-span-1">
+                        <div>
                             <label for="port_of_discharge" class="block text-sm font-medium text-gray-700">Port of Discharge *</label>
-                            <select wire:model="port_of_discharge" 
+                            <select wire:model="port_of_discharge"
                                     id="port_of_discharge"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 <option value="">Select Port</option>
@@ -339,9 +507,9 @@
                         </div>
 
                         <!-- Status -->
-                        <div class="md:col-span-1">
+                        <div>
                             <label for="status" class="block text-sm font-medium text-gray-700">Status *</label>
-                            <select wire:model="status" 
+                            <select wire:model="status"
                                     id="status"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 @foreach($statusOptions as $value => $label)
@@ -351,68 +519,18 @@
                             @error('status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Planned Delivery Date -->
-                        <div class="md:col-span-1">
-                            <label for="planned_delivery_date" class="block text-sm font-medium text-gray-700">Planned Delivery Date</label>
-                            <input wire:model="planned_delivery_date" 
-                                   type="date" 
-                                   id="planned_delivery_date"
+                        <!-- Vessel Code -->
+                        <div>
+                            <label for="vessel_code" class="block text-sm font-medium text-gray-700">Vessel Code</label>
+                            <input wire:model="vessel_code"
+                                   type="text"
+                                   id="vessel_code"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('planned_delivery_date') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Total Cost -->
-                        <div class="md:col-span-1">
-                            <label for="total_cost" class="block text-sm font-medium text-gray-700">Total Cost (THB)</label>
-                            <input wire:model="total_cost" 
-                                   type="number" 
-                                   step="0.01"
-                                   id="total_cost"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('total_cost') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Cargo Description -->
-                        <div class="md:col-span-1">
-                            <label for="cargo_description" class="block text-sm font-medium text-gray-700">Cargo Description</label>
-                            <input wire:model="cargo_description" 
-                                   type="text" 
-                                   id="cargo_description"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                        </div>
-
-                        <!-- Cargo Weight -->
-                        <div class="md:col-span-1">
-                            <label for="cargo_weight" class="block text-sm font-medium text-gray-700">Weight (KG)</label>
-                            <input wire:model="cargo_weight" 
-                                   type="number" 
-                                   step="0.01"
-                                   id="cargo_weight"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                        </div>
-
-                        <!-- Cargo Volume -->
-                        <div class="md:col-span-1">
-                            <label for="cargo_volume" class="block text-sm font-medium text-gray-700">Volume (CBM)</label>
-                            <input wire:model="cargo_volume" 
-                                   type="number" 
-                                   step="0.01"
-                                   id="cargo_volume"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                        </div>
-
-                        <!-- Quantity Days -->
-                        <div class="md:col-span-1">
-                            <label for="quantity_days" class="block text-sm font-medium text-gray-700">Quantity (Days)</label>
-                            <input wire:model="quantity_days"
-                                   type="number"
-                                   id="quantity_days"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('quantity_days') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            @error('vessel_code') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- DO Pickup Date -->
-                        <div class="md:col-span-1">
+                        <div>
                             <label for="do_pickup_date" class="block text-sm font-medium text-gray-700">DO Pickup Date</label>
                             <input wire:model="do_pickup_date"
                                    type="datetime-local"
@@ -421,29 +539,9 @@
                             @error('do_pickup_date') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Weight KGM -->
-                        <div class="md:col-span-1">
-                            <label for="weight_kgm" class="block text-sm font-medium text-gray-700">Weight (KGM)</label>
-                            <input wire:model="weight_kgm"
-                                   type="number"
-                                   step="0.01"
-                                   id="weight_kgm"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('weight_kgm') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- FCL Type -->
-                        <div class="md:col-span-1">
-                            <label for="fcl_type" class="block text-sm font-medium text-gray-700">FCL Type</label>
-                            <input wire:model="fcl_type"
-                                   type="text"
-                                   id="fcl_type"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('fcl_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
+                        <!-- Row 5: Additional Fields -->
                         <!-- Container Arrival -->
-                        <div class="md:col-span-1">
+                        <div>
                             <label for="container_arrival" class="block text-sm font-medium text-gray-700">Container Arrival</label>
                             <input wire:model="container_arrival"
                                    type="text"
@@ -453,7 +551,7 @@
                         </div>
 
                         <!-- Berth Location -->
-                        <div class="md:col-span-1">
+                        <div>
                             <label for="berth_location" class="block text-sm font-medium text-gray-700">Berth Location</label>
                             <input wire:model="berth_location"
                                    type="text"
@@ -462,18 +560,8 @@
                             @error('berth_location') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Joint Pickup -->
-                        <div class="md:col-span-1">
-                            <label for="joint_pickup" class="block text-sm font-medium text-gray-700">Joint Pickup</label>
-                            <input wire:model="joint_pickup"
-                                   type="text"
-                                   id="joint_pickup"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('joint_pickup') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
                         <!-- Customs Entry -->
-                        <div class="md:col-span-1">
+                        <div>
                             <label for="customs_entry" class="block text-sm font-medium text-gray-700">Customs Entry</label>
                             <input wire:model="customs_entry"
                                    type="text"
@@ -482,28 +570,19 @@
                             @error('customs_entry') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Vessel Loading Status -->
-                        <div class="md:col-span-1">
-                            <label for="vessel_loading_status" class="block text-sm font-medium text-gray-700">Vessel Loading Status</label>
-                            <input wire:model="vessel_loading_status"
-                                   type="text"
-                                   id="vessel_loading_status"
+                        <!-- Total Cost -->
+                        <div>
+                            <label for="total_cost" class="block text-sm font-medium text-gray-700">Total Cost (THB)</label>
+                            <input wire:model="total_cost"
+                                   type="number"
+                                   step="0.01"
+                                   id="total_cost"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('vessel_loading_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            @error('total_cost') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Thai Status -->
-                        <div class="md:col-span-1">
-                            <label for="thai_status" class="block text-sm font-medium text-gray-700">Thai Status</label>
-                            <input wire:model="thai_status"
-                                   type="text"
-                                   id="thai_status"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('thai_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Notes -->
-                        <div class="md:col-span-3">
+                        <!-- Notes (full width) -->
+                        <div class="md:col-span-4">
                             <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
                             <textarea wire:model="notes"
                                       id="notes"

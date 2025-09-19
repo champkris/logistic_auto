@@ -14,7 +14,6 @@ class ShipmentManager extends Component
 
     // Form properties
     public $shipment_number = '';
-    public $consignee = '';
     public $hbl_number = '';
     public $mbl_number = '';
     public $invoice_number = '';
@@ -30,14 +29,24 @@ class ShipmentManager extends Component
     public $berth_location = '';
     public $joint_pickup = '';
     public $customs_entry = '';
+    public $customs_clearance_status = 'no_clearance';
+    public $overtime_status = 'no_ot';
+    public $do_status = 'not_received';
     public $vessel_loading_status = '';
+    public $voyage = '';
+    public $port_terminal = '';
+    public $transport_type = '';
+    public $cs_reference = '';
+    public $vsl_payment_status = '';
     public $status = 'new';
+    public $final_status = '';
     public $thai_status = '';
     public $planned_delivery_date = '';
     public $total_cost = '';
     public $notes = '';
     public $cargo_description = '';
     public $cargo_weight = '';
+    public $shipping_line = '';
     public $cargo_volume = '';
     
     // Modal and state management
@@ -60,6 +69,22 @@ class ShipmentManager extends Component
         'completed' => 'Completed',
     ];
 
+    public $customsClearanceOptions = [
+        'no_clearance' => 'ยังไม่ได้ใบขน',
+        'has_clearance' => 'ได้ใบขนแล้ว',
+    ];
+
+    public $overtimeOptions = [
+        'no_ot' => 'ไม่มี OT',
+        'ot_1_period' => 'OT 1 ช่วง',
+        'ot_2_periods' => 'OT 2 ช่วง',
+    ];
+
+    public $doStatusOptions = [
+        'not_received' => 'ไม่ได้รับ',
+        'received' => 'ได้รับ',
+    ];
+
     public $portOptions = [
         'Laem Chabang' => 'Laem Chabang',
         'Bangkok Port' => 'Bangkok Port',
@@ -67,9 +92,37 @@ class ShipmentManager extends Component
         'Sattahip' => 'Sattahip',
     ];
 
+    public $portTerminalOptions = [
+        'A0' => 'A0',
+        'A3' => 'A3',
+        'B1' => 'B1',
+        'B3' => 'B3',
+        'B4' => 'B4',
+        'C1' => 'C1',
+        'C3' => 'C3',
+    ];
+
+    public $transportTypeOptions = [
+        'PUI' => 'PUI',
+        'FRANK' => 'FRANK',
+        'GUS' => 'GUS',
+        'MON' => 'MON',
+        'NOON' => 'NOON',
+        'TOON' => 'TOON',
+        'ING' => 'ING',
+        'JOW' => 'JOW',
+    ];
+
+    public $finalStatusOptions = [
+        'MEW' => 'MEW',
+        'MON' => 'MON',
+        'NOON' => 'NOON',
+        'ING' => 'ING',
+        'JOW' => 'JOW',
+    ];
+
     protected $rules = [
         'shipment_number' => 'required|string|max:255',
-        'consignee' => 'required|string|max:255',
         'customer_id' => 'required|exists:customers,id',
         'hbl_number' => 'nullable|string|max:255',
         'mbl_number' => 'nullable|string|max:255',
@@ -85,20 +138,29 @@ class ShipmentManager extends Component
         'berth_location' => 'nullable|string|max:255',
         'joint_pickup' => 'nullable|string|max:255',
         'customs_entry' => 'nullable|string|max:255',
+        'customs_clearance_status' => 'required|in:no_clearance,has_clearance',
+        'overtime_status' => 'required|in:no_ot,ot_1_period,ot_2_periods',
+        'do_status' => 'required|in:not_received,received',
         'vessel_loading_status' => 'nullable|string|max:255',
+        'voyage' => 'nullable|string|max:255',
+        'port_terminal' => 'nullable|string|max:255',
+        'transport_type' => 'nullable|string|max:255',
+        'cs_reference' => 'nullable|string|max:255',
+        'vsl_payment_status' => 'nullable|string|max:255',
         'status' => 'required|in:new,planning,documents_preparation,customs_clearance,ready_for_delivery,in_transit,delivered,completed',
+        'final_status' => 'nullable|string|max:255',
         'thai_status' => 'nullable|string|max:255',
         'planned_delivery_date' => 'nullable|date|after_or_equal:today',
         'total_cost' => 'nullable|numeric|min:0',
         'notes' => 'nullable|string|max:1000',
         'cargo_description' => 'nullable|string|max:500',
         'cargo_weight' => 'nullable|numeric|min:0',
+        'shipping_line' => 'nullable|string|max:255',
         'cargo_volume' => 'nullable|numeric|min:0',
     ];
 
     protected $messages = [
         'shipment_number.required' => 'Shipment number is required.',
-        'consignee.required' => 'Consignee name is required.',
         'customer_id.required' => 'Please select a customer.',
         'customer_id.exists' => 'Selected customer does not exist.',
         'port_of_discharge.required' => 'Port of discharge is required.',
@@ -124,7 +186,6 @@ class ShipmentManager extends Component
         if ($this->search) {
             $query->where(function ($q) {
                 $q->where('shipment_number', 'like', '%' . $this->search . '%')
-                  ->orWhere('consignee', 'like', '%' . $this->search . '%')
                   ->orWhere('hbl_number', 'like', '%' . $this->search . '%')
                   ->orWhere('mbl_number', 'like', '%' . $this->search . '%')
                   ->orWhere('vessel_code', 'like', '%' . $this->search . '%')
@@ -161,7 +222,6 @@ class ShipmentManager extends Component
     {
         $this->editingShipment = null;
         $this->shipment_number = $this->generateShipmentNumber();
-        $this->consignee = '';
         $this->hbl_number = '';
         $this->mbl_number = '';
         $this->invoice_number = '';
@@ -177,14 +237,24 @@ class ShipmentManager extends Component
         $this->berth_location = '';
         $this->joint_pickup = '';
         $this->customs_entry = '';
+        $this->customs_clearance_status = 'no_clearance';
+        $this->overtime_status = 'no_ot';
+        $this->do_status = 'not_received';
         $this->vessel_loading_status = '';
+        $this->voyage = '';
+        $this->port_terminal = '';
+        $this->transport_type = '';
+        $this->cs_reference = '';
+        $this->vsl_payment_status = '';
         $this->status = 'new';
+        $this->final_status = '';
         $this->thai_status = '';
         $this->planned_delivery_date = '';
         $this->total_cost = '';
         $this->notes = '';
         $this->cargo_description = '';
         $this->cargo_weight = '';
+        $this->shipping_line = '';
         $this->cargo_volume = '';
     }
 
@@ -221,7 +291,6 @@ class ShipmentManager extends Component
 
             $shipmentData = [
                 'shipment_number' => $this->shipment_number,
-                'consignee' => $this->consignee,
                 'hbl_number' => $this->hbl_number,
                 'mbl_number' => $this->mbl_number,
                 'invoice_number' => $this->invoice_number,
@@ -237,13 +306,23 @@ class ShipmentManager extends Component
                 'berth_location' => $this->berth_location,
                 'joint_pickup' => $this->joint_pickup,
                 'customs_entry' => $this->customs_entry,
+                'customs_clearance_status' => $this->customs_clearance_status,
+                'overtime_status' => $this->overtime_status,
+                'do_status' => $this->do_status,
                 'vessel_loading_status' => $this->vessel_loading_status,
+                'voyage' => $this->voyage,
+                'port_terminal' => $this->port_terminal,
+                'transport_type' => $this->transport_type,
+                'cs_reference' => $this->cs_reference,
+                'vsl_payment_status' => $this->vsl_payment_status,
                 'status' => $this->status,
+                'final_status' => $this->final_status,
                 'thai_status' => $this->thai_status,
                 'planned_delivery_date' => $this->planned_delivery_date ?: null,
                 'total_cost' => $this->total_cost ?: null,
                 'notes' => $this->notes,
                 'cargo_details' => $cargoDetails,
+                'shipping_line' => $this->shipping_line,
             ];
 
             if ($this->editingShipment) {
@@ -270,7 +349,6 @@ class ShipmentManager extends Component
         
         if ($this->editingShipment) {
             $this->shipment_number = $this->editingShipment->shipment_number;
-            $this->consignee = $this->editingShipment->consignee;
             $this->hbl_number = $this->editingShipment->hbl_number;
             $this->mbl_number = $this->editingShipment->mbl_number;
             $this->invoice_number = $this->editingShipment->invoice_number;
@@ -286,8 +364,17 @@ class ShipmentManager extends Component
             $this->berth_location = $this->editingShipment->berth_location;
             $this->joint_pickup = $this->editingShipment->joint_pickup;
             $this->customs_entry = $this->editingShipment->customs_entry;
+            $this->customs_clearance_status = $this->editingShipment->customs_clearance_status ?? 'no_clearance';
+            $this->overtime_status = $this->editingShipment->overtime_status ?? 'no_ot';
+            $this->do_status = $this->editingShipment->do_status ?? 'not_received';
             $this->vessel_loading_status = $this->editingShipment->vessel_loading_status;
+            $this->voyage = $this->editingShipment->voyage;
+            $this->port_terminal = $this->editingShipment->port_terminal;
+            $this->transport_type = $this->editingShipment->transport_type;
+            $this->cs_reference = $this->editingShipment->cs_reference;
+            $this->vsl_payment_status = $this->editingShipment->vsl_payment_status;
             $this->status = $this->editingShipment->status;
+            $this->final_status = $this->editingShipment->final_status;
             $this->thai_status = $this->editingShipment->thai_status;
             $this->planned_delivery_date = $this->editingShipment->planned_delivery_date?->format('Y-m-d');
             $this->total_cost = $this->editingShipment->total_cost;
@@ -297,6 +384,7 @@ class ShipmentManager extends Component
             $this->cargo_description = $cargoDetails['description'] ?? '';
             $this->cargo_weight = $cargoDetails['weight_kg'] ?? '';
             $this->cargo_volume = $cargoDetails['volume_cbm'] ?? '';
+            $this->shipping_line = $this->editingShipment->shipping_line ?? '';
 
             $this->showModal = true;
         }

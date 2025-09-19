@@ -150,7 +150,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'html_size' => $result['html_size'] ?? 0,
                 'status_code' => $result['status_code'] ?? 200,
                 'checked_at' => $result['checked_at'] ?? now()->format('Y-m-d H:i:s'),
-                'raw_data' => isset($result['raw_data']) ? substr($result['raw_data'], 0, 500) : null
+                'raw_data' => isset($result['raw_data']) && is_string($result['raw_data']) ? substr($result['raw_data'], 0, 500) : null
             ];
 
             return response()->json([
@@ -184,6 +184,94 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::view('profile', 'profile')
     ->middleware(['auth'])
     ->name('profile');
+
+// Public vessel test page (for testing without authentication)
+Route::get('/vessel-test-public', function () {
+    return view('vessel-test');
+})->name('vessel-test-public');
+
+// Test route for vessel tracking (temporarily outside auth for testing)
+Route::post('/vessel-test-public/single', function (Request $request) {
+    $vesselService = new \App\Services\VesselTrackingService();
+
+    try {
+        // Validate input
+        $request->validate([
+            'vessel_name' => 'required|string|max:255',
+            'voyage_code' => 'nullable|string|max:100',
+            'terminal' => 'required|string|in:C1C2,B4,B5C3,B3,A0B1,B2'
+        ]);
+
+        $vesselName = trim($request->input('vessel_name'));
+        $voyageCode = trim($request->input('voyage_code'));
+        $terminalCode = $request->input('terminal');
+
+        // Get terminal configuration
+        $terminals = $vesselService->getTerminals();
+        if (!isset($terminals[$terminalCode])) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid terminal code: ' . $terminalCode
+            ], 400);
+        }
+
+        $terminalConfig = $terminals[$terminalCode];
+        
+        // Override with user-provided vessel data
+        $testConfig = array_merge($terminalConfig, [
+            'vessel_name' => $vesselName,
+            'voyage_code' => $voyageCode,
+            'vessel_full' => $voyageCode ? "$vesselName $voyageCode" : $vesselName
+        ]);
+
+        // Run the test
+        $result = $vesselService->checkVesselETA($terminalCode, $testConfig);
+
+        // Transform result to match frontend expectations
+        $transformedResult = [
+            'terminal' => $result['terminal'] ?? $terminalConfig['name'],
+            'vessel_name' => $vesselName,
+            'voyage_code' => $voyageCode,
+            'vessel_full' => $testConfig['vessel_full'],
+            'successful' => $result['success'] ?? false,
+            'success' => $result['success'] ?? false,
+            'vessel_found' => $result['vessel_found'] ?? false,
+            'voyage_found' => $result['voyage_found'] ?? false,
+            'full_name_found' => $result['vessel_found'] ?? false,
+            'search_method' => $result['search_method'] ?? 'unknown',
+            'eta' => $result['eta'] ?? null,
+            'error' => $result['error'] ?? null,
+            'html_size' => $result['html_size'] ?? 0,
+            'status_code' => $result['status_code'] ?? 200,
+            'checked_at' => $result['checked_at'] ?? now()->format('Y-m-d H:i:s'),
+            'raw_data' => isset($result['raw_data']) && is_string($result['raw_data']) ? substr($result['raw_data'], 0, 500) : null
+        ];
+
+        return response()->json([
+            'success' => true,
+            'result' => $transformedResult,
+            'terminal_code' => $terminalCode,
+            'search_query' => [
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'terminal' => $terminalConfig['name']
+            ]
+        ]);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'error' => 'Validation failed',
+            'validation_errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => 'Single vessel test failed: ' . $e->getMessage(),
+            'timestamp' => now()->format('Y-m-d H:i:s')
+        ], 500);
+    }
+})->name('vessel-test-public.single');
 
 // Authentication Routes
 require __DIR__.'/auth.php';

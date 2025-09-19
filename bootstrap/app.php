@@ -12,7 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->validateCsrfTokens(except: [
+            'vessel-test-public/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

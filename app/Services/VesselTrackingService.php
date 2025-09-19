@@ -280,16 +280,15 @@ class VesselTrackingService
                 throw new \Exception("Browser automation failed: no output");
             }
             
-            if (!$output) {
-                throw new \Exception("Browser automation failed: no output");
-            }
-            
             // Parse the JSON result
             $result = json_decode(trim($output), true);
             
             if (!$result) {
                 throw new \Exception("Invalid JSON from browser automation: " . substr($output, 0, 200));
             }
+            
+            // Log the parsed result for debugging
+            \Log::info("LCB1 Browser Automation Result:", ['result' => $result]);
             
             // Check if this is a "no data found" scenario vs actual error
             if (!$result['success']) {

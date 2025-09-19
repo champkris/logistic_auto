@@ -238,7 +238,7 @@ class LCB1VesselScraper {
       }
       
       // Select the target vessel with enhanced selection
-      await this.page.evaluate((vesselName) => {
+      const vesselSelected = await this.page.evaluate((vesselName) => {
         const select = document.querySelector('select');
         const options = Array.from(select.options);
         const targetOption = options.find(opt => opt.text.includes(vesselName));
@@ -255,6 +255,11 @@ class LCB1VesselScraper {
         console.log(`Vessel ${vesselName} not found in options`);
         return false;
       }, vesselName);
+      
+      if (!vesselSelected) {
+        logger.warn(`⚠️ Vessel ${vesselName} not found in dropdown`);
+        throw new Error(`Vessel ${vesselName} not found in dropdown options`);
+      }
       
       logger.info(`✅ Selected vessel: ${vesselName}`);
       
@@ -337,24 +342,28 @@ class LCB1VesselScraper {
       // Wait specifically for the schedule table to load
       logger.info('⏳ Waiting for schedule table...');
       
+      // Add a delay after clicking search to ensure request is sent
+      await this.delay(1000);
+      
       try {
         // Wait for the grid table with data to appear
-        await this.page.waitForSelector('#grid tbody tr', { timeout: 20000 });
+        await this.page.waitForSelector('#grid tbody tr', { timeout: 30000 });
         logger.info('📊 Schedule table loaded successfully!');
       } catch (waitError) {
         logger.warn('⚠️ Grid table not found, trying fallback detection...');
         
         // Fallback: wait for any content that suggests schedule data loaded
         try {
-          await this.page.waitForFunction(() => {
+          await this.page.waitForFunction((targetVessel) => {
             const body = document.body.textContent;
-            return (body.includes('MARSA PRIDE') && body.includes('528')) ||
+            return body.includes(targetVessel) ||
                    body.includes('Voyage In') ||
-                   body.includes('Berthing Time');
-          }, { timeout: 15000 });
+                   body.includes('Berthing Time') ||
+                   document.querySelector('#grid tbody tr');
+          }, { timeout: 20000 }, vesselName);
           logger.info('📊 Schedule data detected via fallback method');
         } catch (fallbackError) {
-          logger.warn('⚠️ No schedule data detected after 35s total');
+          logger.warn('⚠️ No schedule data detected after 50s total');
         }
       }
       
@@ -545,7 +554,7 @@ class LCB1VesselScraper {
     if (!dateTimeString) return null;
     
     // Handle various date formats found on LCB1
-    // Examples: "22/07/2025 - 04:00", "22/07/2025", "04:00"
+    // Examples: "09/09/2025 - 21:00", "22/07/2025", "04:00"
     
     const datePatterns = [
       // DD/MM/YYYY HH:MM or DD/MM/YYYY - HH:MM
@@ -566,8 +575,11 @@ class LCB1VesselScraper {
           const hour = match[4] ? parseInt(match[4]) : 0;
           const minute = match[5] ? parseInt(match[5]) : 0;
           
-          const date = new Date(year, month, day, hour, minute);
-          return date.toISOString().slice(0, 19).replace('T', ' '); // YYYY-MM-DD HH:MM:SS format
+          // Create date in local timezone (Thailand time)
+          // Note: LCB1 times are in Bangkok timezone (UTC+7)
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+          
+          return dateStr; // Return in YYYY-MM-DD HH:MM:SS format
         } catch (parseError) {
           continue;
         }

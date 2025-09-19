@@ -216,7 +216,7 @@
             resultContainer.innerHTML = '<p class="text-blue-600">🔄 Testing vessel on selected terminal...</p>';
             
             try {
-                const response = await fetch('/vessel-test/single', {
+                const response = await fetch('/vessel-test-public/single', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
