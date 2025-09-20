@@ -49,21 +49,9 @@ class ShipmentManager extends Component
     public $customers = [];
     public $vessels = [];
 
-    public $customsClearanceOptions = [
-        'no_clearance' => 'ยังไม่ได้ใบขน',
-        'has_clearance' => 'ได้ใบขนแล้ว',
-    ];
-
-    public $overtimeOptions = [
-        'no_ot' => 'ไม่มี OT',
-        'ot_1_period' => 'OT 1 ช่วง',
-        'ot_2_periods' => 'OT 2 ช่วง',
-    ];
-
-    public $doStatusOptions = [
-        'not_received' => 'ไม่ได้รับ',
-        'received' => 'ได้รับ',
-    ];
+    public $customsClearanceOptions = [];
+    public $overtimeOptions = [];
+    public $doStatusOptions = [];
 
     public $portTerminalOptions = [
         'A0' => 'A0',
@@ -153,21 +141,28 @@ class ShipmentManager extends Component
 
         // Load customs clearance status options
         $dynamicCustoms = DropdownSetting::getFieldOptions('customs_clearance_status');
-        if (!empty($dynamicCustoms)) {
-            $this->customsClearanceOptions = $dynamicCustoms;
-        }
+        $this->customsClearanceOptions = !empty($dynamicCustoms) ? $dynamicCustoms : [
+            'pending' => 'ยังไม่ได้ใบขน',
+            'received' => 'ได้ใบขนแล้ว',
+            'processing' => 'กำลังดำเนินการ',
+        ];
 
         // Load overtime status options
         $dynamicOvertime = DropdownSetting::getFieldOptions('overtime_status');
-        if (!empty($dynamicOvertime)) {
-            $this->overtimeOptions = $dynamicOvertime;
-        }
+        $this->overtimeOptions = !empty($dynamicOvertime) ? $dynamicOvertime : [
+            'none' => 'ไม่มี OT',
+            'ot1' => 'OT 1 ช่วง',
+            'ot2' => 'OT 2 ช่วง',
+            'ot3' => 'OT 3 ช่วง',
+        ];
 
         // Load DO status options
         $dynamicDoStatus = DropdownSetting::getFieldOptions('do_status');
-        if (!empty($dynamicDoStatus)) {
-            $this->doStatusOptions = $dynamicDoStatus;
-        }
+        $this->doStatusOptions = !empty($dynamicDoStatus) ? $dynamicDoStatus : [
+            'pending' => 'ไม่ได้รับ',
+            'received' => 'ได้รับ',
+            'processing' => 'กำลังดำเนินการ',
+        ];
 
         // Load shipping line options
         $dynamicShippingLine = DropdownSetting::getFieldOptions('shipping_line');
