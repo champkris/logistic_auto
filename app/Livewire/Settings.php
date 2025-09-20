@@ -9,6 +9,10 @@ use Livewire\Component;
 
 class Settings extends Component
 {
+    // Tab management
+    public $activeTab = 'dropdown';
+
+    // Dropdown settings properties
     public $selectedField = '';
     public $editingItem = null;
     public $showModal = false;
@@ -42,11 +46,24 @@ class Settings extends Component
         $this->selectedField = array_key_first($this->configurableFields) ?? '';
     }
 
+    public function setActiveTab($tab)
+    {
+        $this->activeTab = $tab;
+        if ($tab === 'dropdown' && !$this->selectedField && count($this->configurableFields) > 0) {
+            $this->selectedField = array_key_first($this->configurableFields);
+        }
+    }
+
     public function render()
     {
+        // Check if current user can access settings
+        if ($this->activeTab === 'users' && !auth()->user()->canManageUsers()) {
+            $this->activeTab = 'dropdown';
+        }
+
         $items = collect();
 
-        if ($this->selectedField) {
+        if ($this->selectedField && $this->activeTab === 'dropdown') {
             if ($this->selectedField === 'customers') {
                 $query = Customer::query();
                 if ($this->search) {

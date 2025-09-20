@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 
 // Root route redirects to dashboard (requires authentication)
@@ -19,6 +19,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/customers', App\Livewire\CustomerManager::class)->name('customers');
     Route::get('/shipments', App\Livewire\ShipmentManager::class)->name('shipments');
     Route::get('/settings', App\Livewire\Settings::class)->name('settings');
+
+    // LINE Login Routes (require user to be authenticated first)
+    Route::get('/line/connect', [App\Http\Controllers\LineLoginController::class, 'redirectToLine'])->name('line.connect');
+    Route::get('/line/callback', [App\Http\Controllers\LineLoginController::class, 'handleLineCallback'])->name('line.callback');
+    Route::post('/line/disconnect', [App\Http\Controllers\LineLoginController::class, 'disconnectLine'])->name('line.disconnect');
+
+    // LINE Test Message Route
+    Route::post('/line/test-message', function () {
+        $user = Auth::user();
+        if (!$user || !$user->hasLineAccount()) {
+            return redirect()->route('profile')->with('error', 'Please connect your LINE account first.');
+        }
+
+        try {
+            $lineMessaging = new \App\Services\LineMessagingService();
+            $success = $lineMessaging->sendTestMessage($user);
+
+            if ($success) {
+                return redirect()->route('profile')->with('success', 'Test message sent to your LINE account!');
+            } else {
+                return redirect()->route('profile')->with('error', 'Failed to send test message. Please check your LINE connection.');
+            }
+        } catch (\Exception $e) {
+            return redirect()->route('profile')->with('error', 'Error sending test message: ' . $e->getMessage());
+        }
+    })->name('line.test-message');
     
     // Vessel Tracking Test Routes
     Route::get('/vessel-test', function () {

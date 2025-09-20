@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'line' => [
+        'client_id' => env('LINE_LOGIN_CLIENT_ID'),
+        'client_secret' => env('LINE_LOGIN_CLIENT_SECRET'),
+        'redirect' => env('LINE_LOGIN_REDIRECT'),
+        'channel_token' => env('LINE_BOT_CHANNEL_TOKEN'),
+        'channel_secret' => env('LINE_BOT_CHANNEL_SECRET'),
+    ],
+
 ];
