@@ -152,7 +152,7 @@
                                     </td>
 
                                     <!-- Pickup Location (สถานที่รับ) -->
-                                    <td class="px-1 py-1 text-xs">{{ $shipment->shipping_line ?? '-' }}</td>
+                                    <td class="px-1 py-1 text-xs">{{ $shipment->pickup_location ?? '-' }}</td>
 
                                     <!-- KGM -->
                                     <td class="px-1 py-1 text-xs text-right">
@@ -350,12 +350,13 @@
 
                         <!-- Pickup Location (สถานที่รับ) -->
                         <div>
-                            <label for="shipping_line" class="block text-sm font-medium text-gray-700">สถานที่รับ</label>
-                            <input wire:model="shipping_line"
+                            <label for="pickup_location" class="block text-sm font-medium text-gray-700">สถานที่รับ</label>
+                            <input wire:model="pickup_location"
                                    type="text"
-                                   id="shipping_line"
+                                   id="pickup_location"
                                    placeholder="เช่น โกดัง A, ลานจอดรถ B, ศูนย์กระจายสินค้า"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('pickup_location') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- Row 3: Weight and Container Info -->

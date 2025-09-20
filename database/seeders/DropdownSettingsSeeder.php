@@ -45,17 +45,6 @@ class DropdownSettingsSeeder extends Seeder
                 ['value' => 'processing', 'label' => 'กำลังดำเนินการ', 'sort_order' => 3],
             ],
 
-            // Shipping Line / สายเรือ
-            'shipping_line' => [
-                ['value' => 'seagreen', 'label' => 'SEAGREEN ร้านลุง', 'sort_order' => 1],
-                ['value' => 'intergis', 'label' => 'INTERGIS', 'sort_order' => 2],
-                ['value' => 'evergreen', 'label' => 'Evergreen', 'sort_order' => 3],
-                ['value' => 'cosco', 'label' => 'COSCO Shipping', 'sort_order' => 4],
-                ['value' => 'msc', 'label' => 'MSC', 'sort_order' => 5],
-                ['value' => 'maersk', 'label' => 'Maersk Line', 'sort_order' => 6],
-                ['value' => 'hapag', 'label' => 'Hapag-Lloyd', 'sort_order' => 7],
-                ['value' => 'cma', 'label' => 'CMA CGM', 'sort_order' => 8],
-            ],
 
 
             // Pickup Location / สถานที่รับ
@@ -77,6 +66,17 @@ class DropdownSettingsSeeder extends Seeder
                 ['value' => 'frank', 'label' => 'FRANK', 'sort_order' => 6],
                 ['value' => 'pui', 'label' => 'PUI', 'sort_order' => 7],
                 ['value' => 'mon', 'label' => 'MON', 'sort_order' => 8],
+            ],
+
+            // Port Terminal / ท่าเรือ
+            'port_terminal' => [
+                ['value' => 'A0', 'label' => 'A0', 'sort_order' => 1],
+                ['value' => 'A3', 'label' => 'A3', 'sort_order' => 2],
+                ['value' => 'B1', 'label' => 'B1', 'sort_order' => 3],
+                ['value' => 'B3', 'label' => 'B3', 'sort_order' => 4],
+                ['value' => 'B4', 'label' => 'B4', 'sort_order' => 5],
+                ['value' => 'C1', 'label' => 'C1', 'sort_order' => 6],
+                ['value' => 'C3', 'label' => 'C3', 'sort_order' => 7],
             ],
         ];
 

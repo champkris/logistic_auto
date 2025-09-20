@@ -36,7 +36,7 @@ class ShipmentManager extends Component
     public $notes = '';
     public $cargo_description = '';
     public $cargo_weight = '';
-    public $shipping_line = '';
+    public $pickup_location = '';
     public $cargo_volume = '';
     
     // Modal and state management
@@ -53,15 +53,7 @@ class ShipmentManager extends Component
     public $overtimeOptions = [];
     public $doStatusOptions = [];
 
-    public $portTerminalOptions = [
-        'A0' => 'A0',
-        'A3' => 'A3',
-        'B1' => 'B1',
-        'B3' => 'B3',
-        'B4' => 'B4',
-        'C1' => 'C1',
-        'C3' => 'C3',
-    ];
+    public $portTerminalOptions = [];
 
     public $shippingTeamOptions = [
         'pui' => 'PUI',
@@ -74,7 +66,6 @@ class ShipmentManager extends Component
         'jow' => 'JOW',
     ];
 
-    public $shippingLineOptions = [];
     public $pickupLocationOptions = [];
     public $csOptions = [];
 
@@ -108,7 +99,7 @@ class ShipmentManager extends Component
         'notes' => 'nullable|string|max:1000',
         'cargo_description' => 'nullable|string|max:500',
         'cargo_weight' => 'nullable|numeric|min:0',
-        'shipping_line' => 'nullable|string|max:255',
+        'pickup_location' => 'nullable|string|max:255',
         'cargo_volume' => 'nullable|numeric|min:0',
         ];
     }
@@ -164,11 +155,6 @@ class ShipmentManager extends Component
             'processing' => 'กำลังดำเนินการ',
         ];
 
-        // Load shipping line options
-        $dynamicShippingLine = DropdownSetting::getFieldOptions('shipping_line');
-        if (!empty($dynamicShippingLine)) {
-            $this->shippingLineOptions = $dynamicShippingLine;
-        }
 
         // Load pickup location options
         $dynamicPickupLocation = DropdownSetting::getFieldOptions('pickup_location');
@@ -181,6 +167,18 @@ class ShipmentManager extends Component
         if (!empty($dynamicCs)) {
             $this->csOptions = $dynamicCs;
         }
+
+        // Load port terminal options
+        $dynamicPortTerminal = DropdownSetting::getFieldOptions('port_terminal');
+        $this->portTerminalOptions = !empty($dynamicPortTerminal) ? $dynamicPortTerminal : [
+            'A0' => 'A0',
+            'A3' => 'A3',
+            'B1' => 'B1',
+            'B3' => 'B3',
+            'B4' => 'B4',
+            'C1' => 'C1',
+            'C3' => 'C3',
+        ];
     }
 
     public function render()
@@ -190,12 +188,16 @@ class ShipmentManager extends Component
         // Apply search filter
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('shipment_number', 'like', '%' . $this->search . '%')
-                  ->orWhere('hbl_number', 'like', '%' . $this->search . '%')
+                $q->where('hbl_number', 'like', '%' . $this->search . '%')
                   ->orWhere('mbl_number', 'like', '%' . $this->search . '%')
-                  ->orWhere('vessel_code', 'like', '%' . $this->search . '%')
+                  ->orWhere('invoice_number', 'like', '%' . $this->search . '%')
+                  ->orWhere('voyage', 'like', '%' . $this->search . '%')
+                  ->orWhere('pickup_location', 'like', '%' . $this->search . '%')
                   ->orWhereHas('customer', function ($q) {
                       $q->where('company', 'like', '%' . $this->search . '%');
+                  })
+                  ->orWhereHas('vessel', function ($q) {
+                      $q->where('name', 'like', '%' . $this->search . '%');
                   });
             });
         }
@@ -248,7 +250,7 @@ class ShipmentManager extends Component
         $this->notes = '';
         $this->cargo_description = '';
         $this->cargo_weight = '';
-        $this->shipping_line = '';
+        $this->pickup_location = '';
         $this->cargo_volume = '';
     }
 
@@ -285,7 +287,7 @@ class ShipmentManager extends Component
                 'planned_delivery_date' => $this->planned_delivery_date ?: null,
                 'notes' => $this->notes,
                 'cargo_details' => $cargoDetails,
-                'shipping_line' => $this->shipping_line,
+                'pickup_location' => $this->pickup_location,
             ];
 
             if ($this->editingShipment) {
@@ -336,7 +338,7 @@ class ShipmentManager extends Component
             $this->cargo_description = $cargoDetails['description'] ?? '';
             $this->cargo_weight = $cargoDetails['weight_kg'] ?? '';
             $this->cargo_volume = $cargoDetails['volume_cbm'] ?? '';
-            $this->shipping_line = $this->editingShipment->shipping_line ?? '';
+            $this->pickup_location = $this->editingShipment->pickup_location ?? '';
 
             $this->showModal = true;
         }

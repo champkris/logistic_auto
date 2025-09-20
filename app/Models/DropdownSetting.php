@@ -47,8 +47,8 @@ class DropdownSetting extends Model
             'customs_clearance_status' => 'สถานะใบขน (Customs Status)',
             'overtime_status' => 'ล่วงเวลา (Overtime Status)',
             'do_status' => 'สถานะ DO (DO Status)',
-            'shipping_line' => 'สายเรือ (Shipping Line)',
             'pickup_location' => 'สถานที่รับ (Pickup Location)',
+            'port_terminal' => 'ท่าเรือ (Port Terminal)',
         ];
     }
 }

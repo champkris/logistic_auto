@@ -33,7 +33,7 @@ class Shipment extends Model
         'actual_delivery_date',
         'notes',
         'cargo_details',
-        'shipping_line',
+        'pickup_location',
     ];
 
     protected $casts = [
