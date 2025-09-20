@@ -122,7 +122,7 @@
                                             @else
                                                 bg-gray-100 text-gray-700
                                             @endif">
-                                            {{ $customsClearanceOptions[$shipment->customs_clearance_status] ?? '-' }}
+                                            {{ $this->customsClearanceOptions[$shipment->customs_clearance_status] ?? '-' }}
                                         </span>
                                     </td>
 
@@ -134,7 +134,7 @@
                                             @else
                                                 bg-yellow-200 text-yellow-800
                                             @endif">
-                                            {{ $overtimeOptions[$shipment->overtime_status] ?? '-' }}
+                                            {{ $this->overtimeOptions[$shipment->overtime_status] ?? '-' }}
                                         </span>
                                     </td>
 
@@ -146,7 +146,7 @@
                                             @else
                                                 bg-gray-100 text-gray-700
                                             @endif">
-                                            {{ $doStatusOptions[$shipment->do_status] ?? '-' }}
+                                            {{ $this->doStatusOptions[$shipment->do_status] ?? '-' }}
                                         </span>
                                     </td>
 
@@ -259,7 +259,7 @@
                                     id="customer_id"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 <option value="">Select Customer</option>
-                                @foreach($customers as $customer)
+                                @foreach($this->customers as $customer)
                                     <option value="{{ $customer->id }}">{{ $customer->company }}</option>
                                 @endforeach
                             </select>
@@ -303,7 +303,7 @@
                             <select wire:model="customs_clearance_status"
                                     id="customs_clearance_status"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                @foreach($customsClearanceOptions as $value => $label)
+                                @foreach($this->customsClearanceOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -316,7 +316,7 @@
                             <select wire:model="overtime_status"
                                     id="overtime_status"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                @foreach($overtimeOptions as $value => $label)
+                                @foreach($this->overtimeOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -329,7 +329,7 @@
                             <select wire:model="do_status"
                                     id="do_status"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                @foreach($doStatusOptions as $value => $label)
+                                @foreach($this->doStatusOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -385,7 +385,7 @@
                                     id="vessel_id"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 <option value="">Select Vessel</option>
-                                @foreach($vessels as $vessel)
+                                @foreach($this->vessels as $vessel)
                                     <option value="{{ $vessel->id }}">{{ $vessel->name }}</option>
                                 @endforeach
                             </select>
@@ -410,7 +410,7 @@
                                     id="port_terminal"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 <option value="">Select Terminal</option>
-                                @foreach($portTerminalOptions as $value => $label)
+                                @foreach($this->portTerminalOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -424,7 +424,7 @@
                                     id="shipping_team"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 <option value="">Select Team Member</option>
-                                @foreach($shippingTeamOptions as $value => $label)
+                                @foreach($this->shippingTeamOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -438,7 +438,7 @@
                                     id="cs_reference"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 <option value="">Select CS Member</option>
-                                @foreach($csOptions as $value => $label)
+                                @foreach($this->csOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
