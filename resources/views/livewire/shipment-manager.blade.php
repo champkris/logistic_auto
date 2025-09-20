@@ -30,15 +30,6 @@
                            class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
             </div>
-            <div class="flex space-x-3">
-                <select wire:model.live="statusFilter" 
-                        class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                    <option value="">All Status</option>
-                    @foreach($statusOptions as $value => $label)
-                        <option value="{{ $value }}">{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
         </div>
     </div>
 
@@ -97,8 +88,6 @@
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ท่าเรือ</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ชิ้ปปิ้ง</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">CS</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">จ่าย VSL</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">สถานะ</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Actions</th>
                             </tr>
                         </thead>
@@ -202,11 +191,6 @@
                                     <!-- CS Reference -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->cs_reference ?? '-' }}</td>
 
-                                    <!-- VSL Payment -->
-                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->vsl_payment_status ?? '-' }}</td>
-
-                                    <!-- Final Status -->
-                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->final_status ?? '-' }}</td>
 
                                     <!-- Actions -->
                                     <td class="px-1 py-1 text-xs text-center">
@@ -461,129 +445,7 @@
                             @error('cs_reference') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- VSL Payment Status -->
-                        <div>
-                            <label for="vsl_payment_status" class="block text-sm font-medium text-gray-700">จ่าย VSL</label>
-                            <input wire:model="vsl_payment_status"
-                                   type="text"
-                                   id="vsl_payment_status"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('vsl_payment_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
 
-                        <!-- Final Status -->
-                        <div>
-                            <label for="final_status" class="block text-sm font-medium text-gray-700">สถานะ</label>
-                            <select wire:model="final_status"
-                                    id="final_status"
-                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                <option value="">Select Final Status</option>
-                                @foreach($finalStatusOptions as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            @error('final_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Row 4: Additional Info -->
-                        <!-- Shipment Number -->
-                        <div>
-                            <label for="shipment_number" class="block text-sm font-medium text-gray-700">Shipment Number *</label>
-                            <input wire:model="shipment_number"
-                                   type="text"
-                                   id="shipment_number"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('shipment_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Port of Discharge -->
-                        <div>
-                            <label for="port_of_discharge" class="block text-sm font-medium text-gray-700">Port of Discharge *</label>
-                            <select wire:model="port_of_discharge"
-                                    id="port_of_discharge"
-                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                <option value="">Select Port</option>
-                                @foreach($portOptions as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            @error('port_of_discharge') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Status -->
-                        <div>
-                            <label for="status" class="block text-sm font-medium text-gray-700">Status *</label>
-                            <select wire:model="status"
-                                    id="status"
-                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                @foreach($statusOptions as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            @error('status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Vessel Code -->
-                        <div>
-                            <label for="vessel_code" class="block text-sm font-medium text-gray-700">Vessel Code</label>
-                            <input wire:model="vessel_code"
-                                   type="text"
-                                   id="vessel_code"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('vessel_code') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- DO Pickup Date -->
-                        <div>
-                            <label for="do_pickup_date" class="block text-sm font-medium text-gray-700">DO Pickup Date</label>
-                            <input wire:model="do_pickup_date"
-                                   type="datetime-local"
-                                   id="do_pickup_date"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('do_pickup_date') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Row 5: Additional Fields -->
-                        <!-- Container Arrival -->
-                        <div>
-                            <label for="container_arrival" class="block text-sm font-medium text-gray-700">Container Arrival</label>
-                            <input wire:model="container_arrival"
-                                   type="text"
-                                   id="container_arrival"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('container_arrival') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Berth Location -->
-                        <div>
-                            <label for="berth_location" class="block text-sm font-medium text-gray-700">Berth Location</label>
-                            <input wire:model="berth_location"
-                                   type="text"
-                                   id="berth_location"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('berth_location') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Customs Entry -->
-                        <div>
-                            <label for="customs_entry" class="block text-sm font-medium text-gray-700">Customs Entry</label>
-                            <input wire:model="customs_entry"
-                                   type="text"
-                                   id="customs_entry"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('customs_entry') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Total Cost -->
-                        <div>
-                            <label for="total_cost" class="block text-sm font-medium text-gray-700">Total Cost (THB)</label>
-                            <input wire:model="total_cost"
-                                   type="number"
-                                   step="0.01"
-                                   id="total_cost"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('total_cost') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
 
                         <!-- Notes (full width) -->
                         <div class="md:col-span-4">
