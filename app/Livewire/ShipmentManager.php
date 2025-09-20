@@ -30,9 +30,9 @@ class ShipmentManager extends Component
     public $berth_location = '';
     public $joint_pickup = '';
     public $customs_entry = '';
-    public $customs_clearance_status = 'no_clearance';
-    public $overtime_status = 'no_ot';
-    public $do_status = 'not_received';
+    public $customs_clearance_status = 'pending';
+    public $overtime_status = 'none';
+    public $do_status = 'pending';
     public $vessel_loading_status = '';
     public $voyage = '';
     public $port_terminal = '';
@@ -127,7 +127,14 @@ class ShipmentManager extends Component
     public $pickupLocationOptions = [];
     public $csOptions = [];
 
-    protected $rules = [
+    public function rules()
+    {
+        // Get dynamic validation rules for dropdown fields
+        $customsOptions = array_keys($this->customsClearanceOptions);
+        $overtimeOptions = array_keys($this->overtimeOptions);
+        $doOptions = array_keys($this->doStatusOptions);
+
+        return [
         'shipment_number' => 'required|string|max:255',
         'customer_id' => 'required|exists:customers,id',
         'hbl_number' => 'nullable|string|max:255',
@@ -144,9 +151,9 @@ class ShipmentManager extends Component
         'berth_location' => 'nullable|string|max:255',
         'joint_pickup' => 'nullable|string|max:255',
         'customs_entry' => 'nullable|string|max:255',
-        'customs_clearance_status' => 'required|in:no_clearance,has_clearance',
-        'overtime_status' => 'required|in:no_ot,ot_1_period,ot_2_periods',
-        'do_status' => 'required|in:not_received,received',
+        'customs_clearance_status' => 'required|in:' . implode(',', $customsOptions),
+        'overtime_status' => 'required|in:' . implode(',', $overtimeOptions),
+        'do_status' => 'required|in:' . implode(',', $doOptions),
         'vessel_loading_status' => 'nullable|string|max:255',
         'voyage' => 'nullable|string|max:255',
         'port_terminal' => 'nullable|string|max:255',
@@ -163,7 +170,8 @@ class ShipmentManager extends Component
         'cargo_weight' => 'nullable|numeric|min:0',
         'shipping_line' => 'nullable|string|max:255',
         'cargo_volume' => 'nullable|numeric|min:0',
-    ];
+        ];
+    }
 
     protected $messages = [
         'shipment_number.required' => 'Shipment number is required.',
@@ -312,9 +320,9 @@ class ShipmentManager extends Component
         $this->berth_location = '';
         $this->joint_pickup = '';
         $this->customs_entry = '';
-        $this->customs_clearance_status = 'no_clearance';
-        $this->overtime_status = 'no_ot';
-        $this->do_status = 'not_received';
+        $this->customs_clearance_status = 'pending';
+        $this->overtime_status = 'none';
+        $this->do_status = 'pending';
         $this->vessel_loading_status = '';
         $this->voyage = '';
         $this->port_terminal = '';
@@ -439,9 +447,9 @@ class ShipmentManager extends Component
             $this->berth_location = $this->editingShipment->berth_location;
             $this->joint_pickup = $this->editingShipment->joint_pickup;
             $this->customs_entry = $this->editingShipment->customs_entry;
-            $this->customs_clearance_status = $this->editingShipment->customs_clearance_status ?? 'no_clearance';
-            $this->overtime_status = $this->editingShipment->overtime_status ?? 'no_ot';
-            $this->do_status = $this->editingShipment->do_status ?? 'not_received';
+            $this->customs_clearance_status = $this->editingShipment->customs_clearance_status ?? 'pending';
+            $this->overtime_status = $this->editingShipment->overtime_status ?? 'none';
+            $this->do_status = $this->editingShipment->do_status ?? 'pending';
             $this->vessel_loading_status = $this->editingShipment->vessel_loading_status;
             $this->voyage = $this->editingShipment->voyage;
             $this->port_terminal = $this->editingShipment->port_terminal;
