@@ -95,9 +95,9 @@
                             @foreach($shipments as $shipment)
                                 @php
                                     $rowClass = '';
-                                    if($shipment->customs_clearance_status === 'has_clearance' && $shipment->overtime_status === 'no_ot') {
+                                    if($shipment->customs_clearance_status === 'received' && $shipment->overtime_status === 'none') {
                                         $rowClass = 'bg-red-50';
-                                    } elseif($shipment->customs_clearance_status === 'has_clearance' && $shipment->overtime_status !== 'no_ot') {
+                                    } elseif($shipment->customs_clearance_status === 'received' && $shipment->overtime_status !== 'none') {
                                         $rowClass = 'bg-yellow-50';
                                     }
                                 @endphp
@@ -117,7 +117,7 @@
                                     <!-- Customs Status -->
                                     <td class="px-1 py-1 text-xs text-center">
                                         <span class="px-1 py-0.5 rounded text-xs font-medium
-                                            @if($shipment->customs_clearance_status === 'has_clearance')
+                                            @if($shipment->customs_clearance_status === 'received')
                                                 bg-yellow-200 text-yellow-800
                                             @else
                                                 bg-gray-100 text-gray-700
@@ -129,7 +129,7 @@
                                     <!-- OT Status -->
                                     <td class="px-1 py-1 text-xs text-center">
                                         <span class="px-1 py-0.5 rounded text-xs font-medium
-                                            @if($shipment->overtime_status === 'no_ot')
+                                            @if($shipment->overtime_status === 'none')
                                                 bg-red-200 text-red-800
                                             @else
                                                 bg-yellow-200 text-yellow-800
