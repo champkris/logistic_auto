@@ -26,7 +26,7 @@ class Shipment extends Model
         'customer_id',
         'port_of_discharge',
         'port_terminal',
-        'transport_type',
+        'shipping_team',
         'cs_reference',
         'vsl_payment_status',
         'berth_location',

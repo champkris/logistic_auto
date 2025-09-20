@@ -91,11 +91,11 @@
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">สถานที่รับ</th>
                                 <th class="px-1 py-2 text-right text-xs font-medium text-gray-700 uppercase">KGM</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">FCL</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">วันจริง</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ETA</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">VESSEL NAME</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Voyage</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ท่าเรือ</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ขนส่ง</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ชิ้ปปิ้ง</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">CS</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">จ่าย VSL</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">สถานะ</th>
@@ -176,7 +176,7 @@
                                     <!-- FCL -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->fcl_type ?? '-' }}</td>
 
-                                    <!-- Actual Date -->
+                                    <!-- ETA -->
                                     <td class="px-1 py-1 text-xs text-center">
                                         @if($shipment->actual_delivery_date)
                                             {{ $shipment->actual_delivery_date->format('d-M') }}
@@ -196,8 +196,8 @@
                                     <!-- Port Terminal -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->port_terminal ?? '-' }}</td>
 
-                                    <!-- Transport Type -->
-                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->transport_type ?? '-' }}</td>
+                                    <!-- Shipping Team -->
+                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->shipping_team ?? '-' }}</td>
 
                                     <!-- CS Reference -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->cs_reference ?? '-' }}</td>
@@ -384,9 +384,9 @@
                             @error('fcl_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Planned Delivery Date (วันจริง) -->
+                        <!-- Planned Delivery Date (ETA) -->
                         <div>
-                            <label for="planned_delivery_date" class="block text-sm font-medium text-gray-700">วันจริง</label>
+                            <label for="planned_delivery_date" class="block text-sm font-medium text-gray-700">ETA</label>
                             <input wire:model="planned_delivery_date"
                                    type="date"
                                    id="planned_delivery_date"
@@ -433,27 +433,31 @@
                             @error('port_terminal') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Transport Type -->
+                        <!-- Shipping Team -->
                         <div>
-                            <label for="transport_type" class="block text-sm font-medium text-gray-700">ขนส่ง</label>
-                            <select wire:model="transport_type"
-                                    id="transport_type"
+                            <label for="shipping_team" class="block text-sm font-medium text-gray-700">ชิ้ปปิ้ง</label>
+                            <select wire:model="shipping_team"
+                                    id="shipping_team"
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                <option value="">Select Transport</option>
-                                @foreach($transportTypeOptions as $value => $label)
+                                <option value="">Select Team Member</option>
+                                @foreach($shippingTeamOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
-                            @error('transport_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            @error('shipping_team') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- CS Reference -->
                         <div>
                             <label for="cs_reference" class="block text-sm font-medium text-gray-700">CS</label>
-                            <input wire:model="cs_reference"
-                                   type="text"
-                                   id="cs_reference"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <select wire:model="cs_reference"
+                                    id="cs_reference"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="">Select CS Member</option>
+                                @foreach($csOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
                             @error('cs_reference') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 

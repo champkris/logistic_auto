@@ -7,6 +7,7 @@ use Livewire\WithPagination;
 use App\Models\Shipment;
 use App\Models\Customer;
 use App\Models\Vessel;
+use App\Models\DropdownSetting;
 
 class ShipmentManager extends Component
 {
@@ -35,7 +36,7 @@ class ShipmentManager extends Component
     public $vessel_loading_status = '';
     public $voyage = '';
     public $port_terminal = '';
-    public $transport_type = '';
+    public $shipping_team = '';
     public $cs_reference = '';
     public $vsl_payment_status = '';
     public $status = 'new';
@@ -102,15 +103,15 @@ class ShipmentManager extends Component
         'C3' => 'C3',
     ];
 
-    public $transportTypeOptions = [
-        'PUI' => 'PUI',
-        'FRANK' => 'FRANK',
-        'GUS' => 'GUS',
-        'MON' => 'MON',
-        'NOON' => 'NOON',
-        'TOON' => 'TOON',
-        'ING' => 'ING',
-        'JOW' => 'JOW',
+    public $shippingTeamOptions = [
+        'pui' => 'PUI',
+        'frank' => 'FRANK',
+        'gus' => 'GUS',
+        'mon' => 'MON',
+        'noon' => 'NOON',
+        'toon' => 'TOON',
+        'ing' => 'ING',
+        'jow' => 'JOW',
     ];
 
     public $finalStatusOptions = [
@@ -120,6 +121,11 @@ class ShipmentManager extends Component
         'ING' => 'ING',
         'JOW' => 'JOW',
     ];
+
+    public $shippingLineOptions = [];
+    public $vslPaymentOptions = [];
+    public $pickupLocationOptions = [];
+    public $csOptions = [];
 
     protected $rules = [
         'shipment_number' => 'required|string|max:255',
@@ -144,7 +150,7 @@ class ShipmentManager extends Component
         'vessel_loading_status' => 'nullable|string|max:255',
         'voyage' => 'nullable|string|max:255',
         'port_terminal' => 'nullable|string|max:255',
-        'transport_type' => 'nullable|string|max:255',
+        'shipping_team' => 'nullable|string|max:255',
         'cs_reference' => 'nullable|string|max:255',
         'vsl_payment_status' => 'nullable|string|max:255',
         'status' => 'required|in:new,planning,documents_preparation,customs_clearance,ready_for_delivery,in_transit,delivered,completed',
@@ -171,10 +177,79 @@ class ShipmentManager extends Component
     {
         $this->customers = Customer::active()->orderBy('company')->get();
         $this->vessels = Vessel::orderBy('name')->get();
-        
+
+        // Load dynamic dropdown options from settings
+        $this->loadDynamicOptions();
+
         // Generate initial shipment number
         if (!$this->shipment_number) {
             $this->shipment_number = $this->generateShipmentNumber();
+        }
+    }
+
+    /**
+     * Load dropdown options from database settings
+     */
+    private function loadDynamicOptions()
+    {
+        // Load port options
+        $dynamicPorts = DropdownSetting::getFieldOptions('port_of_discharge');
+        if (!empty($dynamicPorts)) {
+            $this->portOptions = $dynamicPorts;
+        }
+
+        // Load shipping team options
+        $dynamicShippingTeam = DropdownSetting::getFieldOptions('shipping_team');
+        if (!empty($dynamicShippingTeam)) {
+            $this->shippingTeamOptions = $dynamicShippingTeam;
+        }
+
+        // Load final status options
+        $dynamicFinalStatus = DropdownSetting::getFieldOptions('final_status');
+        if (!empty($dynamicFinalStatus)) {
+            $this->finalStatusOptions = $dynamicFinalStatus;
+        }
+
+        // Load customs clearance status options
+        $dynamicCustoms = DropdownSetting::getFieldOptions('customs_clearance_status');
+        if (!empty($dynamicCustoms)) {
+            $this->customsClearanceOptions = $dynamicCustoms;
+        }
+
+        // Load overtime status options
+        $dynamicOvertime = DropdownSetting::getFieldOptions('overtime_status');
+        if (!empty($dynamicOvertime)) {
+            $this->overtimeOptions = $dynamicOvertime;
+        }
+
+        // Load DO status options
+        $dynamicDoStatus = DropdownSetting::getFieldOptions('do_status');
+        if (!empty($dynamicDoStatus)) {
+            $this->doStatusOptions = $dynamicDoStatus;
+        }
+
+        // Load shipping line options
+        $dynamicShippingLine = DropdownSetting::getFieldOptions('shipping_line');
+        if (!empty($dynamicShippingLine)) {
+            $this->shippingLineOptions = $dynamicShippingLine;
+        }
+
+        // Load VSL payment status options
+        $dynamicVslPayment = DropdownSetting::getFieldOptions('vsl_payment_status');
+        if (!empty($dynamicVslPayment)) {
+            $this->vslPaymentOptions = $dynamicVslPayment;
+        }
+
+        // Load pickup location options
+        $dynamicPickupLocation = DropdownSetting::getFieldOptions('pickup_location');
+        if (!empty($dynamicPickupLocation)) {
+            $this->pickupLocationOptions = $dynamicPickupLocation;
+        }
+
+        // Load CS team options
+        $dynamicCs = DropdownSetting::getFieldOptions('cs_reference');
+        if (!empty($dynamicCs)) {
+            $this->csOptions = $dynamicCs;
         }
     }
 
@@ -243,7 +318,7 @@ class ShipmentManager extends Component
         $this->vessel_loading_status = '';
         $this->voyage = '';
         $this->port_terminal = '';
-        $this->transport_type = '';
+        $this->shipping_team = '';
         $this->cs_reference = '';
         $this->vsl_payment_status = '';
         $this->status = 'new';
@@ -312,7 +387,7 @@ class ShipmentManager extends Component
                 'vessel_loading_status' => $this->vessel_loading_status,
                 'voyage' => $this->voyage,
                 'port_terminal' => $this->port_terminal,
-                'transport_type' => $this->transport_type,
+                'shipping_team' => $this->shipping_team,
                 'cs_reference' => $this->cs_reference,
                 'vsl_payment_status' => $this->vsl_payment_status,
                 'status' => $this->status,
@@ -370,7 +445,7 @@ class ShipmentManager extends Component
             $this->vessel_loading_status = $this->editingShipment->vessel_loading_status;
             $this->voyage = $this->editingShipment->voyage;
             $this->port_terminal = $this->editingShipment->port_terminal;
-            $this->transport_type = $this->editingShipment->transport_type;
+            $this->shipping_team = $this->editingShipment->shipping_team;
             $this->cs_reference = $this->editingShipment->cs_reference;
             $this->vsl_payment_status = $this->editingShipment->vsl_payment_status;
             $this->status = $this->editingShipment->status;

@@ -18,6 +18,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', App\Livewire\Dashboard::class)->name('dashboard');
     Route::get('/customers', App\Livewire\CustomerManager::class)->name('customers');
     Route::get('/shipments', App\Livewire\ShipmentManager::class)->name('shipments');
+    Route::get('/settings', App\Livewire\Settings::class)->name('settings');
     
     // Vessel Tracking Test Routes
     Route::get('/vessel-test', function () {

@@ -45,12 +45,17 @@ new class extends Component
                        wire:navigate>
                         👥 Customers
                     </a>
-                    <a href="{{ route('vessel-test') }}" 
+                    <a href="{{ route('vessel-test') }}"
                        class="{{ request()->routeIs('vessel-test') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                        wire:navigate>
                         🚢 Vessel Test
                     </a>
-                    <a href="#" 
+                    <a href="{{ route('settings') }}"
+                       class="{{ request()->routeIs('settings') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                       wire:navigate>
+                        ⚙️ Settings
+                    </a>
+                    <a href="#"
                        class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                         📄 Documents
                     </a>
