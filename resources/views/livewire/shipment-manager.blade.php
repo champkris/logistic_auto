@@ -206,15 +206,36 @@
 
                                     <!-- Actions -->
                                     <td class="px-1 py-1 text-xs text-center">
-                                        <button wire:click="edit({{ $shipment->id }})"
-                                                class="text-blue-600 hover:text-blue-900 text-xs">
-                                            ✏️
-                                        </button>
-                                        <button wire:click="delete({{ $shipment->id }})"
-                                                onclick="return confirm('Are you sure you want to delete this shipment?')"
-                                                class="text-red-600 hover:text-red-900 text-xs ml-2">
-                                            🗑️
-                                        </button>
+                                        <div class="flex flex-col space-y-1">
+                                            <!-- Regular Actions -->
+                                            <div class="flex space-x-1">
+                                                <button wire:click="edit({{ $shipment->id }})"
+                                                        class="text-blue-600 hover:text-blue-900 text-xs">
+                                                    ✏️
+                                                </button>
+                                                <button wire:click="delete({{ $shipment->id }})"
+                                                        onclick="return confirm('Are you sure you want to delete this shipment?')"
+                                                        class="text-red-600 hover:text-red-900 text-xs">
+                                                    🗑️
+                                                </button>
+                                            </div>
+
+                                            <!-- Admin LINE Actions -->
+                                            @if(auth()->user()->role === 'admin')
+                                                <div class="flex space-x-1">
+                                                    <button onclick="openClientLinkModal({{ $shipment->id }}, '{{ $shipment->invoice_number }}')"
+                                                            class="text-green-600 hover:text-green-900 text-xs"
+                                                            title="Generate client LINE link">
+                                                        📱
+                                                    </button>
+                                                    <button onclick="sendTestNotification({{ $shipment->id }})"
+                                                            class="text-purple-600 hover:text-purple-900 text-xs"
+                                                            title="Send test ETA notification">
+                                                        📨
+                                                    </button>
+                                                </div>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach
@@ -487,4 +508,166 @@
             </div>
         </div>
     @endif
+
+    <!-- Client LINE Link Modal -->
+    <div id="clientLinkModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">📱 Generate Client LINE Link</h3>
+
+                <form onsubmit="generateClientLink(event)">
+                    <div class="space-y-4">
+                        <input type="hidden" id="clientShipmentId" value="">
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Shipment</label>
+                            <input type="text" id="clientInvoiceNumber" readonly class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-50 sm:text-sm">
+                        </div>
+
+                        <div>
+                            <label for="clientName" class="block text-sm font-medium text-gray-700">Client Name *</label>
+                            <input type="text" id="clientName" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+
+                        <div>
+                            <label for="clientEmail" class="block text-sm font-medium text-gray-700">Client Email</label>
+                            <input type="email" id="clientEmail" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+
+                        <div>
+                            <label for="clientPhone" class="block text-sm font-medium text-gray-700">Client Phone</label>
+                            <input type="text" id="clientPhone" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end pt-4 space-x-3">
+                        <button type="button" onclick="closeClientLinkModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                            Generate Link
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <div class="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                    <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">🎉 Link Generated Successfully!</h3>
+
+                <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                    <p class="text-sm text-blue-700 mb-2">Share this link with your client:</p>
+                    <div class="bg-white p-2 rounded border break-all text-xs">
+                        <span id="generatedLink"></span>
+                    </div>
+                </div>
+
+                <div class="flex justify-center space-x-3">
+                    <button onclick="copyLink()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        📋 Copy Link
+                    </button>
+                    <button onclick="closeSuccessModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+    function openClientLinkModal(shipmentId, invoiceNumber) {
+        document.getElementById('clientShipmentId').value = shipmentId;
+        document.getElementById('clientInvoiceNumber').value = invoiceNumber;
+        document.getElementById('clientLinkModal').classList.remove('hidden');
+    }
+
+    function closeClientLinkModal() {
+        document.getElementById('clientLinkModal').classList.add('hidden');
+        // Reset form
+        document.getElementById('clientName').value = '';
+        document.getElementById('clientEmail').value = '';
+        document.getElementById('clientPhone').value = '';
+    }
+
+    function closeSuccessModal() {
+        document.getElementById('successModal').classList.add('hidden');
+    }
+
+    async function generateClientLink(event) {
+        event.preventDefault();
+
+        const formData = {
+            shipment_id: document.getElementById('clientShipmentId').value,
+            client_name: document.getElementById('clientName').value,
+            client_email: document.getElementById('clientEmail').value,
+            client_phone: document.getElementById('clientPhone').value,
+        };
+
+        try {
+            const response = await fetch('/shipments/generate-client-link', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                document.getElementById('generatedLink').textContent = result.login_url;
+                closeClientLinkModal();
+                document.getElementById('successModal').classList.remove('hidden');
+            } else {
+                alert('Error: ' + (result.error || 'Failed to generate link'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    function copyLink() {
+        const linkText = document.getElementById('generatedLink').textContent;
+        navigator.clipboard.writeText(linkText).then(() => {
+            alert('Link copied to clipboard!');
+        });
+    }
+
+    async function sendTestNotification(shipmentId) {
+        if (!confirm('Send test ETA notification to all connected clients for this shipment?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/shipments/send-test-notification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ shipment_id: shipmentId })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('✅ ' + result.message);
+            } else {
+                alert('❌ ' + (result.message || 'Failed to send notifications'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+</script>

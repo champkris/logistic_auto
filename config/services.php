@@ -43,4 +43,13 @@ return [
         'channel_secret' => env('LINE_BOT_CHANNEL_SECRET'),
     ],
 
+    'line-client' => [
+        'client_id' => env('LINE_CLIENT_LOGIN_CLIENT_ID'),
+        'client_secret' => env('LINE_CLIENT_LOGIN_CLIENT_SECRET'),
+        'redirect' => env('LINE_CLIENT_LOGIN_REDIRECT'),
+        // Use same messaging channel for now, but can be separate if needed
+        'channel_token' => env('LINE_BOT_CHANNEL_TOKEN'),
+        'channel_secret' => env('LINE_BOT_CHANNEL_SECRET'),
+    ],
+
 ];

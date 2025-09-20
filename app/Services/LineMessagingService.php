@@ -3,19 +3,15 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\ShipmentClient;
 use Illuminate\Support\Facades\Log;
-use Revolution\Line\Messaging\LineBot;
-use Revolution\Line\Messaging\TextMessageBuilder;
-use Revolution\Line\Messaging\FlexMessageBuilder;
+use Revolution\Line\Facades\Bot;
 
 class LineMessagingService
 {
-    protected $lineBot;
-
     public function __construct()
     {
-        // Initialize LINE Bot with channel token
-        $this->lineBot = app(LineBot::class);
+        // LINE Bot is handled via Facade
     }
 
     /**
@@ -24,22 +20,13 @@ class LineMessagingService
     public function sendTextMessage(string $lineUserId, string $message): bool
     {
         try {
-            $textMessage = new TextMessageBuilder($message);
-            $response = $this->lineBot->pushMessage($lineUserId, $textMessage);
+            Bot::pushMessage($lineUserId, $message);
 
-            if ($response->isSucceeded()) {
-                Log::info('LINE message sent successfully', [
-                    'line_user_id' => $lineUserId,
-                    'message' => $message
-                ]);
-                return true;
-            } else {
-                Log::error('Failed to send LINE message', [
-                    'line_user_id' => $lineUserId,
-                    'error' => $response->getRawBody()
-                ]);
-                return false;
-            }
+            Log::info('LINE message sent successfully', [
+                'line_user_id' => $lineUserId,
+                'message' => $message
+            ]);
+            return true;
         } catch (\Exception $e) {
             Log::error('LINE messaging error: ' . $e->getMessage(), [
                 'line_user_id' => $lineUserId,
@@ -194,5 +181,104 @@ class LineMessagingService
         $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         return $this->sendTextMessage($user->line_user_id, $message);
+    }
+
+    /**
+     * Send welcome message to newly connected shipment clients
+     */
+    public function sendClientWelcomeMessage(ShipmentClient $client): bool
+    {
+        if (!$client->hasLineAccount()) {
+            return false;
+        }
+
+        $shipment = $client->shipment;
+        $message = "🎉 Welcome to Eastern Air Logistics!\n\n";
+        $message .= "Hi {$client->line_display_name}!\n\n";
+        $message .= "Your LINE account has been successfully connected to shipment tracking.\n\n";
+        $message .= "📦 Shipment Details:\n";
+        $message .= "• Invoice: {$shipment->invoice_number}\n";
+        if ($shipment->vessel) {
+            $message .= "• Vessel: {$shipment->vessel->name}\n";
+            $message .= "• Voyage: {$shipment->voyage}\n";
+        }
+        if ($shipment->customer) {
+            $message .= "• Customer: {$shipment->customer->company}\n";
+        }
+        $message .= "\nYou'll now receive important updates about this shipment:\n\n";
+        $message .= "🚢 Vessel arrival updates\n";
+        $message .= "📋 Document status changes\n";
+        $message .= "🚛 Delivery notifications\n";
+        $message .= "⏰ ETA updates\n\n";
+        $message .= "Thank you for choosing Eastern Air Logistics! 🌟";
+
+        return $this->sendTextMessage($client->line_user_id, $message);
+    }
+
+    /**
+     * Send shipment ETA update to client
+     */
+    public function sendShipmentEtaUpdate(ShipmentClient $client): bool
+    {
+        if (!$client->hasLineAccount()) {
+            return false;
+        }
+
+        $shipment = $client->shipment;
+        $message = "📅 Shipment ETA Update\n\n";
+        $message .= "Dear {$client->client_name},\n\n";
+        $message .= "📦 Shipment Details:\n";
+        $message .= "• Invoice: {$shipment->invoice_number}\n";
+        $message .= "• HBL: {$shipment->hbl_number}\n";
+        if ($shipment->vessel) {
+            $message .= "• Vessel: {$shipment->vessel->name}\n";
+            $message .= "• Voyage: {$shipment->voyage}\n";
+        }
+        $message .= "• Status: " . ucfirst(str_replace('_', ' ', $shipment->status)) . "\n";
+
+        if ($shipment->planned_delivery_date) {
+            $message .= "• Planned Delivery: {$shipment->planned_delivery_date->format('M d, Y')}\n";
+        }
+
+        $message .= "\n🚢 Current Status:\n";
+        $message .= "• Customs Clearance: " . ucfirst($shipment->customs_clearance_status) . "\n";
+        $message .= "• DO Status: " . ucfirst($shipment->do_status) . "\n";
+
+        if ($shipment->pickup_location) {
+            $message .= "• Pickup Location: {$shipment->pickup_location}\n";
+        }
+
+        $message .= "\n📞 For any questions, please contact Eastern Air Logistics.\n";
+        $message .= "\nTime: " . now()->format('M d, Y H:i');
+
+        return $this->sendTextMessage($client->line_user_id, $message);
+    }
+
+    /**
+     * Send shipment delay notification to client
+     */
+    public function sendShipmentDelayNotification(ShipmentClient $client, string $reason, $newEta = null): bool
+    {
+        if (!$client->hasLineAccount()) {
+            return false;
+        }
+
+        $shipment = $client->shipment;
+        $message = "⚠️ Shipment Delay Notification\n\n";
+        $message .= "Dear {$client->client_name},\n\n";
+        $message .= "We regret to inform you of a delay in your shipment:\n\n";
+        $message .= "📦 Shipment: {$shipment->invoice_number}\n";
+        $message .= "🚢 Vessel: " . ($shipment->vessel ? $shipment->vessel->name : 'N/A') . "\n";
+        $message .= "📋 Reason: {$reason}\n";
+
+        if ($newEta) {
+            $message .= "🕒 New ETA: {$newEta}\n";
+        }
+
+        $message .= "\nWe apologize for any inconvenience caused and will keep you updated.\n\n";
+        $message .= "📞 Contact us for more information.\n";
+        $message .= "\nEastern Air Logistics Team";
+
+        return $this->sendTextMessage($client->line_user_id, $message);
     }
 }

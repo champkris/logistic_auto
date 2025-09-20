@@ -71,6 +71,22 @@ class Shipment extends Model
     }
 
     /**
+     * Get the shipment clients for LINE notifications.
+     */
+    public function shipmentClients()
+    {
+        return $this->hasMany(ShipmentClient::class);
+    }
+
+    /**
+     * Get active shipment clients.
+     */
+    public function activeShipmentClients()
+    {
+        return $this->shipmentClients()->where('is_active', true)->where('expires_at', '>', now());
+    }
+
+    /**
      * Get pending documents.
      */
     public function pendingDocuments()

@@ -45,6 +45,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             return redirect()->route('profile')->with('error', 'Error sending test message: ' . $e->getMessage());
         }
     })->name('line.test-message');
+
+    // Shipment Client LINE Routes (Admin only)
+    Route::post('/shipments/generate-client-link', [App\Http\Controllers\ShipmentClientController::class, 'generateClientLink'])->name('shipments.generate-client-link');
+    Route::post('/shipments/send-test-notification', [App\Http\Controllers\ShipmentClientController::class, 'sendTestNotification'])->name('shipments.send-test-notification');
     
     // Vessel Tracking Test Routes
     Route::get('/vessel-test', function () {
@@ -211,6 +215,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::view('profile', 'profile')
     ->middleware(['auth'])
     ->name('profile');
+
+// Public Shipment Client LINE Routes (no authentication required)
+Route::get('/client/line/connect/{token}', [App\Http\Controllers\ShipmentClientController::class, 'redirectToLineLogin'])->name('client.line.connect');
+Route::get('/client/line/callback', [App\Http\Controllers\ShipmentClientController::class, 'handleLineCallback'])->name('client.line.callback');
 
 // Public vessel test page (for testing without authentication)
 Route::get('/vessel-test-public', function () {
