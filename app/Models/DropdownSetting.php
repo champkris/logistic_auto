@@ -42,15 +42,12 @@ class DropdownSetting extends Model
     public static function getConfigurableFields()
     {
         return [
-            'port_of_discharge' => 'ท่าเรือ (Port of Discharge)',
             'shipping_team' => 'ชิ้ปปิ้ง (Shipping Team)',
             'cs_reference' => 'CS (CS Team)',
             'customs_clearance_status' => 'สถานะใบขน (Customs Status)',
             'overtime_status' => 'ล่วงเวลา (Overtime Status)',
             'do_status' => 'สถานะ DO (DO Status)',
             'shipping_line' => 'สายเรือ (Shipping Line)',
-            'vsl_payment_status' => 'สถานะชำระเงิน VSL (VSL Payment)',
-            'final_status' => 'สถานะสุดท้าย (Final Status)',
             'pickup_location' => 'สถานที่รับ (Pickup Location)',
         ];
     }

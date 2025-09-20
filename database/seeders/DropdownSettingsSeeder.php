@@ -10,15 +10,6 @@ class DropdownSettingsSeeder extends Seeder
     public function run(): void
     {
         $settings = [
-            // Port of Discharge / ท่าเรือ
-            'port_of_discharge' => [
-                ['value' => 'lcb1', 'label' => 'Laem Chabang Terminal 1', 'sort_order' => 1],
-                ['value' => 'lcb2', 'label' => 'Laem Chabang Terminal 2', 'sort_order' => 2],
-                ['value' => 'lcb3', 'label' => 'Laem Chabang Terminal 3', 'sort_order' => 3],
-                ['value' => 'bkk', 'label' => 'Bangkok Port', 'sort_order' => 4],
-                ['value' => 'sriracha', 'label' => 'Sriracha Port', 'sort_order' => 5],
-                ['value' => 'mapphla', 'label' => 'Map Pha La Port', 'sort_order' => 6],
-            ],
 
             // Shipping Team / ชิ้ปปิ้ง
             'shipping_team' => [
@@ -66,22 +57,6 @@ class DropdownSettingsSeeder extends Seeder
                 ['value' => 'cma', 'label' => 'CMA CGM', 'sort_order' => 8],
             ],
 
-            // VSL Payment Status / สถานะชำระเงิน VSL
-            'vsl_payment_status' => [
-                ['value' => 'pending', 'label' => 'รอชำระ', 'sort_order' => 1],
-                ['value' => 'paid', 'label' => 'ชำระแล้ว', 'sort_order' => 2],
-                ['value' => 'partial', 'label' => 'ชำระบางส่วน', 'sort_order' => 3],
-                ['value' => 'overdue', 'label' => 'เกินกำหนด', 'sort_order' => 4],
-            ],
-
-            // Final Status / สถานะสุดท้าย
-            'final_status' => [
-                ['value' => 'completed', 'label' => 'เสร็จสิ้น', 'sort_order' => 1],
-                ['value' => 'in_progress', 'label' => 'กำลังดำเนินการ', 'sort_order' => 2],
-                ['value' => 'pending', 'label' => 'รอดำเนินการ', 'sort_order' => 3],
-                ['value' => 'cancelled', 'label' => 'ยกเลิก', 'sort_order' => 4],
-                ['value' => 'on_hold', 'label' => 'พักไว้', 'sort_order' => 5],
-            ],
 
             // Pickup Location / สถานที่รับ
             'pickup_location' => [
