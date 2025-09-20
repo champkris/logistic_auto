@@ -209,7 +209,7 @@ class ShipmentManager extends Component
 
         $shipments = $query->orderBy('created_at', 'desc')->paginate(10);
 
-        return view('livewire.shipment-manager', compact('shipments'));
+        return view('livewire.shipment-manager', compact('shipments'))->layout('layouts.app', ['title' => 'Shipment Management']);
     }
 
     public function openModal()

@@ -1,29 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Vessel Tracking Test - CS Shipping LCB</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8">
-        <div class="max-w-6xl mx-auto">
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+            🚢 Vessel Tracking Test
+        </h2>
+    </x-slot>
+
+    <div class="py-6">
+        <div class="max-w-6xl mx-auto sm:px-6 lg:px-8">
             <!-- Header -->
             <div class="bg-white rounded-lg shadow-md p-6 mb-6">
                 <h1 class="text-3xl font-bold text-gray-800 mb-2">🚢 Vessel Tracking Test</h1>
@@ -35,7 +18,7 @@
             <div class="bg-white rounded-lg shadow-md p-6 mb-6">
                 <h2 class="text-xl font-semibold text-gray-800 mb-4">🎯 Test Single Vessel</h2>
                 <p class="text-gray-600 mb-4">Test a specific vessel on a selected terminal</p>
-                
+
                 <form id="singleVesselForm" class="space-y-4">
                     <div class="grid md:grid-cols-2 gap-4">
                         <!-- Vessel Name -->
@@ -43,10 +26,10 @@
                             <label for="vesselName" class="block text-sm font-medium text-gray-700 mb-2">
                                 Vessel Name *
                             </label>
-                            <input 
-                                type="text" 
-                                id="vesselName" 
-                                name="vesselName" 
+                            <input
+                                type="text"
+                                id="vesselName"
+                                name="vesselName"
                                 placeholder="e.g., WAN HAI 517, MARSA PRIDE"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 required
@@ -59,10 +42,10 @@
                             <label for="voyageCode" class="block text-sm font-medium text-gray-700 mb-2">
                                 Voyage Code
                             </label>
-                            <input 
-                                type="text" 
-                                id="voyageCode" 
-                                name="voyageCode" 
+                            <input
+                                type="text"
+                                id="voyageCode"
+                                name="voyageCode"
                                 placeholder="e.g., S093, V.25080S (optional)"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
@@ -75,9 +58,9 @@
                         <label for="terminal" class="block text-sm font-medium text-gray-700 mb-2">
                             Select Terminal *
                         </label>
-                        <select 
-                            id="terminal" 
-                            name="terminal" 
+                        <select
+                            id="terminal"
+                            name="terminal"
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             required
                         >
@@ -93,8 +76,8 @@
 
                     <!-- Submit Button -->
                     <div class="flex justify-end">
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             id="testSingleVessel"
                             class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center space-x-2"
                         >
@@ -176,7 +159,7 @@
                         <p class="text-xs text-gray-400">🧭 Voyage: 0815-079S</p>
                     </div>
                 </div>
-                
+
                 <div class="mt-6 bg-blue-50 p-4 rounded-lg">
                     <h3 class="font-semibold text-blue-800 mb-2">💡 Usage Tips:</h3>
                     <ul class="text-sm text-blue-700 space-y-1">
@@ -191,30 +174,47 @@
         </div>
     </div>
 
+    <!-- Custom CSS for loading animation -->
+    <style>
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+
+    <!-- JavaScript for vessel testing functionality -->
     <script>
         // Single Vessel Test
         document.getElementById('singleVesselForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const button = document.getElementById('testSingleVessel');
             const results = document.getElementById('singleResults');
             const resultContainer = document.getElementById('singleVesselResult');
-            
+
             const vesselName = document.getElementById('vesselName').value.trim();
             const voyageCode = document.getElementById('voyageCode').value.trim();
             const terminal = document.getElementById('terminal').value;
-            
+
             if (!vesselName || !terminal) {
                 alert('Please fill in vessel name and select a terminal');
                 return;
             }
-            
+
             // Show loading state
             button.innerHTML = '<span class="loading"></span> Testing...';
             button.disabled = true;
             results.classList.remove('hidden');
             resultContainer.innerHTML = '<p class="text-blue-600">🔄 Testing vessel on selected terminal...</p>';
-            
+
             try {
                 const response = await fetch('/vessel-test-public/single', {
                     method: 'POST',
@@ -228,15 +228,15 @@
                         terminal: terminal
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     const result = data.result;
                     const statusIcon = result.success ? '✅' : '❌';
                     const vesselIcon = result.vessel_found ? '🚢' : (result.voyage_found ? '🧭' : '🔍');
                     const statusColor = result.success ? 'text-green-600' : 'text-red-600';
-                    
+
                     let resultHtml = `
                         <div class="border rounded-lg p-4 ${result.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}">
                             <div class="flex justify-between items-start mb-3">
@@ -249,7 +249,7 @@
                                 <span class="text-sm text-gray-500">${result.checked_at}</span>
                             </div>
                     `;
-                    
+
                     if (result.success) {
                         if (result.vessel_found || result.full_name_found) {
                             resultHtml += `
@@ -266,8 +266,8 @@
                                         </div>
                                         <div>
                                             <span class="font-medium">ETA Information:</span>
-                                            ${result.eta ? 
-                                                `<p class="text-green-700 font-medium mt-1">🕒 ETA: ${result.eta}</p>` : 
+                                            ${result.eta ?
+                                                `<p class="text-green-700 font-medium mt-1">🕒 ETA: ${result.eta}</p>` :
                                                 '<p class="text-yellow-600 mt-1">⚠️ ETA: Not available</p>'
                                             }
                                         </div>
@@ -276,7 +276,7 @@
                                         📊 Response Size: ${Number(result.html_size || 0).toLocaleString()} bytes
                                     </div>
                             `;
-                            
+
                             if (result.raw_data) {
                                 const preview = result.raw_data.substring(0, 300) + '...';
                                 resultHtml += `
@@ -286,7 +286,7 @@
                                     </details>
                                 `;
                             }
-                            
+
                             resultHtml += '</div>';
                         } else {
                             resultHtml += `
@@ -323,16 +323,16 @@
                             </div>
                         `;
                     }
-                    
+
                     resultHtml += '</div>';
-                    
+
                     // Add recommendations
                     resultHtml += `
                         <div class="mt-4 bg-blue-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-blue-800 mb-2">💡 Recommendations:</h4>
                             <ul class="text-sm text-blue-700 space-y-1">
                     `;
-                    
+
                     if (result.success && (result.vessel_found || result.full_name_found)) {
                         resultHtml += '<li>🎉 Great! This vessel can be tracked automatically on this terminal</li>';
                         if (!result.eta) {
@@ -345,9 +345,9 @@
                         resultHtml += '<li>🔧 This terminal may need different automation approach</li>';
                         resultHtml += '<li>🌐 Check if terminal website is accessible manually</li>';
                     }
-                    
+
                     resultHtml += '</ul></div>';
-                    
+
                     resultContainer.innerHTML = resultHtml;
                 } else {
                     resultContainer.innerHTML = `
@@ -357,7 +357,7 @@
                         </div>
                     `;
                 }
-                
+
             } catch (error) {
                 resultContainer.innerHTML = `
                     <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
@@ -371,30 +371,30 @@
             }
         });
 
-        // Full Test (existing functionality)
+        // Full Test (continues with rest of JavaScript...)
         document.getElementById('runTest').addEventListener('click', async function() {
             const button = this;
             const results = document.getElementById('results');
             const summary = document.getElementById('summary');
             const detailedResults = document.getElementById('detailed-results');
-            
+
             // Show loading state
             button.innerHTML = '<span class="loading"></span> Testing...';
             button.disabled = true;
             results.classList.remove('hidden');
             summary.innerHTML = '<p class="text-blue-600">🔄 Running tests on all terminals...</p>';
             detailedResults.innerHTML = '';
-            
+
             try {
                 const response = await fetch('/vessel-test/run');
                 const data = await response.json();
-                
+
                 // Display summary
                 const summaryStats = data.summary;
                 const successRate = ((summaryStats.successful / summaryStats.total) * 100).toFixed(1);
                 const foundRate = ((summaryStats.found / summaryStats.total) * 100).toFixed(1);
                 const etaRate = ((summaryStats.with_eta / summaryStats.total) * 100).toFixed(1);
-                
+
                 summary.innerHTML = `
                     <div class="grid md:grid-cols-4 gap-4 mb-4">
                         <div class="bg-blue-50 p-4 rounded-lg">
@@ -415,15 +415,15 @@
                         </div>
                     </div>
                 `;
-                
-                // Display detailed results (existing code continues...)
+
+                // Display detailed results
                 let detailedHtml = '<div class="space-y-4">';
-                
+
                 for (const [terminalCode, result] of Object.entries(data.results)) {
                     const statusIcon = result.success ? '✅' : '❌';
                     const vesselIcon = result.vessel_found ? '🚢' : (result.voyage_found ? '🧭' : '🔍');
                     const statusColor = result.success ? 'text-green-600' : 'text-red-600';
-                    
+
                     detailedHtml += `
                         <div class="border rounded-lg p-4 ${result.success ? 'border-green-200' : 'border-red-200'}">
                             <div class="flex justify-between items-start mb-2">
@@ -437,7 +437,7 @@
                                 <span class="text-xs text-gray-500">${result.checked_at}</span>
                             </div>
                     `;
-                    
+
                     if (result.success) {
                         if (result.vessel_found || result.full_name_found) {
                             detailedHtml += `
@@ -470,16 +470,16 @@
                             </div>
                         `;
                     }
-                    
+
                     detailedHtml += '</div>';
                 }
-                
+
                 detailedHtml += '</div>';
                 detailedResults.innerHTML = detailedHtml;
-                
+
                 // Show recommendations
                 let recommendations = '<div class="mt-6 bg-blue-50 p-4 rounded-lg"><h3 class="font-semibold text-blue-800 mb-2">💡 Recommendations:</h3><ul class="text-sm text-blue-700 space-y-1">';
-                
+
                 if (etaRate > 50) {
                     recommendations += '<li>🎉 Great success! Vessel tracking automation is highly viable</li>';
                 } else if (foundRate > 50) {
@@ -487,17 +487,17 @@
                 } else {
                     recommendations += '<li>❌ Consider alternative approaches for these specific terminals</li>';
                 }
-                
+
                 recommendations += `
                     <li>Focus development on terminals with ${successRate}% success rate</li>
                     <li>Develop specific HTML parsers for each terminal structure</li>
                     <li>Implement retry logic and error handling</li>
                     <li>Consider API integrations where available</li>
                 `;
-                
+
                 recommendations += '</ul></div>';
                 summary.innerHTML += recommendations;
-                
+
             } catch (error) {
                 summary.innerHTML = `<p class="text-red-600">❌ Error running test: ${error.message}</p>`;
             } finally {
@@ -506,5 +506,4 @@
             }
         });
     </script>
-</body>
-</html>
+</x-app-layout>

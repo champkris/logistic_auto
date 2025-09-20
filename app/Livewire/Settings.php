@@ -80,7 +80,7 @@ class Settings extends Component
 
         return view('livewire.settings', [
             'items' => $items
-        ]);
+        ])->layout('layouts.app', ['title' => 'Settings']);
     }
 
     public function selectField($field)
