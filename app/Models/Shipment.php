@@ -26,6 +26,7 @@ class Shipment extends Model
         'joint_pickup',
         'customs_clearance_status',
         'overtime_status',
+        'status',
         'vessel_loading_status',
         'thai_status',
         'planned_delivery_date',
@@ -123,19 +124,38 @@ class Shipment extends Model
     }
 
     /**
+     * Automatically update status based on customs clearance and DO status
+     */
+    public function updateAutomaticStatus()
+    {
+        if ($this->customs_clearance_status === 'received' && $this->do_status === 'received') {
+            $this->status = 'completed';
+        } else {
+            $this->status = 'in-progress';
+        }
+    }
+
+    /**
+     * Boot method to add model event listeners
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Update status whenever a shipment is saved
+        static::saving(function ($shipment) {
+            $shipment->updateAutomaticStatus();
+        });
+    }
+
+    /**
      * Get the status badge color.
      */
     public function getStatusColorAttribute()
     {
         return match($this->status) {
-            'new' => 'blue',
-            'planning' => 'yellow',
-            'documents_preparation' => 'orange',
-            'customs_clearance' => 'purple',
-            'ready_for_delivery' => 'green',
-            'in_transit' => 'indigo',
-            'delivered' => 'emerald',
-            'completed' => 'gray',
+            'in-progress' => 'blue',
+            'completed' => 'green',
             default => 'gray'
         };
     }
