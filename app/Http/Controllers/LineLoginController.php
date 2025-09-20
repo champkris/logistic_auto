@@ -16,7 +16,7 @@ class LineLoginController extends Controller
     public function redirectToLine()
     {
         try {
-            return Socialite::driver('line')->scopes(['profile', 'openid'])->redirect();
+            return Socialite::driver('line-login')->scopes(['profile', 'openid'])->redirect();
         } catch (\Exception $e) {
             Log::error('LINE Login redirect error: ' . $e->getMessage());
             return redirect()->route('profile')->with('error', 'Failed to connect to LINE. Please try again.');
@@ -29,7 +29,7 @@ class LineLoginController extends Controller
     public function handleLineCallback()
     {
         try {
-            $lineUser = Socialite::driver('line')->user();
+            $lineUser = Socialite::driver('line-login')->user();
 
             // Get the currently authenticated user
             $user = Auth::user();

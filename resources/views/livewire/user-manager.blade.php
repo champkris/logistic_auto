@@ -110,7 +110,7 @@
                                         <div class="flex items-center">
                                             <div class="flex-shrink-0 h-10 w-10">
                                                 @if($user->line_picture_url)
-                                                    <img class="h-10 w-10 rounded-full" src="{{ $user->line_picture_url }}" alt="{{ $user->name }}">
+                                                    <img class="h-10 w-10 rounded-full object-cover" src="{{ $user->line_picture_url }}" alt="{{ $user->name }}" style="width: 2.5rem; height: 2.5rem; min-width: 2.5rem; min-height: 2.5rem; max-width: 2.5rem; max-height: 2.5rem;">
                                                 @else
                                                     <div class="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
                                                         <span class="text-gray-600 font-medium text-sm">{{ substr($user->name, 0, 1) }}</span>
