@@ -68,15 +68,14 @@ class DropdownSettingsSeeder extends Seeder
                 ['value' => 'mon', 'label' => 'MON', 'sort_order' => 8],
             ],
 
-            // Port Terminal / ท่าเรือ
+            // Port Terminal / ท่าเรือ (using VesselTrackingService codes)
             'port_terminal' => [
-                ['value' => 'A0', 'label' => 'A0', 'url' => 'https://www.laemchabangport.com/vessel-schedule', 'sort_order' => 1],
-                ['value' => 'A3', 'label' => 'A3', 'url' => 'https://www.laemchabangport.com/vessel-schedule', 'sort_order' => 2],
-                ['value' => 'B1', 'label' => 'B1', 'url' => 'https://www.shipmentlink.com/vessel-tracking', 'sort_order' => 3],
-                ['value' => 'B3', 'label' => 'B3', 'url' => 'https://www.shipmentlink.com/vessel-tracking', 'sort_order' => 4],
-                ['value' => 'B4', 'label' => 'B4', 'url' => 'https://www.shipmentlink.com/vessel-tracking', 'sort_order' => 5],
-                ['value' => 'C1', 'label' => 'C1', 'url' => 'https://www.lcb1.com/vessel-info', 'sort_order' => 6],
-                ['value' => 'C3', 'label' => 'C3', 'url' => 'https://www.lcb1.com/vessel-info', 'sort_order' => 7],
+                ['value' => 'C1C2', 'label' => 'C1C2 (Hutchison Ports)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:17:6927160550678:::::', 'sort_order' => 1],
+                ['value' => 'B4', 'label' => 'B4 (TIPS)', 'url' => 'https://www.tips.co.th/container/shipSched/List', 'sort_order' => 2],
+                ['value' => 'B5C3', 'label' => 'B5C3 (LCIT)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 3],
+                ['value' => 'B3', 'label' => 'B3 (ESCO)', 'url' => 'https://service.esco.co.th/BerthSchedule', 'sort_order' => 4],
+                ['value' => 'A0B1', 'label' => 'A0B1 (LCB1)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 5],
+                ['value' => 'B2', 'label' => 'B2 (ShipmentLink)', 'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp', 'sort_order' => 6],
             ],
         ];
 

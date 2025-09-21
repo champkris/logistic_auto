@@ -292,6 +292,14 @@
                                                         📨
                                                     </button>
                                                 </div>
+                                                <!-- ETA Check Button -->
+                                                <div class="flex space-x-1 mt-1">
+                                                    <button onclick="checkShipmentETA({{ $shipment->id }})"
+                                                            class="text-blue-600 hover:text-blue-900 text-xs"
+                                                            title="Check vessel ETA using bot automation">
+                                                        🤖
+                                                    </button>
+                                                </div>
                                             @endif
                                         </div>
                                     </td>
@@ -724,6 +732,60 @@
             }
         } catch (error) {
             alert('Error: ' + error.message);
+        }
+    }
+
+    async function checkShipmentETA(shipmentId) {
+        if (!confirm('Send bot to check vessel ETA for this shipment? This will update the tracking status.')) {
+            return;
+        }
+
+        // Find the button and show loading state
+        const button = event.target;
+        const originalText = button.textContent;
+        button.textContent = '⏳';
+        button.disabled = true;
+
+        try {
+            const response = await fetch('/shipments/check-eta', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ shipment_id: shipmentId })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                let message = '✅ ETA check completed!\n\n';
+                message += `Terminal: ${result.terminal}\n`;
+                message += `Vessel Found: ${result.vessel_found ? 'Yes' : 'No'}\n`;
+                message += `Voyage Found: ${result.voyage_found ? 'Yes' : 'No'}\n`;
+                message += `Tracking Status: ${result.tracking_status === 'on_track' ? 'On Track' : 'Delay'}\n`;
+
+                if (result.eta) {
+                    message += `ETA: ${result.eta}\n`;
+                }
+
+                message += `\n${result.message}`;
+
+                alert(message);
+
+                // Refresh the page to show updated tracking status
+                location.reload();
+            } else {
+                alert('❌ ETA check failed: ' + (result.error || 'Unknown error'));
+
+                // Still reload to show updated tracking status
+                location.reload();
+            }
+        } catch (error) {
+            alert('🔧 Error checking ETA: ' + error.message);
+        } finally {
+            button.textContent = originalText;
+            button.disabled = false;
         }
     }
 </script>

@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Shipment Client LINE Routes (Admin only)
     Route::post('/shipments/generate-client-link', [App\Http\Controllers\ShipmentClientController::class, 'generateClientLink'])->name('shipments.generate-client-link');
     Route::post('/shipments/send-test-notification', [App\Http\Controllers\ShipmentClientController::class, 'sendTestNotification'])->name('shipments.send-test-notification');
+    Route::post('/shipments/check-eta', [App\Http\Controllers\ShipmentClientController::class, 'checkShipmentETA'])->name('shipments.check-eta');
     
     // Vessel Tracking Test Routes
     Route::get('/vessel-test', function () {

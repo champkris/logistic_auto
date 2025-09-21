@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Shipment;
 use App\Models\ShipmentClient;
 use App\Services\LineMessagingService;
+use App\Services\VesselTrackingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -200,5 +201,134 @@ class ShipmentClientController extends Controller
             'success' => true,
             'message' => "Test notifications sent to {$successCount} out of {$connectedClients->count()} connected clients."
         ]);
+    }
+
+    public function checkShipmentETA(Request $request)
+    {
+        $request->validate([
+            'shipment_id' => 'required|exists:shipments,id',
+        ]);
+
+        if (!Auth::check()) {
+            return response()->json(['error' => 'Please login first'], 401);
+        }
+
+        if (Auth::user()->role !== 'admin') {
+            return response()->json(['error' => 'Admin access required'], 403);
+        }
+
+        $shipment = Shipment::with('vessel')->findOrFail($request->shipment_id);
+
+        // Check if we have required data for vessel tracking
+        if (!$shipment->vessel && !$shipment->vessel_code) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No vessel information available for this shipment'
+            ]);
+        }
+
+        if (!$shipment->port_terminal) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No port terminal specified for this shipment'
+            ]);
+        }
+
+        try {
+            // Build vessel name for tracking
+            $vesselName = $shipment->vessel ? $shipment->vessel->name : $shipment->vessel_code;
+            $vesselFullName = $vesselName . ($shipment->voyage ? ' ' . $shipment->voyage : '');
+
+            Log::info('Starting ETA check for shipment', [
+                'shipment_id' => $shipment->id,
+                'vessel_name' => $vesselName,
+                'voyage' => $shipment->voyage,
+                'port_terminal' => $shipment->port_terminal,
+                'initiated_by' => Auth::id()
+            ]);
+
+            // Update the check date first
+            $shipment->update([
+                'last_eta_check_date' => now()
+            ]);
+
+            $vesselTrackingService = new VesselTrackingService();
+
+            // Check ETA using the shipment's port terminal (now uses VesselTrackingService codes directly)
+            $result = $vesselTrackingService->checkVesselETAByName($vesselFullName, $shipment->port_terminal);
+
+            if ($result && $result['success']) {
+                // Update shipment with tracking results
+                $updateData = [
+                    'bot_received_eta_date' => now()
+                ];
+
+                // Determine tracking status based on results
+                if ($result['vessel_found'] && isset($result['eta']) && $result['eta']) {
+                    $updateData['tracking_status'] = 'on_track';
+                } else {
+                    $updateData['tracking_status'] = 'delay';
+                }
+
+                $shipment->update($updateData);
+
+                Log::info('ETA check completed successfully', [
+                    'shipment_id' => $shipment->id,
+                    'vessel_found' => $result['vessel_found'],
+                    'eta_found' => isset($result['eta']) && $result['eta'],
+                    'tracking_status' => $updateData['tracking_status']
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'vessel_found' => $result['vessel_found'],
+                    'voyage_found' => $result['voyage_found'] ?? false,
+                    'eta' => $result['eta'] ?? null,
+                    'tracking_status' => $updateData['tracking_status'],
+                    'terminal' => $result['terminal'] ?? $shipment->port_terminal,
+                    'message' => $result['vessel_found']
+                        ? 'Vessel tracking completed successfully'
+                        : 'Vessel not found in current schedule'
+                ]);
+            } else {
+                // Update tracking status to delay if check failed
+                $shipment->update([
+                    'bot_received_eta_date' => now(),
+                    'tracking_status' => 'delay'
+                ]);
+
+                $errorMessage = $result['error'] ?? 'Unknown error during vessel tracking';
+
+                Log::warning('ETA check failed', [
+                    'shipment_id' => $shipment->id,
+                    'error' => $errorMessage
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'error' => $errorMessage,
+                    'tracking_status' => 'delay'
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            // Update tracking status to delay on exception
+            $shipment->update([
+                'bot_received_eta_date' => now(),
+                'tracking_status' => 'delay'
+            ]);
+
+            Log::error('ETA check exception', [
+                'shipment_id' => $shipment->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to check vessel ETA: ' . $e->getMessage(),
+                'tracking_status' => 'delay'
+            ]);
+        }
     }
 }
