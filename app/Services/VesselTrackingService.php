@@ -14,7 +14,7 @@ class VesselTrackingService
             'name' => 'Hutchison Ports',
             'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:17:6927160550678:::::',
             'vessel_full' => 'WAN HAI 517 S093',
-            'method' => 'hutchison'
+            'method' => 'hutchison_browser'
         ],
         'B4' => [
             'name' => 'TIPS',
@@ -147,24 +147,92 @@ class VesselTrackingService
         }
     }
 
-    protected function hutchison($config)
+    protected function hutchison_browser($config)
     {
-        // Hutchison Ports - This looks like an Oracle APEX application
-        $response = Http::timeout(30)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language' => 'en-US,en;q=0.5',
-                'Accept-Encoding' => 'gzip, deflate',
-                'Connection' => 'keep-alive'
-            ])
-            ->get($config['url']);
+        try {
+            $vesselName = $config['vessel_name'];
+            \Log::info("Starting Hutchison Ports browser automation for vessel: {$vesselName}");
 
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
+            $browserAutomationPath = base_path('browser-automation');
+
+            // Use proc_open to separate stdout (JSON) from stderr (logs)
+            $command = "cd {$browserAutomationPath} && timeout 90 node hutchison-wrapper.js '{$vesselName}'";
+
+            $descriptors = [
+                0 => ['pipe', 'r'],  // stdin
+                1 => ['pipe', 'w'],  // stdout (JSON)
+                2 => ['pipe', 'w']   // stderr (logs)
+            ];
+
+            $process = proc_open($command, $descriptors, $pipes);
+
+            if (is_resource($process)) {
+                fclose($pipes[0]); // Close stdin
+
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
+
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+
+                $returnCode = proc_close($process);
+
+                // Log the browser automation logs for debugging
+                if (!empty($logOutput)) {
+                    \Log::info("Hutchison browser automation logs: " . $logOutput);
+                }
+
+                // Check if we have valid JSON output regardless of return code
+                if (!empty($jsonOutput)) {
+                    $result = json_decode($jsonOutput, true);
+
+                    if (json_last_error() === JSON_ERROR_NONE && isset($result['success'])) {
+                        if ($result['success']) {
+                            \Log::info("Hutchison browser automation completed successfully", [
+                                'vessel_name' => $vesselName,
+                                'result' => $result
+                            ]);
+                        } else {
+                            \Log::info("Hutchison browser automation completed - vessel not found", [
+                                'vessel_name' => $vesselName,
+                                'result' => $result
+                            ]);
+                        }
+
+                        return $result;
+                    } else {
+                        \Log::error("Invalid JSON from Hutchison browser automation: " . $jsonOutput);
+                        throw new \Exception("Invalid JSON response from browser automation");
+                    }
+                } else {
+                    \Log::error("Hutchison browser automation failed - no output", [
+                        'return_code' => $returnCode,
+                        'log_output' => $logOutput
+                    ]);
+                    throw new \Exception("Browser automation failed with no output. Return code: {$returnCode}");
+                }
+            } else {
+                throw new \Exception("Failed to start browser automation process");
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("Hutchison browser automation exception: " . $e->getMessage());
+
+            return [
+                'success' => false,
+                'terminal' => 'Hutchison Ports',
+                'vessel_name' => $config['vessel_name'] ?? '',
+                'voyage_code' => $config['voyage_code'] ?? '',
+                'vessel_full' => $config['vessel_full'] ?? '',
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'full_name_found' => false,
+                'search_method' => 'browser_automation_failed',
+                'eta' => null,
+                'error' => $e->getMessage(),
+                'checked_at' => now()
+            ];
         }
-
-        return $this->parseVesselData($response->body(), $config);
     }
 
     protected function tips($config)

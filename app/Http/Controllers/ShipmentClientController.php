@@ -268,7 +268,9 @@ class ShipmentClientController extends Controller
                 $updateData = [];
 
                 // Update the planned delivery date and bot_received_eta_date if ETA found
-                if ($result['vessel_found'] && isset($result['eta']) && $result['eta']) {
+                // Handle both old format (vessel_found) and new browser automation format (success)
+                $vesselFound = isset($result['vessel_found']) ? $result['vessel_found'] : $result['success'];
+                if ($vesselFound && isset($result['eta']) && $result['eta']) {
                     try {
                         $etaDate = \Carbon\Carbon::parse($result['eta']);
                         $updateData['planned_delivery_date'] = $etaDate;
@@ -289,7 +291,7 @@ class ShipmentClientController extends Controller
                 }
 
                 // Determine tracking status based on results
-                if ($result['vessel_found'] && isset($result['eta']) && $result['eta']) {
+                if ($vesselFound && isset($result['eta']) && $result['eta']) {
                     $updateData['tracking_status'] = 'on_track';
                 } else {
                     $updateData['tracking_status'] = 'delay';
@@ -299,7 +301,7 @@ class ShipmentClientController extends Controller
 
                 Log::info('ETA check completed successfully', [
                     'shipment_id' => $shipment->id,
-                    'vessel_found' => $result['vessel_found'],
+                    'vessel_found' => $vesselFound,
                     'eta_found' => isset($result['eta']) && $result['eta'],
                     'tracking_status' => $updateData['tracking_status'],
                     'port_eta' => $result['eta'] ?? null,
@@ -308,12 +310,12 @@ class ShipmentClientController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'vessel_found' => $result['vessel_found'],
+                    'vessel_found' => $vesselFound,
                     'voyage_found' => $result['voyage_found'] ?? false,
                     'eta' => $result['eta'] ?? null,
                     'tracking_status' => $updateData['tracking_status'],
                     'terminal' => $result['terminal'] ?? $shipment->port_terminal,
-                    'message' => $result['vessel_found']
+                    'message' => $vesselFound
                         ? 'Vessel tracking completed successfully'
                         : 'Vessel not found in current schedule'
                 ]);
