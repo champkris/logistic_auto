@@ -6,6 +6,7 @@ use App\Models\DropdownSetting;
 use App\Models\Customer;
 use App\Models\Vessel;
 use Livewire\Component;
+use Illuminate\Support\Facades\Log;
 
 class Settings extends Component
 {
@@ -24,6 +25,17 @@ class Settings extends Component
     public $sort_order = 0;
     public $is_active = true;
 
+    // Vessel form fields
+    public $vessel_name = '';
+    public $full_vessel_name = '';
+    public $voyage_number = '';
+    public $eta = '';
+    public $port = '';
+    public $status = 'scheduled';
+    public $imo_number = '';
+    public $agent = '';
+    public $vessel_notes = '';
+
     // Search
     public $search = '';
 
@@ -34,11 +46,21 @@ class Settings extends Component
     ];
 
     protected $rules = [
-        'value' => 'required|string|max:255',
-        'label' => 'required|string|max:255',
+        'value' => 'sometimes|required|string|max:255',
+        'label' => 'sometimes|required|string|max:255',
         'url' => 'nullable|url|max:500',
         'sort_order' => 'integer|min:0',
         'is_active' => 'boolean',
+        // Vessel validation rules
+        'vessel_name' => 'sometimes|required|string|max:255',
+        'full_vessel_name' => 'nullable|string|max:255',
+        'voyage_number' => 'nullable|string|max:100',
+        'eta' => 'nullable|date_format:Y-m-d\TH:i',
+        'port' => 'nullable|string|max:255',
+        'status' => 'nullable|in:scheduled,arrived,departed,delayed',
+        'imo_number' => 'nullable|string|max:20',
+        'agent' => 'nullable|string|max:255',
+        'vessel_notes' => 'nullable|string|max:1000',
     ];
 
     public function mount()
@@ -111,8 +133,13 @@ class Settings extends Component
 
     public function create()
     {
+        Log::info('Create method called', [
+            'selectedField' => $this->selectedField,
+            'activeTab' => $this->activeTab
+        ]);
         $this->resetForm();
         $this->showModal = true;
+        Log::info('Modal should now be visible', ['showModal' => $this->showModal]);
     }
 
     public function edit($id)
@@ -123,7 +150,20 @@ class Settings extends Component
         }
 
         if ($this->selectedField === 'vessels') {
-            $this->dispatch('info', message: 'Please use the Vessel Management page to edit vessels.');
+            $vessel = Vessel::find($id);
+            if ($vessel) {
+                $this->editingItem = $vessel;
+                $this->vessel_name = $vessel->vessel_name;
+                $this->full_vessel_name = $vessel->full_vessel_name;
+                $this->voyage_number = $vessel->voyage_number;
+                $this->eta = $vessel->eta ? $vessel->eta->format('Y-m-d\TH:i') : '';
+                $this->port = $vessel->port;
+                $this->status = $vessel->status;
+                $this->imo_number = $vessel->imo_number;
+                $this->agent = $vessel->agent;
+                $this->vessel_notes = $vessel->notes;
+                $this->showModal = true;
+            }
             return;
         }
 
@@ -142,21 +182,85 @@ class Settings extends Component
 
     public function save()
     {
-        $this->validate();
+        Log::info('Save method called', [
+            'selectedField' => $this->selectedField,
+            'vessel_name' => $this->vessel_name ?? 'not set',
+            'value' => $this->value ?? 'not set'
+        ]);
+
+        // Dynamic validation based on selected field
+        if ($this->selectedField === 'vessels') {
+            $this->validate([
+                'vessel_name' => 'required|string|max:255',
+                'full_vessel_name' => 'nullable|string|max:255',
+                'voyage_number' => 'nullable|string|max:100',
+                'eta' => 'nullable|date_format:Y-m-d\TH:i',
+                'port' => 'nullable|string|max:255',
+                'status' => 'nullable|in:scheduled,arrived,departed,delayed',
+                'imo_number' => 'nullable|string|max:20',
+                'agent' => 'nullable|string|max:255',
+                'vessel_notes' => 'nullable|string|max:1000',
+            ]);
+        } else {
+            $this->validate([
+                'value' => 'required|string|max:255',
+                'label' => 'required|string|max:255',
+                'url' => 'nullable|url|max:500',
+                'sort_order' => 'integer|min:0',
+                'is_active' => 'boolean',
+            ]);
+        }
 
         try {
-            $data = [
-                'field_name' => $this->selectedField,
-                'value' => $this->value,
-                'label' => $this->label,
-                'url' => $this->url ?: null,
-                'sort_order' => $this->sort_order,
-                'is_active' => $this->is_active,
-            ];
+            if ($this->selectedField === 'vessels') {
+                // Handle vessel creation/update
+                $vesselData = [
+                    'vessel_name' => $this->vessel_name,
+                    'name' => $this->vessel_name, // For API compatibility
+                    'full_vessel_name' => $this->full_vessel_name,
+                    'voyage_number' => $this->voyage_number,
+                    'eta' => $this->eta ? \Carbon\Carbon::parse($this->eta) : null,
+                    'port' => $this->port,
+                    'status' => $this->status,
+                    'imo_number' => $this->imo_number,
+                    'agent' => $this->agent,
+                    'notes' => $this->vessel_notes,
+                ];
 
-            if ($this->editingItem) {
-                // Check for duplicate value if changed
-                if ($this->editingItem->value !== $this->value) {
+                if ($this->editingItem) {
+                    $this->editingItem->update($vesselData);
+                    $this->dispatch('success', message: 'Vessel updated successfully!');
+                } else {
+                    Vessel::create($vesselData);
+                    $this->dispatch('success', message: 'Vessel created successfully!');
+                }
+            } else {
+                // Handle dropdown setting creation/update
+                $data = [
+                    'field_name' => $this->selectedField,
+                    'value' => $this->value,
+                    'label' => $this->label,
+                    'url' => $this->url ?: null,
+                    'sort_order' => $this->sort_order,
+                    'is_active' => $this->is_active,
+                ];
+
+                if ($this->editingItem) {
+                    // Check for duplicate value if changed
+                    if ($this->editingItem->value !== $this->value) {
+                        $exists = DropdownSetting::where('field_name', $this->selectedField)
+                                                ->where('value', $this->value)
+                                                ->exists();
+                        if ($exists) {
+                            $this->addError('value', 'This value already exists for this field.');
+                            return;
+                        }
+                    }
+
+                    $this->editingItem->update($data);
+                    $this->dispatch('success', message: 'Option updated successfully!');
+                } else {
+                    // Check for duplicate value
                     $exists = DropdownSetting::where('field_name', $this->selectedField)
                                             ->where('value', $this->value)
                                             ->exists();
@@ -164,28 +268,16 @@ class Settings extends Component
                         $this->addError('value', 'This value already exists for this field.');
                         return;
                     }
-                }
 
-                $this->editingItem->update($data);
-                $this->dispatch('success', message: 'Option updated successfully!');
-            } else {
-                // Check for duplicate value
-                $exists = DropdownSetting::where('field_name', $this->selectedField)
-                                        ->where('value', $this->value)
-                                        ->exists();
-                if ($exists) {
-                    $this->addError('value', 'This value already exists for this field.');
-                    return;
+                    DropdownSetting::create($data);
+                    $this->dispatch('success', message: 'Option created successfully!');
                 }
-
-                DropdownSetting::create($data);
-                $this->dispatch('success', message: 'Option created successfully!');
             }
 
             $this->resetForm();
             $this->showModal = false;
         } catch (\Exception $e) {
-            $this->dispatch('error', message: 'Error saving option: ' . $e->getMessage());
+            $this->dispatch('error', message: 'Error saving: ' . $e->getMessage());
         }
     }
 
@@ -224,6 +316,18 @@ class Settings extends Component
         $this->url = '';
         $this->sort_order = 0;
         $this->is_active = true;
+
+        // Reset vessel fields
+        $this->vessel_name = '';
+        $this->full_vessel_name = '';
+        $this->voyage_number = '';
+        $this->eta = '';
+        $this->port = '';
+        $this->status = 'scheduled';
+        $this->imo_number = '';
+        $this->agent = '';
+        $this->vessel_notes = '';
+
         $this->resetErrorBag();
     }
 
