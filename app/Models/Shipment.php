@@ -31,6 +31,9 @@ class Shipment extends Model
         'thai_status',
         'planned_delivery_date',
         'actual_delivery_date',
+        'last_eta_check_date',
+        'bot_received_eta_date',
+        'tracking_status',
         'notes',
         'cargo_details',
         'pickup_location',
@@ -39,6 +42,8 @@ class Shipment extends Model
     protected $casts = [
         'planned_delivery_date' => 'date',
         'actual_delivery_date' => 'date',
+        'last_eta_check_date' => 'datetime',
+        'bot_received_eta_date' => 'datetime',
         'do_pickup_date' => 'datetime',
         'cargo_details' => 'array',
         'total_cost' => 'decimal:2',

@@ -38,7 +38,10 @@ class ShipmentManager extends Component
     public $cargo_weight = '';
     public $pickup_location = '';
     public $cargo_volume = '';
-    
+    public $last_eta_check_date = '';
+    public $bot_received_eta_date = '';
+    public $tracking_status = '';
+
     // Modal and state management
     public $showModal = false;
     public $editingShipment = null;
@@ -68,6 +71,11 @@ class ShipmentManager extends Component
 
     public $pickupLocationOptions = [];
     public $csOptions = [];
+
+    public $trackingStatusOptions = [
+        'on_track' => 'On Track',
+        'delay' => 'Delay',
+    ];
 
     public function rules()
     {
@@ -101,6 +109,9 @@ class ShipmentManager extends Component
         'cargo_weight' => 'nullable|numeric|min:0',
         'pickup_location' => 'nullable|string|max:255',
         'cargo_volume' => 'nullable|numeric|min:0',
+        'last_eta_check_date' => 'nullable|date',
+        'bot_received_eta_date' => 'nullable|date',
+        'tracking_status' => 'nullable|in:on_track,delay',
         ];
     }
 
@@ -252,6 +263,9 @@ class ShipmentManager extends Component
         $this->cargo_weight = '';
         $this->pickup_location = '';
         $this->cargo_volume = '';
+        $this->last_eta_check_date = '';
+        $this->bot_received_eta_date = '';
+        $this->tracking_status = '';
     }
 
 
@@ -339,6 +353,9 @@ class ShipmentManager extends Component
             $this->cargo_weight = $cargoDetails['weight_kg'] ?? '';
             $this->cargo_volume = $cargoDetails['volume_cbm'] ?? '';
             $this->pickup_location = $this->editingShipment->pickup_location ?? '';
+            $this->last_eta_check_date = $this->editingShipment->last_eta_check_date?->format('Y-m-d\TH:i');
+            $this->bot_received_eta_date = $this->editingShipment->bot_received_eta_date?->format('Y-m-d\TH:i');
+            $this->tracking_status = $this->editingShipment->tracking_status ?? '';
 
             $this->showModal = true;
         }

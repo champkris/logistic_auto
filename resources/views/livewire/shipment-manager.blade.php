@@ -88,6 +88,8 @@
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ท่าเรือ</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ชิ้ปปิ้ง</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">CS</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Last ETA Check</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">On Track?</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">LINE</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">STATUS</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Actions</th>
@@ -192,6 +194,45 @@
 
                                     <!-- CS Reference -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->cs_reference ?? '-' }}</td>
+
+                                    <!-- Last ETA Check -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        <div class="space-y-1">
+                                            @if($shipment->last_eta_check_date)
+                                                <div class="text-blue-600" title="Bot check date">
+                                                    🤖 {{ $shipment->last_eta_check_date->format('d/m H:i') }}
+                                                </div>
+                                            @endif
+                                            @if($shipment->bot_received_eta_date)
+                                                <div class="text-green-600" title="Received ETA date">
+                                                    📅 {{ $shipment->bot_received_eta_date->format('d/m H:i') }}
+                                                </div>
+                                            @endif
+                                            @if(!$shipment->last_eta_check_date && !$shipment->bot_received_eta_date)
+                                                <span class="text-gray-500">-</span>
+                                            @endif
+                                        </div>
+                                    </td>
+
+                                    <!-- Tracking Status -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        @if($shipment->tracking_status)
+                                            <span class="px-2 py-1 rounded-full text-xs font-medium
+                                                @if($shipment->tracking_status === 'on_track')
+                                                    bg-green-100 text-green-800
+                                                @else
+                                                    bg-red-100 text-red-800
+                                                @endif">
+                                                @if($shipment->tracking_status === 'on_track')
+                                                    ✅ On Track
+                                                @else
+                                                    ⚠️ Delay
+                                                @endif
+                                            </span>
+                                        @else
+                                            <span class="text-gray-500">-</span>
+                                        @endif
+                                    </td>
 
                                     <!-- LINE Status -->
                                     <td class="px-1 py-1 text-xs text-center">
@@ -495,8 +536,6 @@
                             </select>
                             @error('cs_reference') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
-
-
 
                         <!-- Notes (full width) -->
                         <div class="md:col-span-4">
