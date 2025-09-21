@@ -70,13 +70,13 @@ class DropdownSettingsSeeder extends Seeder
 
             // Port Terminal / ท่าเรือ
             'port_terminal' => [
-                ['value' => 'A0', 'label' => 'A0', 'sort_order' => 1],
-                ['value' => 'A3', 'label' => 'A3', 'sort_order' => 2],
-                ['value' => 'B1', 'label' => 'B1', 'sort_order' => 3],
-                ['value' => 'B3', 'label' => 'B3', 'sort_order' => 4],
-                ['value' => 'B4', 'label' => 'B4', 'sort_order' => 5],
-                ['value' => 'C1', 'label' => 'C1', 'sort_order' => 6],
-                ['value' => 'C3', 'label' => 'C3', 'sort_order' => 7],
+                ['value' => 'A0', 'label' => 'A0', 'url' => 'https://www.laemchabangport.com/vessel-schedule', 'sort_order' => 1],
+                ['value' => 'A3', 'label' => 'A3', 'url' => 'https://www.laemchabangport.com/vessel-schedule', 'sort_order' => 2],
+                ['value' => 'B1', 'label' => 'B1', 'url' => 'https://www.shipmentlink.com/vessel-tracking', 'sort_order' => 3],
+                ['value' => 'B3', 'label' => 'B3', 'url' => 'https://www.shipmentlink.com/vessel-tracking', 'sort_order' => 4],
+                ['value' => 'B4', 'label' => 'B4', 'url' => 'https://www.shipmentlink.com/vessel-tracking', 'sort_order' => 5],
+                ['value' => 'C1', 'label' => 'C1', 'url' => 'https://www.lcb1.com/vessel-info', 'sort_order' => 6],
+                ['value' => 'C3', 'label' => 'C3', 'url' => 'https://www.lcb1.com/vessel-info', 'sort_order' => 7],
             ],
         ];
 
@@ -89,6 +89,7 @@ class DropdownSettingsSeeder extends Seeder
                     ],
                     [
                         'label' => $option['label'],
+                        'url' => $option['url'] ?? null,
                         'sort_order' => $option['sort_order'],
                         'is_active' => true,
                     ]

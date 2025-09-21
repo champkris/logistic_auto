@@ -20,6 +20,7 @@ class Settings extends Component
     // Form fields
     public $value = '';
     public $label = '';
+    public $url = '';
     public $sort_order = 0;
     public $is_active = true;
 
@@ -35,6 +36,7 @@ class Settings extends Component
     protected $rules = [
         'value' => 'required|string|max:255',
         'label' => 'required|string|max:255',
+        'url' => 'nullable|url|max:500',
         'sort_order' => 'integer|min:0',
         'is_active' => 'boolean',
     ];
@@ -131,6 +133,7 @@ class Settings extends Component
             $this->editingItem = $item;
             $this->value = $item->value;
             $this->label = $item->label;
+            $this->url = $item->url ?? '';
             $this->sort_order = $item->sort_order;
             $this->is_active = $item->is_active;
             $this->showModal = true;
@@ -146,6 +149,7 @@ class Settings extends Component
                 'field_name' => $this->selectedField,
                 'value' => $this->value,
                 'label' => $this->label,
+                'url' => $this->url ?: null,
                 'sort_order' => $this->sort_order,
                 'is_active' => $this->is_active,
             ];
@@ -217,9 +221,16 @@ class Settings extends Component
         $this->editingItem = null;
         $this->value = '';
         $this->label = '';
+        $this->url = '';
         $this->sort_order = 0;
         $this->is_active = true;
         $this->resetErrorBag();
+    }
+
+    public function closeModal()
+    {
+        $this->showModal = false;
+        $this->resetForm();
     }
 
     public function seedDefaultValues()

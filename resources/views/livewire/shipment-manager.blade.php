@@ -88,6 +88,7 @@
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ท่าเรือ</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ชิ้ปปิ้ง</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">CS</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">LINE</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">STATUS</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Actions</th>
                             </tr>
@@ -191,6 +192,22 @@
 
                                     <!-- CS Reference -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->cs_reference ?? '-' }}</td>
+
+                                    <!-- LINE Status -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        @php
+                                            $lineClients = $shipment->shipmentClients()->whereNotNull('line_user_id')->count();
+                                        @endphp
+                                        @if($lineClients > 0)
+                                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800" title="{{ $lineClients }} client(s) connected">
+                                                ✅ {{ $lineClients }}
+                                            </span>
+                                        @else
+                                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                                                -
+                                            </span>
+                                        @endif
+                                    </td>
 
                                     <!-- Status -->
                                     <td class="px-1 py-1 text-xs text-center">

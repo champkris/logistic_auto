@@ -183,7 +183,7 @@ class ShipmentManager extends Component
 
     public function render()
     {
-        $query = Shipment::with(['customer', 'vessel']);
+        $query = Shipment::with(['customer', 'vessel', 'shipmentClients']);
 
         // Apply search filter
         if ($this->search) {

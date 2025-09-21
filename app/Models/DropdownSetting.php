@@ -10,6 +10,7 @@ class DropdownSetting extends Model
         'field_name',
         'value',
         'label',
+        'url',
         'sort_order',
         'is_active',
     ];
@@ -33,6 +34,23 @@ class DropdownSetting extends Model
         return $query->orderBy('sort_order')
                     ->orderBy('label')
                     ->pluck('label', 'value')
+                    ->toArray();
+    }
+
+    /**
+     * Get all dropdown options with URLs for a specific field
+     */
+    public static function getFieldOptionsWithUrls($fieldName, $activeOnly = true)
+    {
+        $query = static::where('field_name', $fieldName);
+
+        if ($activeOnly) {
+            $query->where('is_active', true);
+        }
+
+        return $query->orderBy('sort_order')
+                    ->orderBy('label')
+                    ->get(['value', 'label', 'url'])
                     ->toArray();
     }
 

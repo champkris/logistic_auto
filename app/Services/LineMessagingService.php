@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Models\ShipmentClient;
 use Illuminate\Support\Facades\Log;
 use Revolution\Line\Facades\Bot;
+use LINE\Clients\MessagingApi\Model\PushMessageRequest;
+use LINE\Clients\MessagingApi\Model\TextMessage;
 
 class LineMessagingService
 {
@@ -20,7 +22,20 @@ class LineMessagingService
     public function sendTextMessage(string $lineUserId, string $message): bool
     {
         try {
-            Bot::pushMessage($lineUserId, $message);
+            // Create text message object
+            $textMessage = new TextMessage([
+                'type' => 'text',
+                'text' => $message
+            ]);
+
+            // Create push message request
+            $pushMessageRequest = new PushMessageRequest([
+                'to' => $lineUserId,
+                'messages' => [$textMessage]
+            ]);
+
+            // Send the message
+            $response = Bot::pushMessage($pushMessageRequest);
 
             Log::info('LINE message sent successfully', [
                 'line_user_id' => $lineUserId,
@@ -30,7 +45,8 @@ class LineMessagingService
         } catch (\Exception $e) {
             Log::error('LINE messaging error: ' . $e->getMessage(), [
                 'line_user_id' => $lineUserId,
-                'message' => $message
+                'message' => $message,
+                'error_trace' => $e->getTraceAsString()
             ]);
             return false;
         }

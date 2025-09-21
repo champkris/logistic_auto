@@ -118,6 +118,7 @@
                                                 @else
                                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
                                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Label</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
                                                     <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Sort Order</th>
                                                     <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                                                     <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -152,6 +153,15 @@
                                                         </td>
                                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                             {{ $item->label }}
+                                                        </td>
+                                                        <td class="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                                                            @if($item->url)
+                                                                <a href="{{ $item->url }}" target="_blank" class="text-blue-600 hover:text-blue-800 truncate block">
+                                                                    {{ $item->url }}
+                                                                </a>
+                                                            @else
+                                                                <span class="text-gray-400">-</span>
+                                                            @endif
                                                         </td>
                                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
                                                             {{ $item->sort_order }}
@@ -218,7 +228,7 @@
     @if($showModal && $activeTab === 'dropdown')
         <div class="fixed z-10 inset-0 overflow-y-auto">
             <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 transition-opacity" wire:click="resetForm">
+                <div class="fixed inset-0 transition-opacity" wire:click="$set('showModal', false)">
                     <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
                 </div>
 
@@ -252,6 +262,20 @@
                                             @error('label') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                                         </div>
 
+                                        <!-- URL (only for port terminals) -->
+                                        @if($selectedField === 'port_terminal')
+                                            <div>
+                                                <label for="url" class="block text-sm font-medium text-gray-700">Port Website URL</label>
+                                                <input wire:model="url"
+                                                       type="url"
+                                                       id="url"
+                                                       placeholder="https://example.com"
+                                                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                                @error('url') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                                <p class="mt-1 text-xs text-gray-500">URL for the port's website to check vessel ETA automatically</p>
+                                            </div>
+                                        @endif
+
                                         <!-- Sort Order -->
                                         <div>
                                             <label for="sort_order" class="block text-sm font-medium text-gray-700">Sort Order</label>
@@ -276,7 +300,7 @@
 
                                     <div class="mt-6 flex justify-end space-x-2">
                                         <button type="button"
-                                                wire:click="resetForm"
+                                                wire:click="closeModal"
                                                 class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500">
                                             Cancel
                                         </button>
