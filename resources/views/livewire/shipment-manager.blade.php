@@ -773,13 +773,17 @@
 
                 alert(message);
 
-                // Refresh the page to show updated tracking status
-                location.reload();
+                // Refresh the page after a short delay to show updated tracking status
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
             } else {
                 alert('❌ ETA check failed: ' + (result.error || 'Unknown error'));
 
-                // Still reload to show updated tracking status
-                location.reload();
+                // Still refresh to show updated tracking status
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
             }
         } catch (error) {
             alert('🔧 Error checking ETA: ' + error.message);

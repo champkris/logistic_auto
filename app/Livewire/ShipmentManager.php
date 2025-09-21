@@ -13,6 +13,8 @@ class ShipmentManager extends Component
 {
     use WithPagination;
 
+    protected $listeners = ['refreshComponent' => '$refresh'];
+
     // Form properties
     public $hbl_number = '';
     public $mbl_number = '';

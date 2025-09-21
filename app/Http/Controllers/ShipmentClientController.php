@@ -248,8 +248,14 @@ class ShipmentClientController extends Controller
             ]);
 
             // Update the check date first
+            $currentTime = now();
             $shipment->update([
-                'last_eta_check_date' => now()
+                'last_eta_check_date' => $currentTime
+            ]);
+
+            Log::info('Updated last_eta_check_date', [
+                'shipment_id' => $shipment->id,
+                'timestamp' => $currentTime->format('Y-m-d H:i:s')
             ]);
 
             $vesselTrackingService = new VesselTrackingService();
@@ -258,10 +264,29 @@ class ShipmentClientController extends Controller
             $result = $vesselTrackingService->checkVesselETAByName($vesselFullName, $shipment->port_terminal);
 
             if ($result && $result['success']) {
-                // Update shipment with tracking results
-                $updateData = [
-                    'bot_received_eta_date' => now()
-                ];
+                // Initialize update data
+                $updateData = [];
+
+                // Update the planned delivery date and bot_received_eta_date if ETA found
+                if ($result['vessel_found'] && isset($result['eta']) && $result['eta']) {
+                    try {
+                        $etaDate = \Carbon\Carbon::parse($result['eta']);
+                        $updateData['planned_delivery_date'] = $etaDate;
+                        $updateData['bot_received_eta_date'] = $etaDate; // Store the actual ETA from port website
+                        Log::info('Updated planned_delivery_date from ETA check', [
+                            'shipment_id' => $shipment->id,
+                            'old_eta' => $shipment->planned_delivery_date ? $shipment->planned_delivery_date->format('Y-m-d H:i:s') : 'null',
+                            'new_eta' => $etaDate->format('Y-m-d H:i:s'),
+                            'port_eta' => $result['eta']
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to parse ETA date', [
+                            'shipment_id' => $shipment->id,
+                            'eta' => $result['eta'],
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                }
 
                 // Determine tracking status based on results
                 if ($result['vessel_found'] && isset($result['eta']) && $result['eta']) {
@@ -276,7 +301,9 @@ class ShipmentClientController extends Controller
                     'shipment_id' => $shipment->id,
                     'vessel_found' => $result['vessel_found'],
                     'eta_found' => isset($result['eta']) && $result['eta'],
-                    'tracking_status' => $updateData['tracking_status']
+                    'tracking_status' => $updateData['tracking_status'],
+                    'port_eta' => $result['eta'] ?? null,
+                    'bot_received_eta_date_stored' => isset($updateData['bot_received_eta_date']) ? $updateData['bot_received_eta_date']->format('Y-m-d H:i:s') : 'not_updated'
                 ]);
 
                 return response()->json([
@@ -293,7 +320,6 @@ class ShipmentClientController extends Controller
             } else {
                 // Update tracking status to delay if check failed
                 $shipment->update([
-                    'bot_received_eta_date' => now(),
                     'tracking_status' => 'delay'
                 ]);
 
@@ -314,7 +340,6 @@ class ShipmentClientController extends Controller
         } catch (\Exception $e) {
             // Update tracking status to delay on exception
             $shipment->update([
-                'bot_received_eta_date' => now(),
                 'tracking_status' => 'delay'
             ]);
 

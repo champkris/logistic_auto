@@ -40,7 +40,7 @@ class Shipment extends Model
     ];
 
     protected $casts = [
-        'planned_delivery_date' => 'date',
+        'planned_delivery_date' => 'datetime',
         'actual_delivery_date' => 'date',
         'last_eta_check_date' => 'datetime',
         'bot_received_eta_date' => 'datetime',
