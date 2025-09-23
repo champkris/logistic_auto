@@ -10,13 +10,15 @@ class Shipment extends Model
     use HasFactory;
 
     protected $fillable = [
+        'client_requested_delivery_date',
         'hbl_number',
         'mbl_number',
         'invoice_number',
         'quantity_days',
         'do_status',
         'weight_kgm',
-        'fcl_type',
+        'quantity_number',
+        'quantity_unit',
         'vessel_id',
         'voyage',
         'customer_id',
@@ -40,14 +42,16 @@ class Shipment extends Model
     ];
 
     protected $casts = [
+        'client_requested_delivery_date' => 'datetime',
         'planned_delivery_date' => 'datetime',
-        'actual_delivery_date' => 'date',
+        'actual_delivery_date' => 'datetime',
         'last_eta_check_date' => 'datetime',
         'bot_received_eta_date' => 'datetime',
         'do_pickup_date' => 'datetime',
         'cargo_details' => 'array',
         'total_cost' => 'decimal:2',
         'weight_kgm' => 'decimal:2',
+        'quantity_number' => 'decimal:2',
         'quantity_days' => 'integer',
     ];
 
@@ -144,30 +148,6 @@ class Shipment extends Model
         });
     }
 
-    /**
-     * Automatically update status based on customs clearance and DO status
-     */
-    public function updateAutomaticStatus()
-    {
-        if ($this->customs_clearance_status === 'received' && $this->do_status === 'received') {
-            $this->status = 'completed';
-        } else {
-            $this->status = 'in-progress';
-        }
-    }
-
-    /**
-     * Boot method to add model event listeners
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        // Update status whenever a shipment is saved
-        static::saving(function ($shipment) {
-            $shipment->updateAutomaticStatus();
-        });
-    }
 
     /**
      * Get the status badge color.

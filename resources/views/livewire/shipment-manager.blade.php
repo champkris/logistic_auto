@@ -72,6 +72,7 @@
                     <table class="min-w-full divide-y divide-gray-200 text-xs">
                         <thead class="bg-gray-50">
                             <tr>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Client Request</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">CUSTOMERS</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">INV.</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">HBL</th>
@@ -81,7 +82,7 @@
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">สถานะDO</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">สถานที่รับ</th>
                                 <th class="px-1 py-2 text-right text-xs font-medium text-gray-700 uppercase">KGM</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">FCL</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">QTY</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ETA</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">VESSEL NAME</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Voyage</th>
@@ -106,6 +107,15 @@
                                     }
                                 @endphp
                                 <tr class="hover:bg-gray-100 {{ $rowClass }}">
+                                    <!-- Client Requested Delivery Date -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        @if($shipment->client_requested_delivery_date)
+                                            {{ $shipment->client_requested_delivery_date->format('d-M H:i') }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+
                                     <!-- Customer -->
                                     <td class="px-1 py-1 text-xs">{{ $shipment->customer->company ?? 'N/A' }}</td>
 
@@ -166,15 +176,24 @@
                                         @endif
                                     </td>
 
-                                    <!-- FCL -->
-                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->fcl_type ?? '-' }}</td>
+                                    <!-- Quantity -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        @if($shipment->quantity_number)
+                                            {{ $shipment->quantity_number }}
+                                            @if($shipment->quantity_unit)
+                                                <br><span class="text-gray-500">{{ $shipment->quantity_unit }}</span>
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
 
                                     <!-- ETA -->
                                     <td class="px-1 py-1 text-xs text-center">
                                         @if($shipment->actual_delivery_date)
-                                            {{ $shipment->actual_delivery_date->format('d-M') }}
+                                            {{ $shipment->actual_delivery_date->format('d-M H:i') }}
                                         @elseif($shipment->planned_delivery_date)
-                                            {{ $shipment->planned_delivery_date->format('d-M') }}
+                                            {{ $shipment->planned_delivery_date->format('d-M H:i') }}
                                         @else
                                             -
                                         @endif
@@ -350,7 +369,17 @@
                 <!-- Modal Body -->
                 <form wire:submit.prevent="save" class="mt-4">
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <!-- Row 1: Basic Info -->
+                        <!-- Row 1: Client Request & Basic Info -->
+                        <!-- Client Requested Delivery Date -->
+                        <div>
+                            <label for="client_requested_delivery_date" class="block text-sm font-medium text-gray-700">Client Request Date</label>
+                            <input wire:model="client_requested_delivery_date"
+                                   type="datetime-local"
+                                   id="client_requested_delivery_date"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            @error('client_requested_delivery_date') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
                         <!-- Customer -->
                         <div>
                             <label for="customer_id" class="block text-sm font-medium text-gray-700">Customer *</label>
@@ -458,21 +487,36 @@
                             @error('weight_kgm') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- FCL Type -->
+                        <!-- Quantity Number -->
                         <div>
-                            <label for="fcl_type" class="block text-sm font-medium text-gray-700">FCL</label>
-                            <input wire:model="fcl_type"
-                                   type="text"
-                                   id="fcl_type"
+                            <label for="quantity_number" class="block text-sm font-medium text-gray-700">Quantity</label>
+                            <input wire:model="quantity_number"
+                                   type="number"
+                                   step="0.01"
+                                   id="quantity_number"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            @error('fcl_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            @error('quantity_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Quantity Unit -->
+                        <div>
+                            <label for="quantity_unit" class="block text-sm font-medium text-gray-700">Unit Type</label>
+                            <select wire:model="quantity_unit"
+                                    id="quantity_unit"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="">Select Unit</option>
+                                @foreach($quantityUnitOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('quantity_unit') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- Planned Delivery Date (ETA) -->
                         <div>
                             <label for="planned_delivery_date" class="block text-sm font-medium text-gray-700">ETA</label>
                             <input wire:model="planned_delivery_date"
-                                   type="date"
+                                   type="datetime-local"
                                    id="planned_delivery_date"
                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                             @error('planned_delivery_date') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
@@ -543,6 +587,19 @@
                                 @endforeach
                             </select>
                             @error('cs_reference') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <!-- Row 5: Status Management -->
+                        <!-- Shipment Status -->
+                        <div>
+                            <label for="status" class="block text-sm font-medium text-gray-700">Shipment Status *</label>
+                            <select wire:model="status"
+                                    id="status"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="in-progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                            @error('status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- Notes (full width) -->

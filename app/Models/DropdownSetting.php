@@ -67,6 +67,7 @@ class DropdownSetting extends Model
             'do_status' => 'สถานะ DO (DO Status)',
             'pickup_location' => 'สถานที่รับ (Pickup Location)',
             'port_terminal' => 'ท่าเรือ (Port Terminal)',
+            'quantity_unit' => 'หน่วยจำนวนสินค้า (Quantity Unit)',
         ];
     }
 }
