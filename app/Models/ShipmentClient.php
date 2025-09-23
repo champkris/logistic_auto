@@ -57,4 +57,28 @@ class ShipmentClient extends Model
     {
         return url('/client/line/connect/' . $this->verification_token);
     }
+
+    /**
+     * Get all active shipments for a LINE user
+     */
+    public static function getShipmentsForLineUser(string $lineUserId)
+    {
+        return static::where('line_user_id', $lineUserId)
+            ->where('is_active', true)
+            ->where('expires_at', '>', now())
+            ->with('shipment.customer', 'shipment.vessel')
+            ->get();
+    }
+
+    /**
+     * Check if a LINE user has access to a specific shipment
+     */
+    public static function hasAccessToShipment(string $lineUserId, int $shipmentId): bool
+    {
+        return static::where('line_user_id', $lineUserId)
+            ->where('shipment_id', $shipmentId)
+            ->where('is_active', true)
+            ->where('expires_at', '>', now())
+            ->exists();
+    }
 }

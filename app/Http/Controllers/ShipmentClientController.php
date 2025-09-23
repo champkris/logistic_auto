@@ -101,14 +101,16 @@ class ShipmentClientController extends Controller
                 config('services.line-client')
             )->user();
 
-            // Check if this LINE account is already connected to another shipment client
-            $existingClient = ShipmentClient::where('line_user_id', $lineUser->getId())
+            // Allow LINE account to be connected to multiple shipments
+            // Check if this specific shipment already has this LINE account connected
+            $existingConnectionForShipment = ShipmentClient::where('line_user_id', $lineUser->getId())
+                ->where('shipment_id', $shipmentClient->shipment_id)
                 ->where('id', '!=', $shipmentClient->id)
                 ->first();
 
-            if ($existingClient) {
+            if ($existingConnectionForShipment) {
                 return view('client.line-error', [
-                    'error' => 'This LINE account is already connected to another shipment.',
+                    'error' => 'This LINE account is already connected to this specific shipment.',
                     'shipment' => $shipmentClient->shipment
                 ]);
             }

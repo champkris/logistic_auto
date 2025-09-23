@@ -226,6 +226,7 @@ class LineMessagingService
         $message .= "📋 Document status changes\n";
         $message .= "🚛 Delivery notifications\n";
         $message .= "⏰ ETA updates\n\n";
+        $message .= "💡 Note: Your LINE account can be connected to multiple shipments. You'll receive updates for all connected shipments.\n\n";
         $message .= "Thank you for choosing Eastern Air Logistics! 🌟";
 
         return $this->sendTextMessage($client->line_user_id, $message);

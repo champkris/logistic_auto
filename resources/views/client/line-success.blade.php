@@ -74,13 +74,19 @@
         <div class="bg-yellow-50 rounded-lg p-4 mb-6">
             <h3 class="font-semibold text-yellow-900 mb-3">📲 What's Next?</h3>
             <div class="text-sm text-yellow-800 space-y-2">
-                <p>You'll now receive LINE notifications for:</p>
+                <p>You'll now receive LINE notifications for this shipment:</p>
                 <ul class="list-disc list-inside ml-2 space-y-1">
                     <li>🚢 Vessel arrival updates</li>
                     <li>📋 Document status changes</li>
                     <li>🚛 Delivery notifications</li>
                     <li>⏰ ETA updates</li>
                 </ul>
+                <div class="mt-3 p-2 bg-yellow-100 rounded border border-yellow-200">
+                    <p class="text-xs text-yellow-700">
+                        💡 <strong>Good to know:</strong> Your LINE account can be connected to multiple shipments.
+                        You'll receive updates for all connected shipments.
+                    </p>
+                </div>
             </div>
         </div>
 
