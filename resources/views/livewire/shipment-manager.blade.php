@@ -83,6 +83,7 @@
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">สถานที่รับ</th>
                                 <th class="px-1 py-2 text-right text-xs font-medium text-gray-700 uppercase">KGM</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">QTY</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">UNIT</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ETA</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">VESSEL NAME</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Voyage</th>
@@ -180,9 +181,15 @@
                                     <td class="px-1 py-1 text-xs text-center">
                                         @if($shipment->quantity_number)
                                             {{ $shipment->quantity_number }}
-                                            @if($shipment->quantity_unit)
-                                                <br><span class="text-gray-500">{{ $shipment->quantity_unit }}</span>
-                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+
+                                    <!-- Unit -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        @if($shipment->quantity_unit)
+                                            {{ $shipment->quantity_unit }}
                                         @else
                                             -
                                         @endif
