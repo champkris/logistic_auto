@@ -11,6 +11,7 @@ class DropdownSetting extends Model
         'value',
         'label',
         'url',
+        'email',
         'sort_order',
         'is_active',
     ];
@@ -50,7 +51,25 @@ class DropdownSetting extends Model
 
         return $query->orderBy('sort_order')
                     ->orderBy('label')
-                    ->get(['value', 'label', 'url'])
+                    ->get(['value', 'label', 'url', 'email'])
+                    ->toArray();
+    }
+
+    /**
+     * Get all dropdown options with emails for a specific field
+     */
+    public static function getFieldOptionsWithEmails($fieldName, $activeOnly = true)
+    {
+        $query = static::where('field_name', $fieldName);
+
+        if ($activeOnly) {
+            $query->where('is_active', true);
+        }
+
+        return $query->orderBy('sort_order')
+                    ->orderBy('label')
+                    ->get(['value', 'label', 'email'])
+                    ->keyBy('value')
                     ->toArray();
     }
 

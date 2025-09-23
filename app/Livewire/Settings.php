@@ -22,6 +22,7 @@ class Settings extends Component
     public $value = '';
     public $label = '';
     public $url = '';
+    public $email = '';
     public $sort_order = 0;
     public $is_active = true;
 
@@ -36,6 +37,13 @@ class Settings extends Component
     public $agent = '';
     public $vessel_notes = '';
 
+    // Customer form fields
+    public $company = '';
+    public $contact_name = '';
+    public $customer_email = '';
+    public $customer_phone = '';
+    public $customer_address = '';
+
     // Search
     public $search = '';
 
@@ -49,6 +57,7 @@ class Settings extends Component
         'value' => 'sometimes|required|string|max:255',
         'label' => 'sometimes|required|string|max:255',
         'url' => 'nullable|url|max:500',
+        'email' => 'nullable|email|max:255',
         'sort_order' => 'integer|min:0',
         'is_active' => 'boolean',
         // Vessel validation rules
@@ -61,6 +70,12 @@ class Settings extends Component
         'imo_number' => 'nullable|string|max:20',
         'agent' => 'nullable|string|max:255',
         'vessel_notes' => 'nullable|string|max:1000',
+        // Customer validation rules
+        'company' => 'sometimes|required|string|max:255',
+        'contact_name' => 'nullable|string|max:255',
+        'customer_email' => 'nullable|email|max:255',
+        'customer_phone' => 'nullable|string|max:20',
+        'customer_address' => 'nullable|string|max:1000',
     ];
 
     public function mount()
@@ -145,7 +160,16 @@ class Settings extends Component
     public function edit($id)
     {
         if ($this->selectedField === 'customers') {
-            $this->dispatch('info', message: 'Please use the Customer Management page to edit customers.');
+            $customer = \App\Models\Customer::find($id);
+            if ($customer) {
+                $this->editingItem = $customer;
+                $this->company = $customer->company;
+                $this->contact_name = $customer->name;
+                $this->customer_email = $customer->email;
+                $this->customer_phone = $customer->phone;
+                $this->customer_address = $customer->address;
+                $this->showModal = true;
+            }
             return;
         }
 
@@ -174,6 +198,7 @@ class Settings extends Component
             $this->value = $item->value;
             $this->label = $item->label;
             $this->url = $item->url ?? '';
+            $this->email = $item->email ?? '';
             $this->sort_order = $item->sort_order;
             $this->is_active = $item->is_active;
             $this->showModal = true;
@@ -200,6 +225,14 @@ class Settings extends Component
                 'imo_number' => 'nullable|string|max:20',
                 'agent' => 'nullable|string|max:255',
                 'vessel_notes' => 'nullable|string|max:1000',
+            ]);
+        } elseif ($this->selectedField === 'customers') {
+            $this->validate([
+                'company' => 'required|string|max:255',
+                'contact_name' => 'nullable|string|max:255',
+                'customer_email' => 'nullable|email|max:255',
+                'customer_phone' => 'nullable|string|max:20',
+                'customer_address' => 'nullable|string|max:1000',
             ]);
         } else {
             $this->validate([
@@ -234,6 +267,23 @@ class Settings extends Component
                     Vessel::create($vesselData);
                     $this->dispatch('success', message: 'Vessel created successfully!');
                 }
+            } elseif ($this->selectedField === 'customers') {
+                // Handle customer creation/update
+                $customerData = [
+                    'company' => $this->company,
+                    'name' => $this->contact_name,
+                    'email' => $this->customer_email,
+                    'phone' => $this->customer_phone,
+                    'address' => $this->customer_address,
+                ];
+
+                if ($this->editingItem) {
+                    $this->editingItem->update($customerData);
+                    $this->dispatch('success', message: 'Customer updated successfully!');
+                } else {
+                    \App\Models\Customer::create($customerData);
+                    $this->dispatch('success', message: 'Customer created successfully!');
+                }
             } else {
                 // Handle dropdown setting creation/update
                 $data = [
@@ -241,6 +291,7 @@ class Settings extends Component
                     'value' => $this->value,
                     'label' => $this->label,
                     'url' => $this->url ?: null,
+                    'email' => $this->email ?: null,
                     'sort_order' => $this->sort_order,
                     'is_active' => $this->is_active,
                 ];
@@ -314,6 +365,7 @@ class Settings extends Component
         $this->value = '';
         $this->label = '';
         $this->url = '';
+        $this->email = '';
         $this->sort_order = 0;
         $this->is_active = true;
 
@@ -327,6 +379,13 @@ class Settings extends Component
         $this->imo_number = '';
         $this->agent = '';
         $this->vessel_notes = '';
+
+        // Reset customer fields
+        $this->company = '';
+        $this->contact_name = '';
+        $this->customer_email = '';
+        $this->customer_phone = '';
+        $this->customer_address = '';
 
         $this->resetErrorBag();
     }

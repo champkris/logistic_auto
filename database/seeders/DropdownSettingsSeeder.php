@@ -60,19 +60,19 @@ class DropdownSettingsSeeder extends Seeder
 
             // CS Team / ทีม CS
             'cs_reference' => [
-                ['value' => 'bow', 'label' => 'BOW', 'sort_order' => 1],
-                ['value' => 'meena', 'label' => 'MEENA', 'sort_order' => 2],
-                ['value' => 'mew', 'label' => 'MEW', 'sort_order' => 3],
-                ['value' => 'tem', 'label' => 'TEM', 'sort_order' => 4],
-                ['value' => 'kartoon', 'label' => 'KARTOON', 'sort_order' => 5],
-                ['value' => 'kaimook', 'label' => 'KAIMOOK', 'sort_order' => 6],
-                ['value' => 'nui', 'label' => 'NUI', 'sort_order' => 7],
-                ['value' => 'noey', 'label' => 'NOEY', 'sort_order' => 8],
-                ['value' => 'may', 'label' => 'MAY', 'sort_order' => 9],
-                ['value' => 'noon', 'label' => 'NOON', 'sort_order' => 10],
-                ['value' => 'ing', 'label' => 'ING', 'sort_order' => 11],
-                ['value' => 'aii', 'label' => 'Aii', 'sort_order' => 12],
-                ['value' => 'other', 'label' => 'OTHER', 'sort_order' => 13],
+                ['value' => 'bow', 'label' => 'BOW', 'email' => 'sealcb_import2@easternair.co.th', 'sort_order' => 1],
+                ['value' => 'meena', 'label' => 'MEENA', 'email' => 'sealcb_import3@easternair.co.th', 'sort_order' => 2],
+                ['value' => 'mew', 'label' => 'MEW', 'email' => 'sealcb_import1@easternair.co.th', 'sort_order' => 3],
+                ['value' => 'tem', 'label' => 'TEM', 'email' => 'nattapon.bun@easternair.co.th', 'sort_order' => 4],
+                ['value' => 'kartoon', 'label' => 'KARTOON', 'email' => 'sealcb_import1@easternair.co.th', 'sort_order' => 5],
+                ['value' => 'kaimook', 'label' => 'KAIMOOK', 'email' => 'sealcb_import1@easternair.co.th', 'sort_order' => 6],
+                ['value' => 'nui', 'label' => 'NUI', 'email' => 'sealcb_import1@easternair.co.th', 'sort_order' => 7],
+                ['value' => 'noey', 'label' => 'NOEY', 'email' => 'sealcb_import1@easternair.co.th', 'sort_order' => 8],
+                ['value' => 'may', 'label' => 'MAY', 'email' => 'sealcb_import4@easternair.co.th', 'sort_order' => 9],
+                ['value' => 'noon', 'label' => 'NOON', 'email' => 'sealcb_import4@easternair.co.th', 'sort_order' => 10],
+                ['value' => 'ing', 'label' => 'ING', 'email' => 'sealcb_import1@easternair.co.th', 'sort_order' => 11],
+                ['value' => 'aii', 'label' => 'Aii', 'email' => 'sealcb_import1@easternair.co.th', 'sort_order' => 12],
+                ['value' => 'other', 'label' => 'OTHER', 'email' => null, 'sort_order' => 13],
             ],
 
             // Port Terminal / ท่าเรือ (using VesselTrackingService codes)
@@ -128,6 +128,7 @@ class DropdownSettingsSeeder extends Seeder
                     [
                         'label' => $option['label'],
                         'url' => $option['url'] ?? null,
+                        'email' => $option['email'] ?? null,
                         'sort_order' => $option['sort_order'],
                         'is_active' => true,
                     ]
