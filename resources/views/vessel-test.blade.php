@@ -71,6 +71,7 @@
                             <option value="B3">B3 - ESCO</option>
                             <option value="A0B1">A0B1 - LCB1</option>
                             <option value="B2">B2 - ShipmentLink (ECTT)</option>
+                            <option value="KERRY">KERRY - Kerry Logistics</option>
                         </select>
                     </div>
 
@@ -157,6 +158,12 @@
                         <p class="text-sm text-gray-600">ShipmentLink (ECTT)</p>
                         <p class="text-xs text-gray-500 mt-1">🚢 Default: EVER BUILD</p>
                         <p class="text-xs text-gray-400">🧭 Voyage: 0815-079S</p>
+                    </div>
+                    <div class="border rounded-lg p-4 hover:bg-blue-50 transition">
+                        <h3 class="font-semibold text-blue-600">Terminal KERRY</h3>
+                        <p class="text-sm text-gray-600">Kerry Logistics</p>
+                        <p class="text-xs text-gray-500 mt-1">🚢 Default: BUXMELODY</p>
+                        <p class="text-xs text-gray-400">🧭 Voyage: 230N</p>
                     </div>
                 </div>
 

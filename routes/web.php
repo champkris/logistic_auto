@@ -137,7 +137,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             $request->validate([
                 'vessel_name' => 'required|string|max:255',
                 'voyage_code' => 'nullable|string|max:100',
-                'terminal' => 'required|string|in:C1C2,B4,B5C3,B3,A0B1,B2'
+                'terminal' => 'required|string|in:C1C2,B4,B5C3,B3,A0B1,B2,KERRY'
             ]);
 
             $vesselName = trim($request->input('vessel_name'));
@@ -182,7 +182,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'html_size' => $result['html_size'] ?? 0,
                 'status_code' => $result['status_code'] ?? 200,
                 'checked_at' => $result['checked_at'] ?? now()->format('Y-m-d H:i:s'),
-                'raw_data' => isset($result['raw_data']) && is_string($result['raw_data']) ? substr($result['raw_data'], 0, 500) : null
+                'raw_data' => isset($result['raw_data']) && is_string($result['raw_data']) ? substr($result['raw_data'], 0, 1000) : null
             ];
 
             return response()->json([
@@ -235,7 +235,7 @@ Route::post('/vessel-test-public/single', function (Request $request) {
         $request->validate([
             'vessel_name' => 'required|string|max:255',
             'voyage_code' => 'nullable|string|max:100',
-            'terminal' => 'required|string|in:C1C2,B4,B5C3,B3,A0B1,B2'
+            'terminal' => 'required|string|in:C1C2,B4,B5C3,B3,A0B1,B2,KERRY'
         ]);
 
         $vesselName = trim($request->input('vessel_name'));

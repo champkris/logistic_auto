@@ -45,6 +45,12 @@ class VesselTrackingService
             'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp',
             'vessel_full' => 'EVER BUILD 0815-079S',
             'method' => 'shipmentlink_browser'
+        ],
+        'KERRY' => [
+            'name' => 'Kerry Logistics',
+            'url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit', // Manual search URL - not used in automated HTTP requests
+            'vessel_full' => 'BUXMELODY 230N',
+            'method' => 'kerry_http_request'
         ]
     ];
 
@@ -1083,5 +1089,216 @@ class VesselTrackingService
     public function getTerminalByCode($code)
     {
         return $this->terminals[$code] ?? null;
+    }
+
+    protected function kerry_http_request($config)
+    {
+        try {
+            $vesselName = strtolower($config['vessel_name'] ?? 'buxmelody');
+            $voyageCode = strtolower($config['voyage_code'] ?? '230n');
+            
+            \Log::info("Starting Kerry Logistics HTTP request for vessel: {$vesselName}, voyage: {$voyageCode}");
+
+            // Build the URL with query parameters
+            $url = "https://terminaltracking.ksp.kln.com/SearchVesselVisit/List";
+            $queryParams = [
+                'PARM_VESSELNAME' => $vesselName,
+                'PARM_VOY' => $voyageCode,
+                'pageNumber' => 'undefined'
+            ];
+            $fullUrl = $url . '?' . http_build_query($queryParams);
+
+            // Make the POST request with exact headers
+            $response = Http::withHeaders([
+                'Host' => 'terminaltracking.ksp.kln.com',
+                'Accept-Encoding' => 'gzip, deflate, br, zstd',
+                'Accept-Language' => 'en-GB,en;q=0.9,th-TH;q=0.8,th;q=0.7,en-US;q=0.6',
+                'Cookie' => 'UserToken=0xxx0xxxxx0xx0xxxx00; SearchVessel=Search',
+                'Origin' => 'https://terminaltracking.ksp.kln.com',
+                'Priority' => 'u=1, i',
+                'Referer' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit',
+                'Sec-CH-UA' => '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+                'Sec-CH-UA-Mobile' => '?0',
+                'Sec-CH-UA-Platform' => '"Windows"',
+                'Sec-Fetch-Dest' => 'empty',
+                'Sec-Fetch-Mode' => 'cors',
+                'Sec-Fetch-Site' => 'same-origin',
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+                'X-Requested-With' => 'XMLHttpRequest'
+            ])
+            ->timeout(30)
+            ->post($fullUrl); // Empty body as specified
+
+            if ($response->successful()) {
+                $responseBody = $response->body();
+                $responseSize = strlen($responseBody);
+
+                // Parse ETA from HTML table
+                $eta = $this->parseKerryETA($responseBody, $vesselName, $voyageCode);
+                $vesselFound = $eta !== null; // If we found ETA, vessel exists
+                
+                \Log::info("Kerry HTTP request successful", [
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'response_size' => $responseSize,
+                    'status_code' => $response->status(),
+                    'eta_found' => $eta,
+                    'vessel_found' => $vesselFound
+                ]);
+
+                return [
+                    'success' => true,
+                    'terminal' => 'Kerry Logistics',
+                    'vessel_name' => $config['vessel_name'] ?? '',
+                    'voyage_code' => $config['voyage_code'] ?? '',
+                    'vessel_found' => $vesselFound,
+                    'voyage_found' => $vesselFound, // Same as vessel found for Kerry
+                    'search_method' => 'http_request_table_parse',
+                    'eta' => $eta,
+                    'raw_data' => $responseBody,
+                    'html_size' => $responseSize,
+                    'status_code' => $response->status(),
+                    'checked_at' => now()->format('Y-m-d H:i:s'),
+                    'message' => $vesselFound ? 'Vessel found with ETA data' : 'Vessel not found in schedule'
+                ];
+            } else {
+                \Log::error("Kerry HTTP request failed", [
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'status_code' => $response->status(),
+                    'response_body' => $response->body()
+                ]);
+
+                return [
+                    'success' => false,
+                    'terminal' => 'Kerry Logistics',
+                    'vessel_name' => $config['vessel_name'] ?? '',
+                    'voyage_code' => $config['voyage_code'] ?? '',
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'search_method' => 'http_request',
+                    'error' => "HTTP request failed with status: {$response->status()}",
+                    'status_code' => $response->status(),
+                    'checked_at' => now()->format('Y-m-d H:i:s')
+                ];
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("Kerry HTTP request exception", [
+                'vessel_name' => $vesselName ?? 'unknown',
+                'voyage_code' => $voyageCode ?? 'unknown',
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => false,
+                'terminal' => 'Kerry Logistics',
+                'vessel_name' => $config['vessel_name'] ?? '',
+                'voyage_code' => $config['voyage_code'] ?? '',
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'search_method' => 'http_request',
+                'error' => 'HTTP request exception: ' . $e->getMessage(),
+                'checked_at' => now()->format('Y-m-d H:i:s')
+            ];
+        }
+    }
+
+    protected function parseKerryETA($html, $vesselName, $voyageCode)
+    {
+        try {
+            // Find all table rows in the response
+            preg_match_all('/<tr[^>]*>(.*?)<\/tr>/is', $html, $rows);
+            
+            foreach ($rows[1] as $rowContent) {
+                // Extract all td cells from this row
+                preg_match_all('/<td[^>]*>(.*?)<\/td>/is', $rowContent, $cells);
+                
+                if (count($cells[1]) >= 6) {
+                    $cellData = array_map('trim', $cells[1]);
+                    
+                    // Check if this row contains our vessel
+                    // Cell 0: Vessel code (BMY)
+                    // Cell 1: Vessel name (M.V.BUXMELODY) 
+                    // Cell 2: I/B Voyage (230N)
+                    // Cell 3: O/B Voyage (230N)
+                    // Cell 4: Phase
+                    // Cell 5: ETA <- This is what we want
+                    
+                    $vesselNameInRow = strtoupper(strip_tags($cellData[1]));
+                    $voyageInRow = strtoupper(strip_tags($cellData[2])); // I/B Voyage
+                    
+                    // Check if vessel name matches (flexible matching)
+                    $vesselMatches = (
+                        stripos($vesselNameInRow, strtoupper($vesselName)) !== false ||
+                        stripos(strtoupper($vesselName), str_replace('M.V.', '', $vesselNameInRow)) !== false
+                    );
+                    
+                    // Check if voyage matches
+                    $voyageMatches = (
+                        stripos($voyageInRow, strtoupper($voyageCode)) !== false ||
+                        stripos(strtoupper($voyageCode), $voyageInRow) !== false
+                    );
+                    
+                    if ($vesselMatches && $voyageMatches) {
+                        // Extract ETA from the 6th cell (index 5)
+                        $etaRaw = strip_tags($cellData[5]);
+                        $etaRaw = trim($etaRaw);
+                        
+                        \Log::info("Kerry ETA parsing", [
+                            'vessel_name_in_row' => $vesselNameInRow,
+                            'voyage_in_row' => $voyageInRow,
+                            'eta_raw' => $etaRaw,
+                            'search_vessel' => $vesselName,
+                            'search_voyage' => $voyageCode
+                        ]);
+                        
+                        // Parse the ETA format: "18/09 16:00" 
+                        if (preg_match('/(\d{1,2}\/\d{1,2})\s+(\d{1,2}:\d{2})/', $etaRaw, $matches)) {
+                            $datePart = $matches[1]; // "18/09"
+                            $timePart = $matches[2]; // "16:00"
+                            
+                            // Assume current year if not specified
+                            $currentYear = date('Y');
+                            $fullDate = $datePart . '/' . $currentYear . ' ' . $timePart;
+                            
+                            try {
+                                // Parse DD/MM/YYYY HH:MM format
+                                $eta = \Carbon\Carbon::createFromFormat('d/m/Y H:i', $fullDate);
+                                return $eta->format('Y-m-d H:i:s');
+                            } catch (\Exception $e) {
+                                \Log::warning("Kerry ETA date parsing failed", [
+                                    'raw_eta' => $etaRaw,
+                                    'full_date' => $fullDate,
+                                    'error' => $e->getMessage()
+                                ]);
+                                // Return raw ETA if parsing fails
+                                return $etaRaw;
+                            }
+                        } else {
+                            // Return raw ETA if format doesn't match expected pattern
+                            return $etaRaw ?: null;
+                        }
+                    }
+                }
+            }
+            
+            // No matching vessel found
+            \Log::info("Kerry vessel not found in response", [
+                'search_vessel' => $vesselName,
+                'search_voyage' => $voyageCode,
+                'rows_found' => count($rows[1])
+            ]);
+            
+            return null;
+            
+        } catch (\Exception $e) {
+            \Log::error("Kerry ETA parsing exception", [
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
     }
 }
