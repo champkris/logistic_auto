@@ -83,6 +83,8 @@ class DropdownSettingsSeeder extends Seeder
                 ['value' => 'B3', 'label' => 'B3 (ESCO)', 'url' => 'https://service.esco.co.th/BerthSchedule', 'sort_order' => 4],
                 ['value' => 'A0B1', 'label' => 'A0B1 (LCB1)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 5],
                 ['value' => 'B2', 'label' => 'B2 (ShipmentLink)', 'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp', 'sort_order' => 6],
+                ['value' => 'SIAM', 'label' => 'SIAM (Siam Commercial)', 'url' => 'n8n_integration', 'sort_order' => 7],
+                ['value' => 'KERRY', 'label' => 'KERRY (Kerry Logistics)', 'url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit', 'sort_order' => 8],
             ],
 
             // Quantity Unit Type / ประเภทหน่วยจำนวนสินค้า

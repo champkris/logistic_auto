@@ -50,72 +50,30 @@ class UserSeeder extends Seeder
         ]);
 
         // ================================
-        // EASTERN AIR USERS (Production)
+        // TEST USERS (Additional test accounts)
         // ================================
+        // Eastern Air users are now created in EasternAirUserSeeder
 
-        // IMPORT TEAM - SEA LCB
+        // Test shipping team member
         User::create([
-            'name' => 'SEA LCB Import 1',
-            'email' => 'sealcb_import1@easternair.co.th',
+            'name' => 'Test Shipper',
+            'email' => 'shipper@test.com',
             'password' => Hash::make('password123'),
             'email_verified_at' => now(),
         ]);
 
+        // Test CS team member
         User::create([
-            'name' => 'SEA LCB Import 2',
-            'email' => 'sealcb_import2@easternair.co.th',
+            'name' => 'Test CS Rep',
+            'email' => 'cs@test.com',
             'password' => Hash::make('password123'),
             'email_verified_at' => now(),
         ]);
 
+        // Test warehouse staff
         User::create([
-            'name' => 'SEA LCB Import 3',
-            'email' => 'sealcb_import3@easternair.co.th',
-            'password' => Hash::make('password123'),
-            'email_verified_at' => now(),
-        ]);
-
-        User::create([
-            'name' => 'SEA LCB Import 4',
-            'email' => 'sealcb_import4@easternair.co.th',
-            'password' => Hash::make('password123'),
-            'email_verified_at' => now(),
-        ]);
-
-        // STAFF MEMBERS
-        User::create([
-            'name' => 'Nattapon Bun',
-            'email' => 'nattapon.bun@easternair.co.th',
-            'password' => Hash::make('password123'),
-            'email_verified_at' => now(),
-        ]);
-
-        // EXPORT TEAM
-        User::create([
-            'name' => 'Export LCB',
-            'email' => 'export_lcb@easternair.co.th',
-            'password' => Hash::make('password123'),
-            'email_verified_at' => now(),
-        ]);
-
-        User::create([
-            'name' => 'Phonnapha Ro',
-            'email' => 'phonnapha.ro@easternair.co.th',
-            'password' => Hash::make('password123'),
-            'email_verified_at' => now(),
-        ]);
-
-        // ADMIN USERS
-        User::create([
-            'name' => 'Peachy (Admin)',
-            'email' => 'peachy@easternair.co.th',
-            'password' => Hash::make('password123'),
-            'email_verified_at' => now(),
-        ]);
-
-        User::create([
-            'name' => 'IT Department (Admin)',
-            'email' => 'it@easternair.co.th',
+            'name' => 'Test Warehouse',
+            'email' => 'warehouse@test.com',
             'password' => Hash::make('password123'),
             'email_verified_at' => now(),
         ]);
