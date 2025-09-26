@@ -14,6 +14,7 @@
                 <p class="text-sm text-gray-500 mt-2">Test vessel ETA retrieval from port terminals</p>
             </div>
 
+
             <!-- Single Vessel Test Form -->
             <div class="bg-white rounded-lg shadow-md p-6 mb-6">
                 <h2 class="text-xl font-semibold text-gray-800 mb-4">🎯 Test Single Vessel</h2>
@@ -71,7 +72,32 @@
                             <option value="B3">B3 - ESCO</option>
                             <option value="A0B1">A0B1 - LCB1</option>
                             <option value="B2">B2 - ShipmentLink (ECTT)</option>
+                            <option value="SIAM">SIAM - Siam Commercial (n8n LINE)</option>
+                            <option value="KERRY">KERRY - Kerry Logistics</option>
                         </select>
+
+                        <!-- Terminal URLs Information -->
+                        <div class="mt-3 p-3 bg-gray-50 rounded-md">
+                            <p class="text-sm font-medium text-gray-700 mb-2">🌐 Terminal URLs for automated checking:</p>
+                            @php
+                                $portTerminals = \App\Models\DropdownSetting::getFieldOptionsWithUrls('port_terminal');
+                            @endphp
+                            <div class="space-y-1">
+                                @foreach($portTerminals as $terminal)
+                                    <div class="flex items-center justify-between text-xs">
+                                        <span class="font-medium text-gray-600">{{ $terminal['label'] }}:</span>
+                                        @if($terminal['url'])
+                                            <a href="{{ $terminal['url'] }}" target="_blank"
+                                               class="text-blue-600 hover:text-blue-800 truncate max-w-xs">
+                                                {{ $terminal['url'] }}
+                                            </a>
+                                        @else
+                                            <span class="text-gray-400">No URL configured</span>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Submit Button -->
@@ -101,7 +127,7 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <h2 class="text-xl font-semibold text-gray-800">🌐 Test All Terminals</h2>
-                        <p class="text-gray-600">This will check all 6 terminals with their default test vessels</p>
+                        <p class="text-gray-600">This will check all 8 terminals with their default test vessels</p>
                     </div>
                     <button id="runTest" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition">
                         Run Full Test
@@ -137,8 +163,8 @@
                     <div class="border rounded-lg p-4 hover:bg-blue-50 transition">
                         <h3 class="font-semibold text-blue-600">Terminal B5/C3</h3>
                         <p class="text-sm text-gray-600">LCIT</p>
-                        <p class="text-xs text-gray-500 mt-1">🚢 Default: ASL QINGDAO</p>
-                        <p class="text-xs text-gray-400">🧭 Voyage: V.2508S</p>
+                        <p class="text-xs text-gray-500 mt-1">🚢 Default: SKY SUNSHINE</p>
+                        <p class="text-xs text-gray-400">🧭 Voyage: V.2513S</p>
                     </div>
                     <div class="border rounded-lg p-4 hover:bg-blue-50 transition">
                         <h3 class="font-semibold text-blue-600">Terminal B3</h3>
@@ -155,8 +181,20 @@
                     <div class="border rounded-lg p-4 hover:bg-blue-50 transition">
                         <h3 class="font-semibold text-blue-600">Terminal B2</h3>
                         <p class="text-sm text-gray-600">ShipmentLink (ECTT)</p>
-                        <p class="text-xs text-gray-500 mt-1">🚢 Default: EVER BUILD</p>
-                        <p class="text-xs text-gray-400">🧭 Voyage: 0815-079S</p>
+                        <p class="text-xs text-gray-500 mt-1">🚢 Default: EVER BASIS</p>
+                        <p class="text-xs text-gray-400">🧭 Voyage: 0813-068S</p>
+                    </div>
+                    <div class="border rounded-lg p-4 hover:bg-blue-50 transition">
+                        <h3 class="font-semibold text-blue-600">Terminal SIAM</h3>
+                        <p class="text-sm text-gray-600">Siam Commercial (n8n LINE)</p>
+                        <p class="text-xs text-gray-500 mt-1">🚢 Default: SAMPLE VESSEL</p>
+                        <p class="text-xs text-gray-400">🧭 Voyage: V.001S</p>
+                    </div>
+                    <div class="border rounded-lg p-4 hover:bg-blue-50 transition">
+                        <h3 class="font-semibold text-blue-600">Terminal KERRY</h3>
+                        <p class="text-sm text-gray-600">Kerry Logistics</p>
+                        <p class="text-xs text-gray-500 mt-1">🚢 Default: BUXMELODY</p>
+                        <p class="text-xs text-gray-400">🧭 Voyage: 230N</p>
                     </div>
                 </div>
 

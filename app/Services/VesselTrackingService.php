@@ -50,6 +50,23 @@ class VesselTrackingService
             'voyage_code' => '0813-068S',
             'vessel_code' => 'BASS', // Updated to correct vessel code for EVER BASIS
             'method' => 'shipmentlink_browser'
+        ],
+        'SIAM' => [
+            'name' => 'Siam Commercial',
+            'url' => 'n8n_integration', // Using n8n to send LINE messages to port staff
+            'vessel_full' => 'SAMPLE VESSEL V.001S',
+            'vessel_name' => 'SAMPLE VESSEL',
+            'voyage_code' => '001S',
+            'method' => 'siam_n8n_line'
+        ],
+        'KERRY' => [
+            'name' => 'Kerry Logistics',
+            'url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit',
+            'vessel_full' => 'BUXMELODY 230N',
+            'vessel_name' => 'BUXMELODY',
+            'voyage_code' => '230N',
+            'search_url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit/List',
+            'method' => 'kerry_http_request'
         ]
     ];
 
@@ -1266,5 +1283,232 @@ class VesselTrackingService
 
         // Fallback to first 4-6 characters if no pattern matches
         return substr($name, 0, min(6, strlen($name)));
+    }
+
+    /**
+     * Siam Commercial terminal integration using n8n to send LINE messages to port staff
+     */
+    protected function siam_n8n_line($config)
+    {
+        try {
+            $vesselName = $config['vessel_name'] ?? 'SAMPLE VESSEL';
+            $voyageCode = $config['voyage_code'] ?? '';
+
+            \Log::info("Starting Siam Commercial n8n LINE integration", [
+                'vessel' => $vesselName,
+                'voyage' => $voyageCode
+            ]);
+
+            // For now, return a placeholder response until n8n integration is set up
+            // In a full implementation, this would trigger an n8n workflow that:
+            // 1. Sends LINE message to port staff with vessel details
+            // 2. Waits for response with JSON structure
+            // 3. Parses and returns the vessel tracking data
+
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => false, // Will be true when staff responds with vessel data
+                'voyage_found' => false,
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'eta' => null,
+                'etd' => null,
+                'search_method' => 'n8n_line_integration',
+                'message' => 'n8n LINE integration not yet configured - placeholder response',
+                'details' => 'This integration will send LINE messages to port staff for manual vessel tracking',
+                'checked_at' => now()
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error("Siam Commercial n8n integration error: " . $e->getMessage());
+
+            return [
+                'success' => false,
+                'terminal' => $config['name'],
+                'error' => $e->getMessage(),
+                'vessel_name' => $vesselName ?? 'Unknown',
+                'voyage_code' => $voyageCode ?? '',
+                'search_method' => 'n8n_line_error',
+                'checked_at' => now()
+            ];
+        }
+    }
+
+    /**
+     * Kerry Logistics terminal integration using HTTP requests
+     * Based on implementation from remote branch: add-terminal-Kerry-vessel-BUXMELODY-voyage-230N
+     */
+    protected function kerry_http_request($config)
+    {
+        try {
+            $vesselName = strtolower($config['vessel_name'] ?? 'buxmelody');
+            $voyageCode = strtolower($config['voyage_code'] ?? '230n');
+
+            \Log::info("Starting Kerry Logistics HTTP request", [
+                'vessel' => $vesselName,
+                'voyage' => $voyageCode
+            ]);
+
+            $url = $config['search_url'] ?? 'https://terminaltracking.ksp.kln.com/SearchVesselVisit/List';
+            $queryParams = [
+                'PARM_VESSELNAME' => $vesselName,
+                'PARM_VOY' => $voyageCode,
+                'pageNumber' => 'undefined'
+            ];
+            $fullUrl = $url . '?' . http_build_query($queryParams);
+
+            $response = Http::withHeaders([
+                'Host' => 'terminaltracking.ksp.kln.com',
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language' => 'en-US,en;q=0.5',
+                'Accept-Encoding' => 'gzip, deflate, br',
+                'Connection' => 'keep-alive',
+                'Upgrade-Insecure-Requests' => '1',
+                'Cache-Control' => 'max-age=0'
+            ])
+            ->timeout(30)
+            ->post($fullUrl);
+
+            if ($response->successful()) {
+                $responseBody = $response->body();
+                $eta = $this->parseKerryETA($responseBody, $vesselName, $voyageCode);
+                $vesselFound = $eta !== null;
+
+                \Log::info("Kerry Logistics request successful", [
+                    'vessel_found' => $vesselFound,
+                    'eta' => $eta
+                ]);
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_name' => $config['vessel_name'] ?? '',
+                    'voyage_code' => $config['voyage_code'] ?? '',
+                    'vessel_found' => $vesselFound,
+                    'voyage_found' => $vesselFound,
+                    'search_method' => 'http_request_table_parse',
+                    'eta' => $eta,
+                    'etd' => null, // Kerry typically only provides ETA
+                    'manual_search_url' => $config['url'] ?? '',
+                    'checked_at' => now()
+                ];
+
+            } else {
+                \Log::warning("Kerry Logistics HTTP request failed", [
+                    'status' => $response->status(),
+                    'body' => substr($response->body(), 0, 500)
+                ]);
+
+                return [
+                    'success' => false,
+                    'terminal' => $config['name'],
+                    'error' => 'HTTP request failed: ' . $response->status(),
+                    'vessel_name' => $config['vessel_name'] ?? '',
+                    'voyage_code' => $config['voyage_code'] ?? '',
+                    'search_method' => 'http_request_failed',
+                    'checked_at' => now()
+                ];
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("Kerry Logistics integration error: " . $e->getMessage());
+
+            return [
+                'success' => false,
+                'terminal' => $config['name'],
+                'error' => $e->getMessage(),
+                'vessel_name' => $config['vessel_name'] ?? 'Unknown',
+                'voyage_code' => $config['voyage_code'] ?? '',
+                'search_method' => 'kerry_error',
+                'checked_at' => now()
+            ];
+        }
+    }
+
+    /**
+     * Parse Kerry Logistics ETA from HTML response
+     * Based on implementation from remote branch
+     */
+    protected function parseKerryETA($html, $vesselName, $voyageCode)
+    {
+        try {
+            \Log::info("Parsing Kerry ETA", [
+                'vessel' => $vesselName,
+                'voyage' => $voyageCode,
+                'html_length' => strlen($html)
+            ]);
+
+            // Find all table rows in the response
+            preg_match_all('/<tr[^>]*>(.*?)<\/tr>/is', $html, $rows);
+
+            foreach ($rows[1] as $rowContent) {
+                // Extract all td cells from this row
+                preg_match_all('/<td[^>]*>(.*?)<\/td>/is', $rowContent, $cells);
+
+                if (count($cells[1]) >= 6) {
+                    $cellData = array_map('trim', $cells[1]);
+
+                    $vesselNameInRow = strtoupper(strip_tags($cellData[1]));
+                    $voyageInRow = strtoupper(strip_tags($cellData[2])); // I/B Voyage
+
+                    // Check if vessel name matches (flexible matching)
+                    $vesselMatches = (
+                        stripos($vesselNameInRow, strtoupper($vesselName)) !== false ||
+                        stripos(strtoupper($vesselName), str_replace('M.V.', '', $vesselNameInRow)) !== false
+                    );
+
+                    // Check if voyage matches
+                    $voyageMatches = (
+                        stripos($voyageInRow, strtoupper($voyageCode)) !== false ||
+                        stripos(strtoupper($voyageCode), $voyageInRow) !== false
+                    );
+
+                    if ($vesselMatches && $voyageMatches) {
+                        $etaRaw = strip_tags($cellData[5]);
+                        $etaRaw = trim($etaRaw);
+
+                        \Log::info("Found matching Kerry vessel", [
+                            'vessel_in_row' => $vesselNameInRow,
+                            'voyage_in_row' => $voyageInRow,
+                            'eta_raw' => $etaRaw
+                        ]);
+
+                        // Parse the ETA format: "18/09 16:00"
+                        if (preg_match('/(\d{1,2}\/\d{1,2})\s+(\d{1,2}:\d{2})/', $etaRaw, $matches)) {
+                            $datePart = $matches[1]; // "18/09"
+                            $timePart = $matches[2]; // "16:00"
+
+                            // Convert to proper date format (assuming current year)
+                            $currentYear = date('Y');
+                            list($day, $month) = explode('/', $datePart);
+
+                            $etaFormatted = sprintf(
+                                '%s-%02d-%02d %s:00',
+                                $currentYear,
+                                intval($month),
+                                intval($day),
+                                $timePart
+                            );
+
+                            \Log::info("Parsed Kerry ETA successfully", [
+                                'raw' => $etaRaw,
+                                'formatted' => $etaFormatted
+                            ]);
+
+                            return $etaFormatted;
+                        }
+                    }
+                }
+            }
+
+            \Log::info("No matching vessel found in Kerry response");
+            return null;
+
+        } catch (\Exception $e) {
+            \Log::error("Kerry ETA parsing error: " . $e->getMessage());
+            return null;
+        }
     }
 }

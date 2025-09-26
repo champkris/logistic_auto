@@ -57,6 +57,51 @@ class VesselSeeder extends Seeder
                 'imo_number' => '9811003',
                 'agent' => 'Ocean Network Express',
                 'notes' => 'Weekly service from Japan'
+            ],
+            // Terminal-specific test vessels from VesselTrackingService
+            [
+                'vessel_name' => 'SKY SUNSHINE',
+                'voyage_number' => 'V.2513S',
+                'eta' => Carbon::now()->addDays(3),
+                'actual_arrival' => null,
+                'port' => 'LCIT Terminal B5C3',
+                'status' => 'scheduled',
+                'imo_number' => '9811004',
+                'agent' => 'LCIT Shipping',
+                'notes' => 'LCIT terminal integration test vessel'
+            ],
+            [
+                'vessel_name' => 'EVER BASIS',
+                'voyage_number' => '0813-068S',
+                'eta' => Carbon::parse('2025-09-22 00:00:00'),
+                'actual_arrival' => null,
+                'port' => 'ShipmentLink Terminal B2',
+                'status' => 'scheduled',
+                'imo_number' => '9811005',
+                'agent' => 'Evergreen Marine',
+                'notes' => 'ShipmentLink terminal integration - ETA extracted from live schedule'
+            ],
+            [
+                'vessel_name' => 'BUXMELODY',
+                'voyage_number' => '230N',
+                'eta' => Carbon::now()->addDays(4),
+                'actual_arrival' => null,
+                'port' => 'Kerry Logistics',
+                'status' => 'scheduled',
+                'imo_number' => '9811006',
+                'agent' => 'Kerry Logistics',
+                'notes' => 'Kerry Logistics terminal integration test vessel'
+            ],
+            [
+                'vessel_name' => 'SAMPLE VESSEL',
+                'voyage_number' => 'V.001S',
+                'eta' => Carbon::now()->addDays(6),
+                'actual_arrival' => null,
+                'port' => 'Siam Commercial',
+                'status' => 'scheduled',
+                'imo_number' => '9811007',
+                'agent' => 'Siam Commercial Port',
+                'notes' => 'Siam Commercial terminal - n8n LINE integration test vessel'
             ]
         ];
 
