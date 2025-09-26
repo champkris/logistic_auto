@@ -347,15 +347,42 @@ class Settings extends Component
 
     public function delete($id)
     {
-        if ($this->selectedField === 'customers' || $this->selectedField === 'vessels') {
-            $this->dispatch('error', message: 'Cannot delete this type of item from here.');
-            return;
-        }
+        try {
+            if ($this->selectedField === 'customers') {
+                $customer = Customer::find($id);
+                if ($customer) {
+                    // Check if customer has related shipments
+                    if ($customer->shipments()->exists()) {
+                        $this->dispatch('error', message: 'Cannot delete customer with existing shipments.');
+                        return;
+                    }
+                    $customer->delete();
+                    $this->dispatch('success', message: 'Customer deleted successfully!');
+                }
+                return;
+            }
 
-        $item = DropdownSetting::find($id);
-        if ($item) {
-            $item->delete();
-            $this->dispatch('success', message: 'Option deleted successfully!');
+            if ($this->selectedField === 'vessels') {
+                $vessel = Vessel::find($id);
+                if ($vessel) {
+                    // Check if vessel has related shipments
+                    if ($vessel->shipments()->exists()) {
+                        $this->dispatch('error', message: 'Cannot delete vessel with existing shipments.');
+                        return;
+                    }
+                    $vessel->delete();
+                    $this->dispatch('success', message: 'Vessel deleted successfully!');
+                }
+                return;
+            }
+
+            $item = DropdownSetting::find($id);
+            if ($item) {
+                $item->delete();
+                $this->dispatch('success', message: 'Option deleted successfully!');
+            }
+        } catch (\Exception $e) {
+            $this->dispatch('error', message: 'Error deleting: ' . $e->getMessage());
         }
     }
 

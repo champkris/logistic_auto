@@ -128,6 +128,7 @@
                                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
                                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Terminal</th>
                                                     @endif
+                                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                                                 @else
                                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
                                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Label</th>
@@ -147,19 +148,41 @@
                                             @if(in_array($selectedField, ['customers', 'vessels']))
                                                 @if($selectedField === 'customers')
                                                     @foreach($items as $customer)
-                                                        <tr>
+                                                        <tr class="hover:bg-gray-50">
                                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $customer->company }}</td>
                                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $customer->name }}</td>
                                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $customer->email }}</td>
                                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $customer->phone }}</td>
+                                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2">
+                                                                <button wire:click="edit({{ $customer->id }})"
+                                                                        class="text-blue-600 hover:text-blue-900">
+                                                                    ✏️ Edit
+                                                                </button>
+                                                                <button wire:click="delete({{ $customer->id }})"
+                                                                        onclick="return confirm('Are you sure you want to delete this customer? This action cannot be undone.')"
+                                                                        class="text-red-600 hover:text-red-900">
+                                                                    🗑️ Delete
+                                                                </button>
+                                                            </td>
                                                         </tr>
                                                     @endforeach
                                                 @else
                                                     @foreach($items as $vessel)
-                                                        <tr>
+                                                        <tr class="hover:bg-gray-50">
                                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $vessel->name }}</td>
                                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $vessel->code ?? '-' }}</td>
                                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $vessel->terminal ?? '-' }}</td>
+                                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2">
+                                                                <button wire:click="edit({{ $vessel->id }})"
+                                                                        class="text-blue-600 hover:text-blue-900">
+                                                                    ✏️ Edit
+                                                                </button>
+                                                                <button wire:click="delete({{ $vessel->id }})"
+                                                                        onclick="return confirm('Are you sure you want to delete this vessel? This action cannot be undone.')"
+                                                                        class="text-red-600 hover:text-red-900">
+                                                                    🗑️ Delete
+                                                                </button>
+                                                            </td>
                                                         </tr>
                                                     @endforeach
                                                 @endif
