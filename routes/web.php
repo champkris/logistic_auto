@@ -10,6 +10,80 @@ Route::get('/', App\Livewire\Dashboard::class)->name('home')->middleware(['auth'
 // Optional: Keep welcome page accessible for development/info
 Route::view('/welcome', 'welcome')->name('welcome');
 
+// Diagnostic route for remote debugging
+Route::get('/debug', function () {
+    try {
+        $data = [
+            'php_version' => PHP_VERSION,
+            'laravel_version' => app()->version(),
+            'database_connection' => 'testing...',
+            'cache_working' => 'testing...',
+            'user_count' => 0,
+            'shipment_count' => 0,
+            'vessel_count' => 0,
+        ];
+
+        // Test database connection
+        try {
+            $data['user_count'] = \App\Models\User::count();
+            $data['shipment_count'] = \App\Models\Shipment::count();
+            $data['vessel_count'] = \App\Models\Vessel::count();
+            $data['database_connection'] = '✅ Connected';
+        } catch (\Exception $e) {
+            $data['database_connection'] = '❌ Failed: ' . $e->getMessage();
+        }
+
+        // Test cache
+        try {
+            \Cache::put('test_key', 'test_value', 60);
+            $cached = \Cache::get('test_key');
+            $data['cache_working'] = $cached === 'test_value' ? '✅ Working' : '❌ Failed';
+        } catch (\Exception $e) {
+            $data['cache_working'] = '❌ Failed: ' . $e->getMessage();
+        }
+
+        return response()->json($data, 200, [], JSON_PRETTY_PRINT);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString()
+        ], 500, [], JSON_PRETTY_PRINT);
+    }
+})->name('debug');
+
+// Simple test route without authentication
+Route::get('/test', function () {
+    return response('✅ Laravel is working! Time: ' . now()->toDateTimeString(), 200)
+        ->header('Content-Type', 'text/plain');
+})->name('test');
+
+// Test dashboard without authentication
+Route::get('/test-dashboard', function () {
+    try {
+        return view('livewire.dashboard', [
+            'stats' => [
+                'total_shipments' => 0,
+                'active_shipments' => 0,
+                'vessels_arriving_soon' => 0,
+                'pending_documents' => 0,
+                'overdue_documents' => 0,
+            ],
+            'recent_shipments' => collect([]),
+            'vessels_arriving' => collect([]),
+            'urgent_tasks' => [
+                'pending_dos' => 0,
+                'customs_pending' => 0,
+                'in_progress' => 0,
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response('Dashboard Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(), 500)
+            ->header('Content-Type', 'text/plain');
+    }
+})->name('test-dashboard');
+
 // Protected Routes (Authentication Required)
 Route::middleware(['auth', 'verified'])->group(function () {
     // Main Logistics Routes
