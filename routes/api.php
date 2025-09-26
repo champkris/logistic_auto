@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\VesselTrackingController;
 use App\Http\Controllers\Api\AutomationController;
+use App\Http\Controllers\Api\SiamComChatbotEtaRequestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,6 +19,46 @@ use App\Http\Controllers\Api\AutomationController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
+});
+
+// Siam Com Chatbot ETA Request API Routes for n8n (no auth required for external integration)
+Route::prefix('siam-com/chatbot/eta')->group(function () {
+    Route::post('/start', [SiamComChatbotEtaRequestController::class, 'startSiamComEtaRequest'])->name('api.siam-com.eta.start');
+    Route::get('/pending', [SiamComChatbotEtaRequestController::class, 'getSiamComPendingEta'])->name('api.siam-com.eta.pending');
+    Route::put('/update', [SiamComChatbotEtaRequestController::class, 'updateSiamComEtaRequest'])->name('api.siam-com.eta.update');
+    Route::get('/all', [SiamComChatbotEtaRequestController::class, 'getAllSiamComEtaRequests'])->name('api.siam-com.eta.all'); // For testing
+});
+
+// LINE Webhook to capture Group ID (temporary)
+Route::post('/line/webhook', function (Request $request) {
+    \Illuminate\Support\Facades\Log::info('LINE Webhook received:', $request->all());
+    
+    $events = $request->input('events', []);
+    
+    foreach ($events as $event) {
+        if (isset($event['source']['groupId'])) {
+            $groupId = $event['source']['groupId'];
+            \Illuminate\Support\Facades\Log::info('🎯 GROUP ID FOUND: ' . $groupId);
+            
+            // Optional: Store in database for easy retrieval
+            try {
+                \DB::table('siam_com_chatbot_eta_requests')->updateOrInsert(
+                    ['group_id' => $groupId],
+                    [
+                        'group_id' => $groupId,
+                        'status' => 'READY',
+                        'last_asked_at' => '2000-01-01 00:00:00',
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]
+                );
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Database error: ' . $e->getMessage());
+            }
+        }
+    }
+    
+    return response('OK', 200);
 });
 
 // Vessel Tracking API Routes
