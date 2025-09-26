@@ -304,8 +304,8 @@
                                                 </button>
                                             </div>
 
-                                            <!-- Admin LINE Actions -->
-                                            @if(auth()->user()->role === 'admin')
+                                            <!-- LINE Actions (Available to all users) -->
+                                            @if(auth()->check())
                                                 <div class="flex space-x-1">
                                                     <button onclick="openClientLinkModal({{ $shipment->id }}, '{{ $shipment->invoice_number }}')"
                                                             class="text-green-600 hover:text-green-900 text-xs"
@@ -320,7 +320,7 @@
                                                 </div>
                                                 <!-- ETA Check Button -->
                                                 <div class="flex space-x-1 mt-1">
-                                                    <button onclick="checkShipmentETA({{ $shipment->id }})"
+                                                    <button onclick="checkShipmentETA(event, {{ $shipment->id }})"
                                                             class="text-blue-600 hover:text-blue-900 text-xs"
                                                             title="Check vessel ETA using bot automation">
                                                         🤖
@@ -799,7 +799,7 @@
         }
     }
 
-    async function checkShipmentETA(shipmentId) {
+    async function checkShipmentETA(event, shipmentId) {
         if (!confirm('Send bot to check vessel ETA for this shipment? This will update the tracking status.')) {
             return;
         }

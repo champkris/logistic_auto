@@ -26,9 +26,7 @@ class ShipmentClientController extends Controller
             return response()->json(['error' => 'Please login first'], 401);
         }
 
-        if (Auth::user()->role !== 'admin') {
-            return response()->json(['error' => 'Admin access required'], 403);
-        }
+        // Allow all authenticated users to generate client links
 
         $shipment = Shipment::findOrFail($request->shipment_id);
 
@@ -162,9 +160,7 @@ class ShipmentClientController extends Controller
             return response()->json(['error' => 'Please login first'], 401);
         }
 
-        if (Auth::user()->role !== 'admin') {
-            return response()->json(['error' => 'Admin access required'], 403);
-        }
+        // Allow all authenticated users to send notifications
 
         $shipment = Shipment::findOrFail($request->shipment_id);
         $connectedClients = $shipment->activeShipmentClients()->whereNotNull('line_user_id')->get();
@@ -215,9 +211,7 @@ class ShipmentClientController extends Controller
             return response()->json(['error' => 'Please login first'], 401);
         }
 
-        if (Auth::user()->role !== 'admin') {
-            return response()->json(['error' => 'Admin access required'], 403);
-        }
+        // Allow all authenticated users to check ETA
 
         $shipment = Shipment::with('vessel')->findOrFail($request->shipment_id);
 
