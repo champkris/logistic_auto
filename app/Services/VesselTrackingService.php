@@ -25,7 +25,9 @@ class VesselTrackingService
         'B5C3' => [
             'name' => 'LCIT',
             'url' => 'https://www.lcit.com/home',
-            'vessel_full' => 'ASL QINGDAO V.2508S',
+            'vessel_full' => 'SKY SUNSHINE V.2513S',
+            'vessel_name' => 'SKY SUNSHINE',
+            'voyage_code' => '2513S',
             'method' => 'lcit'
         ],
         'B3' => [
@@ -43,7 +45,10 @@ class VesselTrackingService
         'B2' => [
             'name' => 'ShipmentLink',
             'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp',
-            'vessel_full' => 'EVER BUILD 0815-079S',
+            'vessel_full' => 'EVER BASIS 0813-068S',
+            'vessel_name' => 'EVER BASIS',
+            'voyage_code' => '0813-068S',
+            'vessel_code' => 'BASS', // Updated to correct vessel code for EVER BASIS
             'method' => 'shipmentlink_browser'
         ]
     ];
@@ -255,32 +260,166 @@ class VesselTrackingService
 
     protected function lcit($config)
     {
-        // LCIT - Home page, may need to navigate to vessel schedule
-        $response = Http::timeout(30)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            ])
-            ->get($config['url']);
+        $vesselName = $config['vessel_name'] ?? 'SKY SUNSHINE';
+        $voyageCode = $config['voyage_code'] ?? '';
 
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
-        }
+        \Log::info("LCIT check for vessel: {$vesselName}, voyage: {$voyageCode}");
 
-        // Try to find vessel schedule link
-        $html = $response->body();
-        $scheduleLinks = $this->findScheduleLinks($html);
-        
-        if (!empty($scheduleLinks)) {
-            // Try the first schedule link found
-            $scheduleUrl = $scheduleLinks[0];
-            $scheduleResponse = Http::timeout(30)->get($scheduleUrl);
-            
-            if ($scheduleResponse->successful()) {
-                return $this->parseVesselData($scheduleResponse->body(), $config);
+        try {
+            // Use the LCIT scraper wrapper for cleaner output
+            $command = sprintf(
+                'cd %s && timeout 120s node lcit-wrapper.js %s %s 2>/dev/null',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
+            );
+
+            $descriptors = [
+                0 => ["pipe", "r"],  // stdin
+                1 => ["pipe", "w"],  // stdout
+                2 => ["pipe", "w"]   // stderr
+            ];
+
+            $output = '';
+            $process = proc_open($command, $descriptors, $pipes);
+
+            if (is_resource($process)) {
+                fclose($pipes[0]); // Close stdin
+
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
+
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+
+                $returnCode = proc_close($process);
+
+                // Log the browser automation logs for debugging
+                if (!empty($logOutput)) {
+                    \Log::info("LCIT browser automation logs:", ['logs' => $logOutput]);
+                }
+
+                if (!$jsonOutput) {
+                    // Handle timeout or connection issues gracefully
+                    \Log::warning("LCIT browser automation failed: no JSON output (exit code: {$returnCode})");
+
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'lcit_timeout_fallback',
+                        'message' => 'LCIT terminal not accessible - connection timeout',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
+                        'checked_at' => now()
+                    ];
+                }
+
+                $output = $jsonOutput;
+            } else {
+                throw new \Exception("Failed to start LCIT browser automation process");
             }
-        }
 
-        return $this->parseVesselData($html, $config);
+            if (!$output) {
+                throw new \Exception("LCIT browser automation failed: no output");
+            }
+
+            // Parse the JSON result
+            $result = json_decode(trim($output), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from LCIT browser automation: " . substr($output, 0, 200));
+            }
+
+            // Check if this is a connectivity issue vs vessel not found
+            if (!$result['success']) {
+                $errorMessage = $result['error'] ?? $result['message'] ?? 'Unknown error';
+
+                // Handle connection timeouts as expected behavior
+                if (str_contains($errorMessage, 'ERR_CONNECTION_TIMED_OUT') ||
+                    str_contains($errorMessage, 'Timeout') ||
+                    str_contains($errorMessage, 'navigation') ||
+                    str_contains($errorMessage, 'Failed to navigate')) {
+
+                    \Log::info("LCIT terminal connection timeout for {$vesselName} - website may be temporarily unavailable");
+
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'lcit_connection_timeout',
+                        'message' => 'LCIT terminal not accessible - connection timeout',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
+                        'checked_at' => now()
+                    ];
+                }
+
+                // Handle vessel not found in accessible terminal
+                if (str_contains($errorMessage, 'not found in schedule') ||
+                    isset($result['details']) && str_contains($result['details'], 'not found in the current schedule')) {
+
+                    \Log::info("LCIT terminal accessible but {$vesselName} not found in current schedule");
+
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'lcit_not_found',
+                        'message' => 'Vessel not found in LCIT schedule',
+                        'no_data_reason' => 'Vessel not in current terminal schedule',
+                        'checked_at' => now()
+                    ];
+                }
+
+                // Other errors
+                throw new \Exception("LCIT scraper error: " . $errorMessage);
+            }
+
+            // Success - vessel found
+            \Log::info("LCIT successful check for {$vesselName}", ['result' => $result]);
+
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => !empty($result['voyage_code']) && $result['voyage_code'] !== 'Unknown',
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'],
+                'etd' => $result['etd'],
+                'berth' => $result['berth'],
+                'search_method' => 'lcit_scraper',
+                'raw_data' => $result['raw_data'] ?? null,
+                'checked_at' => now()
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error("LCIT terminal error: " . $e->getMessage());
+
+            return [
+                'success' => false,
+                'terminal' => $config['name'],
+                'error' => $e->getMessage(),
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'search_method' => 'lcit_error',
+                'checked_at' => now()
+            ];
+        }
     }
 
     protected function esco($config)
@@ -425,13 +564,28 @@ class VesselTrackingService
     protected function shipmentlink_browser($config)
     {
         try {
-            $vesselName = $config['vessel_name'];
-            \Log::info("Starting ShipmentLink browser automation for vessel: {$vesselName}");
-            
+            $vesselName = $config['vessel_name'] ?? 'EVER BUILD';
+            $voyageCode = $config['voyage_code'] ?? '';
+
+            // Extract vessel code from vessel name (last word or configured code)
+            $vesselCode = $config['vessel_code'] ?? $this->extractVesselCode($vesselName);
+
+            \Log::info("Starting ShipmentLink browser automation", [
+                'vessel' => $vesselName,
+                'code' => $vesselCode,
+                'voyage' => $voyageCode
+            ]);
+
             $browserAutomationPath = base_path('browser-automation');
-            
-            // Use proc_open to separate stdout (JSON) from stderr (logs)
-            $command = "cd {$browserAutomationPath} && timeout 60 node shipmentlink-wrapper.js '{$vesselName}'";
+
+            // Use proc_open with vessel name, code, and voyage
+            $command = sprintf(
+                "cd %s && timeout 120 node shipmentlink-wrapper.js %s %s %s 2>/dev/null",
+                escapeshellarg($browserAutomationPath),
+                escapeshellarg($vesselName),
+                escapeshellarg($vesselCode),
+                escapeshellarg($voyageCode ?: '')
+            );
             
             $descriptors = [
                 0 => ['pipe', 'r'],  // stdin
@@ -1083,5 +1237,34 @@ class VesselTrackingService
     public function getTerminalByCode($code)
     {
         return $this->terminals[$code] ?? null;
+    }
+
+    /**
+     * Extract vessel code from vessel name for ShipmentLink
+     * Tries to intelligently guess the vessel code from the vessel name
+     */
+    private function extractVesselCode($vesselName)
+    {
+        // Common patterns for extracting vessel codes
+        $name = strtoupper(trim($vesselName));
+
+        // For EVER series vessels (EVER BUILD -> BUILD, EVER BASIS -> BASIS)
+        if (preg_match('/EVER\s+([A-Z]+)/', $name, $matches)) {
+            return $matches[1];
+        }
+
+        // For other vessel patterns, try to get the last significant word
+        $words = explode(' ', $name);
+        $words = array_filter($words, function($word) {
+            // Filter out voyage codes and common prefixes
+            return !preg_match('/^\d/', $word) && strlen($word) > 2;
+        });
+
+        if (count($words) >= 2) {
+            return end($words); // Last significant word
+        }
+
+        // Fallback to first 4-6 characters if no pattern matches
+        return substr($name, 0, min(6, strlen($name)));
     }
 }

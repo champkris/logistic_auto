@@ -817,6 +817,43 @@ class ShipmentLinkVesselScraper {
     }
   }
   
+  async delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async clickSearchButton() {
+    const buttonSelectors = [
+      'button[type="submit"]',
+      'input[type="submit"]',
+      'button[name*="search"]',
+      'button[id*="search"]',
+      'input[value*="Search"]',
+      'input[value*="Submit"]',
+      'button:contains("Search")',
+      'button:contains("Submit")',
+      '.search-btn',
+      '#search-btn',
+      '.btn-search'
+    ];
+
+    for (const selector of buttonSelectors) {
+      try {
+        const button = await this.page.$(selector);
+        if (button) {
+          logger.info(`🔍 Found search button with selector: ${selector}`);
+          await button.click();
+          await this.delay(2000);
+          return true;
+        }
+      } catch (error) {
+        logger.debug(`Could not click search button with selector ${selector}: ${error.message}`);
+      }
+    }
+
+    logger.warn('⚠️ No search button found with standard selectors');
+    return false;
+  }
+
   async cleanup() {
     if (this.browser) {
       await this.browser.close();
