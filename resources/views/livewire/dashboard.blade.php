@@ -93,7 +93,7 @@
                                 <div>
                                     <p class="font-medium text-gray-900">{{ $shipment->shipment_number }}</p>
                                     <p class="text-sm text-gray-600">{{ $shipment->customer->company }}</p>
-                                    <p class="text-sm text-gray-500">{{ $shipment->vessel->vessel_name }}</p>
+                                    <p class="text-sm text-gray-500">{{ $shipment->vessel->name }}</p>
                                 </div>
                                 <div class="text-right">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
@@ -134,7 +134,7 @@
                         @foreach($vessels_arriving as $vessel)
                             <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                                 <div>
-                                    <p class="font-medium text-gray-900">{{ $vessel->vessel_name }}</p>
+                                    <p class="font-medium text-gray-900">{{ $vessel->name }}</p>
                                     <p class="text-sm text-gray-600">{{ $vessel->voyage_number }}</p>
                                     <p class="text-sm text-gray-500">{{ $vessel->port }}</p>
                                     <p class="text-sm text-gray-500">

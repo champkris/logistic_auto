@@ -15,7 +15,9 @@ class VesselSeeder extends Seeder
     {
         $vessels = [
             [
+                'name' => 'EVER GIVEN',
                 'vessel_name' => 'EVER GIVEN',
+                'full_vessel_name' => 'EVER GIVEN',
                 'voyage_number' => 'EG-2025-001',
                 'eta' => Carbon::now()->addDays(2),
                 'actual_arrival' => null,
@@ -26,7 +28,9 @@ class VesselSeeder extends Seeder
                 'notes' => 'Container vessel from Singapore'
             ],
             [
+                'name' => 'MSC OSCAR',
                 'vessel_name' => 'MSC OSCAR',
+                'full_vessel_name' => 'MSC OSCAR',
                 'voyage_number' => 'MSC-2025-015',
                 'eta' => Carbon::now()->addDays(1),
                 'actual_arrival' => null,
@@ -37,7 +41,9 @@ class VesselSeeder extends Seeder
                 'notes' => 'Large container vessel from Europe'
             ],
             [
+                'name' => 'MAERSK EDINBURGH',
                 'vessel_name' => 'MAERSK EDINBURGH',
+                'full_vessel_name' => 'MAERSK EDINBURGH',
                 'voyage_number' => 'ME-2025-022',
                 'eta' => Carbon::yesterday(),
                 'actual_arrival' => Carbon::now()->subHours(6),
@@ -48,7 +54,9 @@ class VesselSeeder extends Seeder
                 'notes' => 'Arrived early, containers ready for discharge'
             ],
             [
+                'name' => 'ONE STORK',
                 'vessel_name' => 'ONE STORK',
+                'full_vessel_name' => 'ONE STORK',
                 'voyage_number' => 'OS-2025-008',
                 'eta' => Carbon::now()->addDays(5),
                 'actual_arrival' => null,
@@ -60,7 +68,9 @@ class VesselSeeder extends Seeder
             ],
             // Terminal-specific test vessels from VesselTrackingService
             [
+                'name' => 'SKY SUNSHINE',
                 'vessel_name' => 'SKY SUNSHINE',
+                'full_vessel_name' => 'SKY SUNSHINE',
                 'voyage_number' => 'V.2513S',
                 'eta' => Carbon::now()->addDays(3),
                 'actual_arrival' => null,
@@ -71,7 +81,9 @@ class VesselSeeder extends Seeder
                 'notes' => 'LCIT terminal integration test vessel'
             ],
             [
+                'name' => 'EVER BASIS',
                 'vessel_name' => 'EVER BASIS',
+                'full_vessel_name' => 'EVER BASIS',
                 'voyage_number' => '0813-068S',
                 'eta' => Carbon::parse('2025-09-22 00:00:00'),
                 'actual_arrival' => null,
@@ -82,7 +94,9 @@ class VesselSeeder extends Seeder
                 'notes' => 'ShipmentLink terminal integration - ETA extracted from live schedule'
             ],
             [
+                'name' => 'BUXMELODY',
                 'vessel_name' => 'BUXMELODY',
+                'full_vessel_name' => 'BUXMELODY',
                 'voyage_number' => '230N',
                 'eta' => Carbon::now()->addDays(4),
                 'actual_arrival' => null,
@@ -93,7 +107,9 @@ class VesselSeeder extends Seeder
                 'notes' => 'Kerry Logistics terminal integration test vessel'
             ],
             [
+                'name' => 'SAMPLE VESSEL',
                 'vessel_name' => 'SAMPLE VESSEL',
+                'full_vessel_name' => 'SAMPLE VESSEL',
                 'voyage_number' => 'V.001S',
                 'eta' => Carbon::now()->addDays(6),
                 'actual_arrival' => null,
