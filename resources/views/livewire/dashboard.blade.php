@@ -172,13 +172,13 @@
                 
                 <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                     <h3 class="font-medium text-purple-800">Customs Clearance</h3>
-                    <p class="text-2xl font-bold text-purple-900">{{ $urgent_tasks['customs_clearance'] }}</p>
+                    <p class="text-2xl font-bold text-purple-900">{{ $urgent_tasks['customs_pending'] }}</p>
                     <p class="text-sm text-purple-600">รอการตรวจปล่อยศุลกากร</p>
                 </div>
                 
                 <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                     <h3 class="font-medium text-green-800">Ready for Delivery</h3>
-                    <p class="text-2xl font-bold text-green-900">{{ $urgent_tasks['ready_for_delivery'] }}</p>
+                    <p class="text-2xl font-bold text-green-900">{{ $urgent_tasks['in_progress'] }}</p>
                     <p class="text-sm text-green-600">พร้อมส่งของให้ลูกค้า</p>
                 </div>
             </div>
