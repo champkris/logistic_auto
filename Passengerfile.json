@@ -1,0 +1,7 @@
+{
+  "app_type": "php",
+  "startup_file": "public/index.php",
+  "document_root": "public",
+  "environment": "production",
+  "app_start_timeout": 300
+}
