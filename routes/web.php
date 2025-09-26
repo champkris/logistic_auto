@@ -5,9 +5,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 
 // Root route redirects to dashboard (requires authentication)
-Route::get('/', function () {
-    return redirect()->route('dashboard');
-})->middleware(['auth', 'verified']);
+Route::get('/', App\Livewire\Dashboard::class)->name('home')->middleware(['auth', 'verified']);
 
 // Optional: Keep welcome page accessible for development/info
 Route::view('/welcome', 'welcome')->name('welcome');
