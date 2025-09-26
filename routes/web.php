@@ -4,8 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 
-// Root route redirects to dashboard (requires authentication)
-Route::get('/', App\Livewire\Dashboard::class)->name('home')->middleware(['auth']);
+// Root route will be defined inside the auth middleware group below
 
 // Optional: Keep welcome page accessible for development/info
 Route::view('/welcome', 'welcome')->name('welcome');
@@ -87,6 +86,7 @@ Route::get('/test-dashboard', function () {
 // Protected Routes (Authentication Required)
 Route::middleware(['auth', 'verified'])->group(function () {
     // Main Logistics Routes
+    Route::get('/', App\Livewire\Dashboard::class)->name('home');
     Route::get('/dashboard', App\Livewire\Dashboard::class)->name('dashboard');
     Route::get('/customers', App\Livewire\CustomerManager::class)->name('customers');
     Route::get('/shipments', App\Livewire\ShipmentManager::class)->name('shipments');
