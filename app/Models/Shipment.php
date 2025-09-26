@@ -133,7 +133,7 @@ class Shipment extends Model
      */
     public function scopeActive($query)
     {
-        return $query->whereNotIn('status', ['delivered', 'completed']);
+        return $query->where('status', 'in-progress');
     }
 
     /**

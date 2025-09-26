@@ -33,8 +33,8 @@ class Dashboard extends Component
             'pending_dos' => Document::where('type', 'do')
                 ->where('status', 'pending')
                 ->count(),
-            'customs_clearance' => Shipment::where('status', 'customs_clearance')->count(),
-            'ready_for_delivery' => Shipment::where('status', 'ready_for_delivery')->count(),
+            'customs_pending' => Shipment::where('customs_clearance_status', 'pending')->count(),
+            'in_progress' => Shipment::where('status', 'in-progress')->count(),
         ];
 
         return view('livewire.dashboard', compact(

@@ -91,19 +91,14 @@
                         @foreach($recent_shipments as $shipment)
                             <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                                 <div>
-                                    <p class="font-medium text-gray-900">{{ $shipment->shipment_number }}</p>
-                                    <p class="text-sm text-gray-600">{{ $shipment->customer->company }}</p>
-                                    <p class="text-sm text-gray-500">{{ $shipment->vessel->name }}</p>
+                                    <p class="font-medium text-gray-900">{{ $shipment->hbl_number ?? "Shipment #{$shipment->id}" }}</p>
+                                    <p class="text-sm text-gray-600">{{ $shipment->customer ? $shipment->customer->company : 'No customer assigned' }}</p>
+                                    <p class="text-sm text-gray-500">{{ $shipment->vessel ? $shipment->vessel->name : ($shipment->vessel_code ?? 'No vessel assigned') }}</p>
                                 </div>
                                 <div class="text-right">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                        @if($shipment->status === 'new') bg-blue-100 text-blue-800
-                                        @elseif($shipment->status === 'planning') bg-yellow-100 text-yellow-800
-                                        @elseif($shipment->status === 'documents_preparation') bg-orange-100 text-orange-800
-                                        @elseif($shipment->status === 'customs_clearance') bg-purple-100 text-purple-800
-                                        @elseif($shipment->status === 'ready_for_delivery') bg-green-100 text-green-800
-                                        @elseif($shipment->status === 'in_transit') bg-indigo-100 text-indigo-800
-                                        @elseif($shipment->status === 'delivered') bg-emerald-100 text-emerald-800
+                                        @if($shipment->status === 'in-progress') bg-blue-100 text-blue-800
+                                        @elseif($shipment->status === 'completed') bg-green-100 text-green-800
                                         @else bg-gray-100 text-gray-800
                                         @endif">
                                         {{ ucfirst(str_replace('_', ' ', $shipment->status)) }}
