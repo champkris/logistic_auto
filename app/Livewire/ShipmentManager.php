@@ -52,6 +52,13 @@ class ShipmentManager extends Component
     public $search = '';
     public $statusFilter = '';
 
+    // Filter properties
+    public $filterCustomer = '';
+    public $filterVessel = '';
+    public $filterPortTerminal = '';
+    public $filterShippingTeam = '';
+    public $filterCsReference = '';
+
     // Available options
     public $customers = [];
     public $vessels = [];
@@ -226,6 +233,31 @@ class ShipmentManager extends Component
         // Apply status filter
         if ($this->statusFilter) {
             $query->where('status', $this->statusFilter);
+        }
+
+        // Apply customer filter
+        if ($this->filterCustomer) {
+            $query->where('customer_id', $this->filterCustomer);
+        }
+
+        // Apply vessel filter
+        if ($this->filterVessel) {
+            $query->where('vessel_id', $this->filterVessel);
+        }
+
+        // Apply port terminal filter
+        if ($this->filterPortTerminal) {
+            $query->where('port_terminal', $this->filterPortTerminal);
+        }
+
+        // Apply shipping team filter
+        if ($this->filterShippingTeam) {
+            $query->where('shipping_team', $this->filterShippingTeam);
+        }
+
+        // Apply CS reference filter
+        if ($this->filterCsReference) {
+            $query->where('cs_reference', $this->filterCsReference);
         }
 
         $shipments = $query->orderBy('created_at', 'desc')->paginate(10);
@@ -418,6 +450,43 @@ class ShipmentManager extends Component
 
     public function updatingStatusFilter()
     {
+        $this->resetPage();
+    }
+
+    public function updatingFilterCustomer()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterVessel()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterPortTerminal()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterShippingTeam()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterCsReference()
+    {
+        $this->resetPage();
+    }
+
+    public function resetFilters()
+    {
+        $this->filterCustomer = '';
+        $this->filterVessel = '';
+        $this->filterPortTerminal = '';
+        $this->filterShippingTeam = '';
+        $this->filterCsReference = '';
+        $this->statusFilter = '';
+        $this->search = '';
         $this->resetPage();
     }
 }

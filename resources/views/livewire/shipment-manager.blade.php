@@ -15,19 +15,116 @@
 
     <!-- Search and Filters -->
     <div class="bg-white p-4 rounded-lg shadow">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 sm:space-x-4">
-            <div class="flex-1 max-w-md">
-                <label for="search" class="sr-only">Search shipments</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
+        <div class="space-y-4">
+            <!-- Search Bar -->
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 sm:space-x-4">
+                <div class="flex-1 max-w-md">
+                    <label for="search" class="sr-only">Search shipments</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                        </div>
+                        <input wire:model.live="search"
+                               type="text"
+                               placeholder="Search by HBL, MBL, Invoice, Voyage..."
+                               class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                     </div>
-                    <input wire:model.live="search" 
-                           type="text" 
-                           placeholder="Search shipments..." 
-                           class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+
+                <!-- Reset Filters Button -->
+                @if($search || $filterCustomer || $filterVessel || $filterPortTerminal || $filterShippingTeam || $filterCsReference || $statusFilter)
+                <button wire:click="resetFilters"
+                        class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg class="h-4 w-4 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Reset Filters
+                </button>
+                @endif
+            </div>
+
+            <!-- Filter Dropdowns -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                <!-- Customer Filter -->
+                <div>
+                    <label for="filterCustomer" class="block text-xs font-medium text-gray-700 mb-1">Customer</label>
+                    <select wire:model.live="filterCustomer"
+                            id="filterCustomer"
+                            class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Customers</option>
+                        @foreach($customers as $customer)
+                            <option value="{{ $customer->id }}">{{ $customer->company }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Vessel Filter -->
+                <div>
+                    <label for="filterVessel" class="block text-xs font-medium text-gray-700 mb-1">Vessel</label>
+                    <select wire:model.live="filterVessel"
+                            id="filterVessel"
+                            class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Vessels</option>
+                        @foreach($vessels as $vessel)
+                            <option value="{{ $vessel->id }}">{{ $vessel->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Port Terminal Filter (ท่าเรือ) -->
+                <div>
+                    <label for="filterPortTerminal" class="block text-xs font-medium text-gray-700 mb-1">ท่าเรือ</label>
+                    <select wire:model.live="filterPortTerminal"
+                            id="filterPortTerminal"
+                            class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Ports</option>
+                        @foreach($portTerminalOptions as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Shipping Team Filter (ชิ้ปปิ้ง) -->
+                <div>
+                    <label for="filterShippingTeam" class="block text-xs font-medium text-gray-700 mb-1">ชิ้ปปิ้ง</label>
+                    <select wire:model.live="filterShippingTeam"
+                            id="filterShippingTeam"
+                            class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Teams</option>
+                        @foreach($shippingTeamOptions as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- CS Reference Filter -->
+                <div>
+                    <label for="filterCsReference" class="block text-xs font-medium text-gray-700 mb-1">CS</label>
+                    <select wire:model.live="filterCsReference"
+                            id="filterCsReference"
+                            class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All CS</option>
+                        @foreach($csOptions as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Status Filter -->
+                <div>
+                    <label for="statusFilter" class="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                    <select wire:model.live="statusFilter"
+                            id="statusFilter"
+                            class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="on-hold">On Hold</option>
+                    </select>
                 </div>
             </div>
         </div>

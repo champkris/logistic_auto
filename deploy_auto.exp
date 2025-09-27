@@ -1,0 +1,54 @@
+#!/usr/bin/expect -f
+
+# Automated SSH Deployment Script
+# This script automates SSH login and deployment commands
+
+set timeout 60
+set remote_user "champkris"
+set remote_host "110.77.196.218"
+set remote_pass "Kri23655#"
+set remote_path "/home/champkris/logistic_auto"
+set git_repo "https://github.com/champkris/logistic_auto.git"
+
+# Start SSH session
+spawn ssh ${remote_user}@${remote_host}
+
+# Handle SSH password prompt
+expect {
+    "password:" {
+        send "${remote_pass}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${remote_pass}\r"
+    }
+}
+
+# Wait for shell prompt
+expect "$ " {
+    # Check if directory exists
+    send "if \[ -d ${remote_path} \]; then echo 'EXISTS'; else echo 'NOT_EXISTS'; fi\r"
+}
+
+expect {
+    "EXISTS" {
+        # Update existing repository
+        send "cd ${remote_path}\r"
+        expect "$ "
+        send "git pull origin master\r"
+        expect "$ "
+    }
+    "NOT_EXISTS" {
+        # Clone repository for first time
+        send "git clone ${git_repo}\r"
+        expect "$ "
+        send "cd logistic_auto\r"
+        expect "$ "
+    }
+}
+
+# Run deployment commands
+send "composer install --no-dev --optimize-autoloader\r"
+expect "$ "
+send "npm install\r"
