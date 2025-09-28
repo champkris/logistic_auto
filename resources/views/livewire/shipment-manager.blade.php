@@ -255,14 +255,7 @@
 
                                     <!-- OT Status -->
                                     <td class="px-1 py-1 text-xs text-center">
-                                        <span class="px-1 py-0.5 rounded text-xs font-medium
-                                            @if($shipment->overtime_status === 'none')
-                                                bg-red-200 text-red-800
-                                            @else
-                                                bg-yellow-200 text-yellow-800
-                                            @endif">
-                                            {{ $this->overtimeOptions[$shipment->overtime_status] ?? '-' }}
-                                        </span>
+                                        {{ $this->overtimeOptions[$shipment->overtime_status] ?? '-' }}
                                     </td>
 
                                     <!-- DO Status -->
