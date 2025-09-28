@@ -28,6 +28,7 @@ class ShipmentManager extends Component
     public $vessel_id = '';
     public $vessel_name = '';  // New field for vessel name input
     public $vessel_suggestions = [];  // For autocomplete suggestions
+    public $vessel_exists = false;  // Track if vessel exists in database
     public $joint_pickup = '';
     public $customs_clearance_status = 'pending';
     public $overtime_status = 'none';
@@ -233,9 +234,14 @@ class ShipmentManager extends Component
                 ->pluck('name')
                 ->toArray();
 
+            // Check if exact vessel name exists in database
+            $this->vessel_exists = Vessel::where('name', $value)->exists();
+
             Log::info('Found suggestions: ' . json_encode($this->vessel_suggestions));
+            Log::info('Vessel exists: ' . ($this->vessel_exists ? 'true' : 'false'));
         } else {
             $this->vessel_suggestions = [];
+            $this->vessel_exists = false;
         }
     }
 
@@ -266,9 +272,14 @@ class ShipmentManager extends Component
                 ->pluck('name')
                 ->toArray();
 
+            // Check if exact vessel name exists in database
+            $this->vessel_exists = Vessel::where('name', $this->vessel_name)->exists();
+
             Log::info('Found suggestions via searchVessels: ' . json_encode($this->vessel_suggestions));
+            Log::info('Vessel exists: ' . ($this->vessel_exists ? 'true' : 'false'));
         } else {
             $this->vessel_suggestions = [];
+            $this->vessel_exists = false;
             Log::info('Cleared suggestions - input too short or empty');
         }
     }
@@ -284,10 +295,12 @@ class ShipmentManager extends Component
         if ($vessel) {
             $this->vessel_id = $vessel->id;
             $this->vessel_name = $vessel->name;
+            $this->vessel_exists = true;
             Log::info('Selected existing vessel: ' . $vessel->name);
         } else {
             $this->vessel_id = null;
             $this->vessel_name = $vesselName;
+            $this->vessel_exists = false;
             Log::info('Set vessel name for new vessel: ' . $vesselName);
         }
 
@@ -405,6 +418,7 @@ class ShipmentManager extends Component
         $this->vessel_id = '';
         $this->vessel_name = '';
         $this->vessel_suggestions = [];
+        $this->vessel_exists = false;
         $this->joint_pickup = '';
         $this->customs_clearance_status = 'pending';
         $this->overtime_status = 'none';
@@ -501,6 +515,7 @@ class ShipmentManager extends Component
             $this->customer_id = $this->editingShipment->customer_id;
             $this->vessel_id = $this->editingShipment->vessel_id;
             $this->vessel_name = $this->editingShipment->vessel ? $this->editingShipment->vessel->name : '';
+            $this->vessel_exists = !empty($this->vessel_name);
             $this->joint_pickup = $this->editingShipment->joint_pickup;
             $this->customs_clearance_status = $this->editingShipment->customs_clearance_status ?? 'pending';
             $this->overtime_status = $this->editingShipment->overtime_status ?? 'none';

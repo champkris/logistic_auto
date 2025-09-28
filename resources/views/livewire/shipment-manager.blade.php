@@ -119,11 +119,8 @@
                             id="statusFilter"
                             class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                         <option value="">All Status</option>
-                        <option value="pending">Pending</option>
                         <option value="in-progress">In Progress</option>
                         <option value="completed">Completed</option>
-                        <option value="delivered">Delivered</option>
-                        <option value="on-hold">On Hold</option>
                     </select>
                 </div>
             </div>
@@ -754,7 +751,7 @@
                                             </div>
                                         </div>
                                     @endforeach
-                                    @if($vessel_name && !in_array($vessel_name, $vessel_suggestions))
+                                    @if($vessel_name && !empty($vessel_suggestions) && !$vessel_exists && !in_array($vessel_name, $vessel_suggestions))
                                         <div class="px-3 py-2 text-sm text-green-600 bg-green-50 border-t">
                                             <div class="flex items-center">
                                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -765,7 +762,7 @@
                                         </div>
                                     @endif
                                 </div>
-                            @elseif($vessel_name && strlen($vessel_name) >= 2)
+                            @elseif($vessel_name && strlen($vessel_name) >= 2 && !$vessel_exists)
                                 <div class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
                                     <div class="px-3 py-2 text-sm text-green-600 bg-green-50">
                                         <div class="flex items-center">
