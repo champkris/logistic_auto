@@ -172,12 +172,19 @@ class VesselTrackingService
     protected function hutchison_browser($config)
     {
         try {
+            // Hutchison site has vessel and voyage in separate columns, so only pass vessel name
             $vesselName = $config['vessel_name'];
-            \Log::info("Starting Hutchison Ports browser automation for vessel: {$vesselName}");
+            $expectedVoyageCode = $config['voyage_code'] ?? null;
+
+            \Log::info("Starting Hutchison Ports browser automation", [
+                'vessel_name' => $vesselName,
+                'expected_voyage' => $expectedVoyageCode
+            ]);
 
             $browserAutomationPath = base_path('browser-automation');
 
             // Use proc_open to separate stdout (JSON) from stderr (logs)
+            // Pass just the vessel name - not the full name with voyage code
             $command = "cd {$browserAutomationPath} && timeout 90 node hutchison-wrapper.js '{$vesselName}'";
 
             $descriptors = [
@@ -210,8 +217,31 @@ class VesselTrackingService
 
                     if (json_last_error() === JSON_ERROR_NONE && isset($result['success'])) {
                         if ($result['success']) {
-                            \Log::info("Hutchison browser automation completed successfully", [
+                            // Validate voyage code if we have an expected one
+                            $voyageFound = true;
+                            if ($expectedVoyageCode && isset($result['voyage_code'])) {
+                                $voyageFound = (strtoupper($result['voyage_code']) === strtoupper($expectedVoyageCode));
+
+                                if (!$voyageFound) {
+                                    \Log::info("Vessel found but voyage code mismatch", [
+                                        'expected' => $expectedVoyageCode,
+                                        'found' => $result['voyage_code']
+                                    ]);
+
+                                    // Update result to indicate voyage not found
+                                    $result['voyage_found'] = false;
+                                    $result['message'] = "Vessel {$vesselName} found but voyage {$expectedVoyageCode} not found (found: {$result['voyage_code']})";
+                                } else {
+                                    $result['voyage_found'] = true;
+                                }
+                            }
+
+                            $result['vessel_found'] = true;
+
+                            \Log::info("Hutchison browser automation completed", [
                                 'vessel_name' => $vesselName,
+                                'vessel_found' => true,
+                                'voyage_found' => $voyageFound,
                                 'result' => $result
                             ]);
                         } else {
@@ -219,6 +249,9 @@ class VesselTrackingService
                                 'vessel_name' => $vesselName,
                                 'result' => $result
                             ]);
+
+                            $result['vessel_found'] = false;
+                            $result['voyage_found'] = false;
                         }
 
                         return $result;
