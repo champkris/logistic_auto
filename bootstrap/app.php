@@ -16,6 +16,30 @@ return Application::configure(basePath: dirname(__DIR__))
             'vessel-test-public/*',
         ]);
     })
+    ->withSchedule(function ($schedule) {
+        // Check for due ETA schedules every minute
+        $schedule->call(function () {
+            $schedules = \App\Models\EtaCheckSchedule::dueForExecution()->get();
+
+            foreach ($schedules as $schedule) {
+                if ($schedule->shouldRunNow()) {
+                    \Illuminate\Support\Facades\Artisan::call('shipments:check-eta', [
+                        '--schedule-id' => $schedule->id,
+                        '--limit' => 50,
+                        '--delay' => 30
+                    ]);
+
+                    $schedule->markAsExecuted();
+
+                    \Illuminate\Support\Facades\Log::info("Executed scheduled ETA check", [
+                        'schedule_id' => $schedule->id,
+                        'schedule_name' => $schedule->name,
+                        'executed_at' => now()->format('Y-m-d H:i:s')
+                    ]);
+                }
+            }
+        })->everyMinute()->name('check-eta-schedules');
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

@@ -1,0 +1,276 @@
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use App\Models\Shipment;
+use App\Models\EtaCheckLog;
+use App\Services\VesselTrackingService;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
+
+class CheckAllShipmentsETA extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'shipments:check-eta
+                            {--schedule-id= : Specific schedule ID that triggered this check}
+                            {--limit=50 : Maximum number of shipments to check}
+                            {--delay=30 : Delay in seconds between checks}
+                            {--force : Force check all in-progress shipments regardless of recent checks}';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Automatically check ETA for all active shipments';
+
+    protected $vesselTrackingService;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->vesselTrackingService = new VesselTrackingService();
+    }
+
+    /**
+     * Execute the console command.
+     */
+    public function handle()
+    {
+        $startTime = now();
+        $this->info("🤖 Starting automated ETA check at {$startTime->format('Y-m-d H:i:s')}");
+
+        $scheduleId = $this->option('schedule-id');
+        $limit = (int) $this->option('limit');
+        $delay = (int) $this->option('delay');
+        $force = $this->option('force');
+
+        if ($force) {
+            $this->info("🚀 Force mode enabled - checking all in-progress shipments regardless of recent checks");
+        }
+
+        // Get shipments that need ETA checking
+        $shipments = $this->getShipmentsForChecking($limit, $force);
+
+        if ($shipments->isEmpty()) {
+            $this->info("ℹ️  No shipments found requiring ETA check");
+            return 0;
+        }
+
+        $this->info("📦 Found {$shipments->count()} shipments to check");
+
+        $successCount = 0;
+        $errorCount = 0;
+        $progressBar = $this->output->createProgressBar($shipments->count());
+
+        foreach ($shipments as $shipment) {
+            $progressBar->advance();
+
+            try {
+                $result = $this->checkShipmentETA($shipment, $scheduleId);
+
+                if ($result['success']) {
+                    $successCount++;
+                    $this->line("  ✅ {$shipment->invoice_number}: {$result['status']}");
+                } else {
+                    $errorCount++;
+                    $this->line("  ❌ {$shipment->invoice_number}: {$result['error']}");
+                }
+
+                // Add delay between checks to be polite to terminal websites
+                if ($delay > 0 && !$shipments->last()->is($shipment)) {
+                    sleep($delay);
+                }
+
+            } catch (\Exception $e) {
+                $errorCount++;
+                $this->error("  💥 {$shipment->invoice_number}: {$e->getMessage()}");
+                Log::error("ETA check failed for shipment {$shipment->id}: " . $e->getMessage());
+            }
+        }
+
+        $progressBar->finish();
+        $this->newLine(2);
+
+        $duration = $startTime->diffInSeconds(now());
+        $this->info("✅ Automated ETA check completed");
+        $this->info("📊 Results: {$successCount} successful, {$errorCount} failed");
+        $this->info("⏱️  Duration: {$duration} seconds");
+
+        // Log summary
+        Log::info("Automated ETA check completed", [
+            'schedule_id' => $scheduleId,
+            'shipments_checked' => $shipments->count(),
+            'successful' => $successCount,
+            'failed' => $errorCount,
+            'duration_seconds' => $duration
+        ]);
+
+        return 0;
+    }
+
+    /**
+     * Get shipments that need ETA checking.
+     */
+    protected function getShipmentsForChecking($limit, $force = false)
+    {
+        $query = Shipment::with(['vessel', 'customer'])
+            ->whereIn('tracking_status', ['in_progress', 'customs_pending', 'pending_dos']) // In-progress shipments
+            ->whereNotNull('vessel_id') // Must have vessel
+            ->whereNotNull('port_terminal'); // Must have terminal
+
+        if (!$force) {
+            // Normal mode: respect timing restrictions
+            $query->where(function ($q) {
+                // Either never checked, or last check was more than 4 hours ago
+                $q->whereNull('last_eta_check_date')
+                  ->orWhere('last_eta_check_date', '<', now()->subHours(4));
+            })
+            ->where(function ($q) {
+                // Only check shipments with ETA in reasonable timeframe
+                $q->where('planned_delivery_date', '>', now()->subDays(7))
+                  ->where('planned_delivery_date', '<', now()->addDays(30));
+            });
+        }
+        // Force mode: skip timing restrictions and check all in-progress shipments
+
+        return $query->orderBy('planned_delivery_date', 'asc') // Check earliest ETAs first
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * Check ETA for a single shipment.
+     */
+    protected function checkShipmentETA(Shipment $shipment, $scheduleId = null)
+    {
+        // Build vessel name for tracking
+        $vesselName = $shipment->vessel ? $shipment->vessel->name : $shipment->vessel_code;
+        $vesselFullName = $vesselName . ($shipment->voyage ? ' ' . $shipment->voyage : '');
+
+        // Initialize log data
+        $logData = [
+            'shipment_id' => $shipment->id,
+            'terminal' => $shipment->port_terminal,
+            'vessel_name' => $vesselName,
+            'voyage_code' => $shipment->voyage,
+            'shipment_eta_at_time' => $shipment->planned_delivery_date,
+            'initiated_by' => null, // System-initiated
+        ];
+
+        try {
+            // Check ETA using the vessel tracking service
+            $result = $this->vesselTrackingService->checkVesselETAByName($vesselFullName, $shipment->port_terminal);
+
+            if ($result && $result['success']) {
+                $updateData = [];
+                $vesselFound = isset($result['vessel_found']) ? $result['vessel_found'] : $result['success'];
+
+                // Store bot ETA if found
+                if ($vesselFound && isset($result['eta']) && $result['eta']) {
+                    try {
+                        $etaDate = Carbon::parse($result['eta']);
+                        $updateData['bot_received_eta_date'] = $etaDate;
+                    } catch (\Exception $e) {
+                        // Ignore ETA parsing errors
+                    }
+                }
+
+                // Determine tracking status
+                if ($vesselFound && isset($result['eta']) && $result['eta']) {
+                    try {
+                        $scrapedEta = Carbon::parse($result['eta']);
+                        $shipmentEta = $shipment->planned_delivery_date;
+
+                        if ($shipmentEta) {
+                            if ($scrapedEta->lte($shipmentEta)) {
+                                $updateData['tracking_status'] = 'on_track';
+                            } else {
+                                $updateData['tracking_status'] = 'delay';
+                            }
+                        } else {
+                            $updateData['tracking_status'] = 'on_track';
+                        }
+                    } catch (\Exception $e) {
+                        $updateData['tracking_status'] = 'on_track';
+                    }
+                } else {
+                    $updateData['tracking_status'] = 'not_found';
+                }
+
+                // Update shipment
+                $updateData['last_eta_check_date'] = now();
+                $shipment->update($updateData);
+
+                // Log the check
+                $logData = array_merge($logData, [
+                    'scraped_eta' => isset($updateData['bot_received_eta_date']) ? $updateData['bot_received_eta_date'] : null,
+                    'tracking_status' => $updateData['tracking_status'],
+                    'vessel_found' => $vesselFound,
+                    'voyage_found' => $result['voyage_found'] ?? false,
+                    'raw_response' => $result,
+                ]);
+
+                EtaCheckLog::create($logData);
+
+                return [
+                    'success' => true,
+                    'status' => $updateData['tracking_status'],
+                    'eta' => $result['eta'] ?? null
+                ];
+
+            } else {
+                // Failed to get ETA
+                $errorMessage = $result['error'] ?? 'Unknown error during vessel tracking';
+
+                $shipment->update([
+                    'tracking_status' => 'not_found',
+                    'last_eta_check_date' => now()
+                ]);
+
+                // Log the failed check
+                $logData = array_merge($logData, [
+                    'tracking_status' => 'not_found',
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'error_message' => $errorMessage,
+                    'raw_response' => $result,
+                ]);
+
+                EtaCheckLog::create($logData);
+
+                return [
+                    'success' => false,
+                    'error' => $errorMessage
+                ];
+            }
+
+        } catch (\Exception $e) {
+            // Exception during ETA check
+            $shipment->update([
+                'tracking_status' => 'not_found',
+                'last_eta_check_date' => now()
+            ]);
+
+            // Log the exception
+            $logData = array_merge($logData, [
+                'tracking_status' => 'not_found',
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'error_message' => 'Exception: ' . $e->getMessage(),
+            ]);
+
+            EtaCheckLog::create($logData);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+}

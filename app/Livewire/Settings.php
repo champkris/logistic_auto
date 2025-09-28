@@ -47,6 +47,7 @@ class Settings extends Component
     public $customer_phone = '';
     public $customer_address = '';
 
+
     // Search
     public $search = '';
 

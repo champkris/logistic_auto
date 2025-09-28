@@ -93,6 +93,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/customers', App\Livewire\CustomerManager::class)->name('customers');
     Route::get('/shipments', App\Livewire\ShipmentManager::class)->name('shipments');
     Route::get('/settings', App\Livewire\Settings::class)->name('settings');
+    Route::get('/schedules', App\Livewire\ScheduleManager::class)->name('schedules');
 
     // LINE Login Routes (require user to be authenticated first)
     Route::get('/line/connect', [App\Http\Controllers\LineLoginController::class, 'redirectToLine'])->name('line.connect');

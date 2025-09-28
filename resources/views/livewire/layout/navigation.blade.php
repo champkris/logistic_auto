@@ -30,25 +30,20 @@ new class extends Component
 
                 <!-- Navigation Links -->
                 <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                    <a href="{{ route('dashboard') }}" 
+                    <a href="{{ route('dashboard') }}"
                        class="{{ request()->routeIs('dashboard') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                        wire:navigate>
                         📊 Dashboard
                     </a>
-                    <a href="{{ route('shipments') }}" 
+                    <a href="{{ route('shipments') }}"
                        class="{{ request()->routeIs('shipments') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                        wire:navigate>
                         📦 Shipments
                     </a>
-                    <a href="{{ route('customers') }}" 
+                    <a href="{{ route('customers') }}"
                        class="{{ request()->routeIs('customers') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                        wire:navigate>
                         👥 Customers
-                    </a>
-                    <a href="{{ route('vessel-test') }}"
-                       class="{{ request()->routeIs('vessel-test') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                       wire:navigate>
-                        🚢 Vessel Test
                     </a>
                     <a href="{{ route('settings') }}"
                        class="{{ request()->routeIs('settings') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
@@ -84,6 +79,18 @@ new class extends Component
                             {{ __('Profile') }}
                         </x-dropdown-link>
 
+                        <div class="border-t border-gray-100 my-1"></div>
+
+                        <x-dropdown-link :href="route('vessel-test')" wire:navigate>
+                            🚢 Vessel Test
+                        </x-dropdown-link>
+
+                        <x-dropdown-link :href="route('schedules')" wire:navigate>
+                            ⏰ Schedules
+                        </x-dropdown-link>
+
+                        <div class="border-t border-gray-100 my-1"></div>
+
                         <!-- Authentication -->
                         <button wire:click="logout" class="w-full text-start">
                             <x-dropdown-link>
@@ -118,9 +125,6 @@ new class extends Component
             <x-responsive-nav-link :href="route('customers')" :active="request()->routeIs('customers')" wire:navigate>
                 👥 Customers
             </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('vessel-test')" :active="request()->routeIs('vessel-test')" wire:navigate>
-                🚢 Vessel Test
-            </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('settings')" :active="request()->routeIs('settings')" wire:navigate>
                 ⚙️ Settings
             </x-responsive-nav-link>
@@ -137,6 +141,18 @@ new class extends Component
                 <x-responsive-nav-link :href="route('profile')" wire:navigate>
                     {{ __('Profile') }}
                 </x-responsive-nav-link>
+
+                <div class="border-t border-gray-200 my-2"></div>
+
+                <x-responsive-nav-link :href="route('vessel-test')" wire:navigate>
+                    🚢 Vessel Test
+                </x-responsive-nav-link>
+
+                <x-responsive-nav-link :href="route('schedules')" wire:navigate>
+                    ⏰ Schedules
+                </x-responsive-nav-link>
+
+                <div class="border-t border-gray-200 my-2"></div>
 
                 <!-- Authentication -->
                 <button wire:click="logout" class="w-full text-start">
