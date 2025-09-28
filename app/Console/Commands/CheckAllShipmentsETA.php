@@ -7,6 +7,7 @@ use App\Models\Shipment;
 use App\Models\EtaCheckLog;
 use App\Services\VesselTrackingService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
 class CheckAllShipmentsETA extends Command
@@ -20,7 +21,8 @@ class CheckAllShipmentsETA extends Command
                             {--schedule-id= : Specific schedule ID that triggered this check}
                             {--limit=50 : Maximum number of shipments to check}
                             {--delay=30 : Delay in seconds between checks}
-                            {--force : Force check all in-progress shipments regardless of recent checks}';
+                            {--force : Force check all in-progress shipments regardless of recent checks}
+                            {--report-id= : Report ID for real-time progress tracking}';
 
     /**
      * The console command description.
@@ -49,9 +51,14 @@ class CheckAllShipmentsETA extends Command
         $limit = (int) $this->option('limit');
         $delay = (int) $this->option('delay');
         $force = $this->option('force');
+        $reportId = $this->option('report-id');
 
         if ($force) {
             $this->info("🚀 Force mode enabled - checking all in-progress shipments regardless of recent checks");
+        }
+
+        if ($reportId) {
+            $this->info("📊 Real-time reporting enabled - Report ID: {$reportId}");
         }
 
         // Get shipments that need ETA checking
@@ -71,15 +78,37 @@ class CheckAllShipmentsETA extends Command
         foreach ($shipments as $shipment) {
             $progressBar->advance();
 
+            // Update progress for real-time reporting
+            if ($reportId) {
+                $this->updateShipmentProgress($reportId, $shipment->id, 'checking');
+            }
+
             try {
                 $result = $this->checkShipmentETA($shipment, $scheduleId);
 
                 if ($result['success']) {
                     $successCount++;
                     $this->line("  ✅ {$shipment->invoice_number}: {$result['status']}");
+
+                    // Update progress with success
+                    if ($reportId) {
+                        $this->updateShipmentProgress($reportId, $shipment->id, 'completed', [
+                            'eta_found' => !empty($result['eta']),
+                            'result' => $result['status'],
+                            'checked_at' => now()->format('H:i:s')
+                        ]);
+                    }
                 } else {
                     $errorCount++;
                     $this->line("  ❌ {$shipment->invoice_number}: {$result['error']}");
+
+                    // Update progress with error
+                    if ($reportId) {
+                        $this->updateShipmentProgress($reportId, $shipment->id, 'error', [
+                            'error_message' => $result['error'],
+                            'checked_at' => now()->format('H:i:s')
+                        ]);
+                    }
                 }
 
                 // Add delay between checks to be polite to terminal websites
@@ -90,6 +119,15 @@ class CheckAllShipmentsETA extends Command
             } catch (\Exception $e) {
                 $errorCount++;
                 $this->error("  💥 {$shipment->invoice_number}: {$e->getMessage()}");
+
+                // Update progress with exception
+                if ($reportId) {
+                    $this->updateShipmentProgress($reportId, $shipment->id, 'error', [
+                        'error_message' => $e->getMessage(),
+                        'checked_at' => now()->format('H:i:s')
+                    ]);
+                }
+
                 Log::error("ETA check failed for shipment {$shipment->id}: " . $e->getMessage());
             }
         }
@@ -120,7 +158,7 @@ class CheckAllShipmentsETA extends Command
     protected function getShipmentsForChecking($limit, $force = false)
     {
         $query = Shipment::with(['vessel', 'customer'])
-            ->whereIn('tracking_status', ['in_progress', 'customs_pending', 'pending_dos']) // In-progress shipments
+            ->where('status', 'in-progress')
             ->whereNotNull('vessel_id') // Must have vessel
             ->whereNotNull('port_terminal'); // Must have terminal
 
@@ -142,6 +180,22 @@ class CheckAllShipmentsETA extends Command
         return $query->orderBy('planned_delivery_date', 'asc') // Check earliest ETAs first
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * Update shipment progress for real-time reporting.
+     */
+    protected function updateShipmentProgress($reportId, $shipmentId, $status, $additionalData = [])
+    {
+        $cacheKey = "eta-report-progress-{$reportId}";
+        $progress = Cache::get($cacheKey, []);
+
+        $progress[$shipmentId] = array_merge([
+            'status' => $status,
+            'updated_at' => now()->format('H:i:s')
+        ], $additionalData);
+
+        Cache::put($cacheKey, $progress, now()->addHours(2));
     }
 
     /**

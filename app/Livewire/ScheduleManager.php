@@ -140,24 +140,8 @@ class ScheduleManager extends Component
 
     public function runAllEtaCheck()
     {
-        try {
-            // Run ETA check for all in-progress shipments without schedule restriction
-            \Illuminate\Support\Facades\Artisan::call('shipments:check-eta', [
-                '--limit' => 100, // Higher limit for manual run
-                '--delay' => 3,   // Shorter delay for manual execution
-                '--force' => true // Add force flag to bypass schedule restrictions
-            ]);
-
-            // Count in-progress shipments for user feedback
-            $inProgressCount = \App\Models\Shipment::whereIn('tracking_status', [
-                'in_progress', 'customs_pending', 'pending_dos'
-            ])->count();
-
-            $this->dispatch('success', message: "ETA check initiated for {$inProgressCount} in-progress shipments! Results will appear in the shipment history.");
-
-        } catch (\Exception $e) {
-            $this->dispatch('error', message: 'Error initiating ETA check: ' . $e->getMessage());
-        }
+        // Redirect to the ETA check report page
+        return $this->redirect(route('eta-check-report'));
     }
 
     public function setQuickSchedule($preset)
