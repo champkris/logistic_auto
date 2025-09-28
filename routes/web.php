@@ -92,6 +92,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', App\Livewire\Dashboard::class)->name('dashboard');
     Route::get('/customers', App\Livewire\CustomerManager::class)->name('customers');
     Route::get('/shipments', App\Livewire\ShipmentManager::class)->name('shipments');
+    Route::get('/users', App\Livewire\UserManager::class)->name('users');
     Route::get('/settings', App\Livewire\Settings::class)->name('settings');
     Route::get('/schedules', App\Livewire\ScheduleManager::class)->name('schedules');
     Route::get('/eta-check-report', App\Livewire\EtaCheckReport::class)->name('eta-check-report');

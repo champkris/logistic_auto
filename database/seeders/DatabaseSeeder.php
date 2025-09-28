@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
 
         // Base users and auth
         $this->call([
+            AdminUserSeeder::class,        // Admin users with proper credentials
             EasternAirUserSeeder::class,  // Eastern Air specific users
             UserSeeder::class,             // Additional test users
         ]);

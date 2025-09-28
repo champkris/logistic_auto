@@ -86,6 +86,10 @@ new class extends Component
 
                         <div class="border-t border-gray-100 my-1"></div>
 
+                        <x-dropdown-link :href="route('users')" wire:navigate>
+                            👤 Users
+                        </x-dropdown-link>
+
                         <x-dropdown-link :href="route('vessel-test')" wire:navigate>
                             🚢 Vessel Test
                         </x-dropdown-link>
@@ -147,6 +151,10 @@ new class extends Component
                 </x-responsive-nav-link>
 
                 <div class="border-t border-gray-200 my-2"></div>
+
+                <x-responsive-nav-link :href="route('users')" wire:navigate>
+                    👤 Users
+                </x-responsive-nav-link>
 
                 <x-responsive-nav-link :href="route('vessel-test')" wire:navigate>
                     🚢 Vessel Test
