@@ -59,6 +59,9 @@ class ShipmentManager extends Component
     public $filterShippingTeam = '';
     public $filterCsReference = '';
 
+    // Expandable rows for ETA history
+    public $expandedRows = [];
+
     // Available options
     public $customers = [];
     public $vessels = [];
@@ -489,5 +492,47 @@ class ShipmentManager extends Component
         $this->statusFilter = '';
         $this->search = '';
         $this->resetPage();
+    }
+
+    public function toggleRowExpansion($shipmentId)
+    {
+        if (in_array($shipmentId, $this->expandedRows)) {
+            $this->expandedRows = array_filter($this->expandedRows, fn($id) => $id !== $shipmentId);
+        } else {
+            $this->expandedRows[] = $shipmentId;
+        }
+    }
+
+    public function isRowExpanded($shipmentId)
+    {
+        return in_array($shipmentId, $this->expandedRows);
+    }
+
+    public function getEtaHistory($shipmentId)
+    {
+        $shipment = Shipment::with('etaCheckLogs.initiatedBy')->find($shipmentId);
+
+        if (!$shipment) {
+            return null;
+        }
+
+        return $shipment->etaCheckLogs->map(function ($log) {
+            return [
+                'id' => $log->id,
+                'checked_at' => $log->created_at->format('Y-m-d H:i:s'),
+                'terminal' => $log->terminal,
+                'vessel_name' => $log->vessel_name,
+                'voyage_code' => $log->voyage_code,
+                'scraped_eta' => $log->scraped_eta ? $log->scraped_eta->format('Y-m-d H:i:s') : null,
+                'shipment_eta' => $log->shipment_eta_at_time ? $log->shipment_eta_at_time->format('Y-m-d H:i:s') : null,
+                'tracking_status' => $log->tracking_status,
+                'status_text' => $log->status_text,
+                'status_color' => $log->status_color,
+                'vessel_found' => $log->vessel_found,
+                'voyage_found' => $log->voyage_found,
+                'error_message' => $log->error_message,
+                'initiated_by' => $log->initiatedBy ? $log->initiatedBy->name : 'System',
+            ];
+        });
     }
 }

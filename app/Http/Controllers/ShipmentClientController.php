@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Shipment;
 use App\Models\ShipmentClient;
+use App\Models\EtaCheckLog;
 use App\Services\LineMessagingService;
 use App\Services\VesselTrackingService;
 use Illuminate\Http\Request;
@@ -259,6 +260,16 @@ class ShipmentClientController extends Controller
             // Check ETA using the shipment's port terminal (now uses VesselTrackingService codes directly)
             $result = $vesselTrackingService->checkVesselETAByName($vesselFullName, $shipment->port_terminal);
 
+            // Initialize log data
+            $logData = [
+                'shipment_id' => $shipment->id,
+                'terminal' => $shipment->port_terminal,
+                'vessel_name' => $vesselName,
+                'voyage_code' => $shipment->voyage,
+                'shipment_eta_at_time' => $shipment->planned_delivery_date,
+                'initiated_by' => Auth::id(),
+            ];
+
             if ($result && $result['success']) {
                 // Initialize update data
                 $updateData = [];
@@ -326,6 +337,17 @@ class ShipmentClientController extends Controller
 
                 $shipment->update($updateData);
 
+                // Log the ETA check result
+                $logData = array_merge($logData, [
+                    'scraped_eta' => isset($updateData['bot_received_eta_date']) ? $updateData['bot_received_eta_date'] : null,
+                    'tracking_status' => $updateData['tracking_status'],
+                    'vessel_found' => $vesselFound,
+                    'voyage_found' => $result['voyage_found'] ?? false,
+                    'raw_response' => $result,
+                ]);
+
+                EtaCheckLog::create($logData);
+
                 Log::info('ETA check completed successfully', [
                     'shipment_id' => $shipment->id,
                     'vessel_found' => $vesselFound,
@@ -354,6 +376,17 @@ class ShipmentClientController extends Controller
 
                 $errorMessage = $result['error'] ?? 'Unknown error during vessel tracking';
 
+                // Log the failed ETA check
+                $logData = array_merge($logData, [
+                    'tracking_status' => 'not_found',
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'error_message' => $errorMessage,
+                    'raw_response' => $result,
+                ]);
+
+                EtaCheckLog::create($logData);
+
                 Log::warning('ETA check failed', [
                     'shipment_id' => $shipment->id,
                     'error' => $errorMessage
@@ -371,6 +404,18 @@ class ShipmentClientController extends Controller
             $shipment->update([
                 'tracking_status' => 'not_found'
             ]);
+
+            // Log the exception
+            if (isset($logData)) {
+                $logData = array_merge($logData, [
+                    'tracking_status' => 'not_found',
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'error_message' => 'Exception: ' . $e->getMessage(),
+                ]);
+
+                EtaCheckLog::create($logData);
+            }
 
             Log::error('ETA check exception', [
                 'shipment_id' => $shipment->id,

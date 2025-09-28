@@ -88,6 +88,14 @@ class Shipment extends Model
     }
 
     /**
+     * Get the ETA check logs for this shipment.
+     */
+    public function etaCheckLogs()
+    {
+        return $this->hasMany(EtaCheckLog::class)->recent();
+    }
+
+    /**
      * Get active shipment clients.
      */
     public function activeShipmentClients()

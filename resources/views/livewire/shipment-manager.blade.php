@@ -169,6 +169,7 @@
                     <table class="min-w-full divide-y divide-gray-200 text-xs">
                         <thead class="bg-gray-50">
                             <tr>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">📋</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Client Request</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">CUSTOMERS</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">INV.</th>
@@ -205,6 +206,16 @@
                                     }
                                 @endphp
                                 <tr class="hover:bg-gray-100 {{ $rowClass }}">
+                                    <!-- Expand/Collapse Button -->
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        <button wire:click="toggleRowExpansion({{ $shipment->id }})"
+                                                class="text-blue-600 hover:text-blue-900 transform transition-transform duration-200
+                                                {{ $this->isRowExpanded($shipment->id) ? 'rotate-90' : '' }}"
+                                                title="Toggle ETA history">
+                                            ▶️
+                                        </button>
+                                    </td>
+
                                     <!-- Client Requested Delivery Date -->
                                     <td class="px-1 py-1 text-xs text-center">
                                         @if($shipment->client_requested_delivery_date)
@@ -427,6 +438,105 @@
                                         </div>
                                     </td>
                                 </tr>
+
+                                <!-- Expandable ETA History Row -->
+                                @if($this->isRowExpanded($shipment->id))
+                                    <tr class="bg-gray-50">
+                                        <td colspan="24" class="px-4 py-3">
+                                            <div class="bg-white rounded-lg border p-4">
+                                                <h4 class="text-sm font-semibold text-gray-900 mb-3">📊 ETA Check History</h4>
+
+                                                @php
+                                                    $etaHistory = $this->getEtaHistory($shipment->id);
+                                                @endphp
+
+                                                @if($etaHistory && $etaHistory->count() > 0)
+                                                    <div class="overflow-x-auto">
+                                                        <table class="min-w-full text-xs">
+                                                            <thead class="bg-gray-100">
+                                                                <tr>
+                                                                    <th class="px-2 py-1 text-left font-medium text-gray-700">Checked At</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Terminal</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Vessel</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Voyage</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Scraped ETA</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Shipment ETA</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Status</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Found</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">By</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody class="divide-y divide-gray-200">
+                                                                @foreach($etaHistory as $log)
+                                                                    <tr class="hover:bg-gray-50">
+                                                                        <td class="px-2 py-1 text-xs">{{ $log['checked_at'] }}</td>
+                                                                        <td class="px-2 py-1 text-xs text-center">{{ $log['terminal'] }}</td>
+                                                                        <td class="px-2 py-1 text-xs text-center">{{ $log['vessel_name'] }}</td>
+                                                                        <td class="px-2 py-1 text-xs text-center">{{ $log['voyage_code'] }}</td>
+                                                                        <td class="px-2 py-1 text-xs text-center">
+                                                                            @if($log['scraped_eta'])
+                                                                                <span class="text-blue-600 font-medium">{{ $log['scraped_eta'] }}</span>
+                                                                            @else
+                                                                                <span class="text-gray-400">-</span>
+                                                                            @endif
+                                                                        </td>
+                                                                        <td class="px-2 py-1 text-xs text-center">
+                                                                            @if($log['shipment_eta'])
+                                                                                <span class="text-gray-600">{{ $log['shipment_eta'] }}</span>
+                                                                            @else
+                                                                                <span class="text-gray-400">-</span>
+                                                                            @endif
+                                                                        </td>
+                                                                        <td class="px-2 py-1 text-xs text-center">
+                                                                            <span class="px-2 py-1 rounded-full text-xs font-medium
+                                                                                @if($log['status_color'] === 'green')
+                                                                                    bg-green-100 text-green-800
+                                                                                @elseif($log['status_color'] === 'red')
+                                                                                    bg-red-100 text-red-800
+                                                                                @else
+                                                                                    bg-gray-100 text-gray-600
+                                                                                @endif">
+                                                                                {{ $log['status_text'] }}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td class="px-2 py-1 text-xs text-center">
+                                                                            @if($log['vessel_found'])
+                                                                                <span class="text-green-600">✅ Vessel</span>
+                                                                            @else
+                                                                                <span class="text-red-600">❌ Vessel</span>
+                                                                            @endif
+                                                                            @if($log['voyage_found'])
+                                                                                <span class="text-green-600">✅ Voyage</span>
+                                                                            @elseif($log['vessel_found'])
+                                                                                <span class="text-yellow-600">⚠️ Voyage</span>
+                                                                            @endif
+                                                                        </td>
+                                                                        <td class="px-2 py-1 text-xs text-center">{{ $log['initiated_by'] }}</td>
+                                                                    </tr>
+                                                                    @if($log['error_message'])
+                                                                        <tr class="bg-red-50">
+                                                                            <td colspan="9" class="px-2 py-1 text-xs text-red-600">
+                                                                                <strong>Error:</strong> {{ $log['error_message'] }}
+                                                                            </td>
+                                                                        </tr>
+                                                                    @endif
+                                                                @endforeach
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                @else
+                                                    <div class="text-center py-6 text-gray-500">
+                                                        <svg class="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                                        </svg>
+                                                        <p class="text-sm">No ETA check history available</p>
+                                                        <p class="text-xs text-gray-400">Use the 🤖 button to check vessel ETA</p>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endif
                             @endforeach
                         </tbody>
                     </table>
