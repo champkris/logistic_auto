@@ -63,6 +63,10 @@ class ShipmentManager extends Component
     public $filterShippingTeam = '';
     public $filterCsReference = '';
 
+    // Sorting properties
+    public $sortField = 'created_at';
+    public $sortDirection = 'desc';
+
     // Expandable rows for ETA history
     public $expandedRows = [];
 
@@ -335,6 +339,24 @@ class ShipmentManager extends Component
         return $this->vessel_id ?: null;
     }
 
+    /**
+     * Sort by field
+     */
+    public function sortBy($field)
+    {
+        if ($this->sortField === $field) {
+            // Toggle direction if clicking the same field
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            // Set new field and default to ascending
+            $this->sortField = $field;
+            $this->sortDirection = 'asc';
+        }
+
+        // Reset pagination when sorting
+        $this->resetPage();
+    }
+
     public function render()
     {
         $query = Shipment::with(['customer', 'vessel', 'shipmentClients']);
@@ -386,7 +408,23 @@ class ShipmentManager extends Component
             $query->where('cs_reference', $this->filterCsReference);
         }
 
-        $shipments = $query->orderBy('created_at', 'desc')->paginate(10);
+        // Apply sorting
+        if ($this->sortField === 'customer_name') {
+            // Sort by customer name (relationship)
+            $query->leftJoin('customers', 'shipments.customer_id', '=', 'customers.id')
+                  ->orderBy('customers.name', $this->sortDirection)
+                  ->select('shipments.*');
+        } elseif ($this->sortField === 'vessel_name') {
+            // Sort by vessel name (relationship)
+            $query->leftJoin('vessels', 'shipments.vessel_id', '=', 'vessels.id')
+                  ->orderBy('vessels.name', $this->sortDirection)
+                  ->select('shipments.*');
+        } else {
+            // Sort by direct shipment fields
+            $query->orderBy($this->sortField, $this->sortDirection);
+        }
+
+        $shipments = $query->paginate(10);
 
         return view('livewire.shipment-manager', compact('shipments'))->layout('layouts.app', ['title' => 'Shipment Management']);
     }

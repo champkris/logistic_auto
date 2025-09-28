@@ -167,9 +167,45 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">📋</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Client Request</th>
-                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">CUSTOMERS</th>
-                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">INV.</th>
+                                <!-- Client Request Date - sortable -->
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">
+                                    <button wire:click="sortBy('client_requested_delivery_date')" class="flex items-center justify-center w-full hover:text-blue-600">
+                                        Client Request
+                                        @if($sortField === 'client_requested_delivery_date')
+                                            @if($sortDirection === 'asc')
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                                            @else
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
+                                            @endif
+                                        @endif
+                                    </button>
+                                </th>
+                                <!-- Customer - sortable -->
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">
+                                    <button wire:click="sortBy('customer_name')" class="flex items-center hover:text-blue-600">
+                                        CUSTOMERS
+                                        @if($sortField === 'customer_name')
+                                            @if($sortDirection === 'asc')
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                                            @else
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
+                                            @endif
+                                        @endif
+                                    </button>
+                                </th>
+                                <!-- Invoice Number - sortable -->
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">
+                                    <button wire:click="sortBy('invoice_number')" class="flex items-center hover:text-blue-600">
+                                        INV.
+                                        @if($sortField === 'invoice_number')
+                                            @if($sortDirection === 'asc')
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                                            @else
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
+                                            @endif
+                                        @endif
+                                    </button>
+                                </th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">HBL</th>
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">MBL</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">สถานะใบขน</th>
@@ -179,16 +215,64 @@
                                 <th class="px-1 py-2 text-right text-xs font-medium text-gray-700 uppercase">KGM</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">QTY</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">UNIT</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ETA</th>
-                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">VESSEL NAME</th>
+                                <!-- ETA - sortable -->
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">
+                                    <button wire:click="sortBy('planned_delivery_date')" class="flex items-center justify-center w-full hover:text-blue-600">
+                                        ETA
+                                        @if($sortField === 'planned_delivery_date')
+                                            @if($sortDirection === 'asc')
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                                            @else
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
+                                            @endif
+                                        @endif
+                                    </button>
+                                </th>
+                                <!-- Vessel Name - sortable -->
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">
+                                    <button wire:click="sortBy('vessel_name')" class="flex items-center hover:text-blue-600">
+                                        VESSEL NAME
+                                        @if($sortField === 'vessel_name')
+                                            @if($sortDirection === 'asc')
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                                            @else
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
+                                            @endif
+                                        @endif
+                                    </button>
+                                </th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Voyage</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ท่าเรือ</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ชิ้ปปิ้ง</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">CS</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Scraped ETA</th>
+                                <!-- Scraped ETA - sortable -->
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">
+                                    <button wire:click="sortBy('bot_received_eta_date')" class="flex items-center justify-center w-full hover:text-blue-600">
+                                        Scraped ETA
+                                        @if($sortField === 'bot_received_eta_date')
+                                            @if($sortDirection === 'asc')
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                                            @else
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
+                                            @endif
+                                        @endif
+                                    </button>
+                                </th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">On Track?</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">LINE</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">STATUS</th>
+                                <!-- Status - sortable -->
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">
+                                    <button wire:click="sortBy('status')" class="flex items-center justify-center w-full hover:text-blue-600">
+                                        STATUS
+                                        @if($sortField === 'status')
+                                            @if($sortDirection === 'asc')
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                                            @else
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
+                                            @endif
+                                        @endif
+                                    </button>
+                                </th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Actions</th>
                             </tr>
                         </thead>
