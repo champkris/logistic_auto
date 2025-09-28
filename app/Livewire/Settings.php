@@ -6,10 +6,13 @@ use App\Models\DropdownSetting;
 use App\Models\Customer;
 use App\Models\Vessel;
 use Livewire\Component;
+use Livewire\WithPagination;
 use Illuminate\Support\Facades\Log;
 
 class Settings extends Component
 {
+    use WithPagination;
+
     // Tab management
     public $activeTab = 'dropdown';
 
@@ -498,5 +501,21 @@ class Settings extends Component
         } catch (\Exception $e) {
             $this->dispatch('error', message: 'Error seeding values: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Reset pagination when selected field changes
+     */
+    public function updatingSelectedField()
+    {
+        $this->resetPage();
+    }
+
+    /**
+     * Reset pagination when active tab changes
+     */
+    public function updatingActiveTab()
+    {
+        $this->resetPage();
     }
 }
