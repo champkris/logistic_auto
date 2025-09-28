@@ -572,7 +572,7 @@ class HutchisonVesselScraper {
   parseDateTime(dateTimeString) {
     if (!dateTimeString) return null;
 
-    // Handle various date formats found on Hutchison Ports
+    // Hutchison Ports uses DD/MM/YYYY format
     const datePatterns = [
       // DD/MM/YYYY HH:MM or DD/MM/YYYY - HH:MM
       /(\d{1,2})\/(\d{1,2})\/(\d{4})\s*[-–]\s*(\d{1,2}):(\d{2})/,
@@ -595,19 +595,21 @@ class HutchisonVesselScraper {
           if (pattern.source.includes('YYYY-')) {
             // YYYY-MM-DD format
             year = parseInt(match[1]);
-            month = parseInt(match[2]) - 1;
+            month = parseInt(match[2]) - 1; // JavaScript months are 0-indexed
             day = parseInt(match[3]);
           } else {
-            // DD/MM/YYYY or DD-MM-YYYY format
+            // DD/MM/YYYY or DD-MM-YYYY format (Hutchison Ports standard)
             day = parseInt(match[1]);
-            month = parseInt(match[2]) - 1;
+            month = parseInt(match[2]) - 1; // JavaScript months are 0-indexed
             year = parseInt(match[3]);
             hour = match[4] ? parseInt(match[4]) : 0;
             minute = match[5] ? parseInt(match[5]) : 0;
           }
 
-          const date = new Date(year, month, day, hour, minute);
-          return date.toISOString().slice(0, 19).replace('T', ' '); // YYYY-MM-DD HH:MM:SS format
+          // Format as YYYY-MM-DD HH:MM:SS without timezone conversion
+          const formattedDate = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')} ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`;
+
+          return formattedDate;
         } catch (parseError) {
           continue;
         }
