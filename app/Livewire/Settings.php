@@ -369,12 +369,20 @@ class Settings extends Component
                 $vessel = Vessel::find($id);
                 if ($vessel) {
                     // Check if vessel has related shipments
-                    if ($vessel->shipments()->exists()) {
-                        $this->dispatch('error', message: 'Cannot delete vessel with existing shipments.');
+                    $shipmentCount = $vessel->shipments()->count();
+                    if ($shipmentCount > 0) {
+                        $this->dispatch('error', message: "Cannot delete vessel '{$vessel->name}' - it has {$shipmentCount} related shipment(s).");
                         return;
                     }
+
+                    $vesselName = $vessel->name;
                     $vessel->delete();
-                    $this->dispatch('success', message: 'Vessel deleted successfully!');
+                    $this->dispatch('success', message: "Vessel '{$vesselName}' (ID: {$id}) deleted successfully!");
+
+                    // Force refresh the vessels list
+                    $this->resetPage();
+                } else {
+                    $this->dispatch('error', message: "Vessel with ID {$id} not found.");
                 }
                 return;
             }

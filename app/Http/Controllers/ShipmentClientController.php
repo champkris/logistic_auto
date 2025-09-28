@@ -263,18 +263,18 @@ class ShipmentClientController extends Controller
                 // Initialize update data
                 $updateData = [];
 
-                // Update the planned delivery date and bot_received_eta_date if ETA found
+                // Store bot_received_eta_date only (do not update original planned_delivery_date)
                 // Handle both old format (vessel_found) and new browser automation format (success)
                 $vesselFound = isset($result['vessel_found']) ? $result['vessel_found'] : $result['success'];
                 if ($vesselFound && isset($result['eta']) && $result['eta']) {
                     try {
                         $etaDate = \Carbon\Carbon::parse($result['eta']);
-                        $updateData['planned_delivery_date'] = $etaDate;
+                        // Only store the bot ETA, do not overwrite original planned_delivery_date
                         $updateData['bot_received_eta_date'] = $etaDate; // Store the actual ETA from port website
-                        Log::info('Updated planned_delivery_date from ETA check', [
+                        Log::info('Stored bot ETA without updating original planned delivery date', [
                             'shipment_id' => $shipment->id,
-                            'old_eta' => $shipment->planned_delivery_date ? $shipment->planned_delivery_date->format('Y-m-d H:i:s') : 'null',
-                            'new_eta' => $etaDate->format('Y-m-d H:i:s'),
+                            'original_planned_eta' => $shipment->planned_delivery_date ? $shipment->planned_delivery_date->format('Y-m-d H:i:s') : 'null',
+                            'bot_scraped_eta' => $etaDate->format('Y-m-d H:i:s'),
                             'port_eta' => $result['eta']
                         ]);
                     } catch (\Exception $e) {
@@ -286,11 +286,42 @@ class ShipmentClientController extends Controller
                     }
                 }
 
-                // Determine tracking status based on results
+                // Determine tracking status based on comparison with shipment's planned ETA
                 if ($vesselFound && isset($result['eta']) && $result['eta']) {
-                    $updateData['tracking_status'] = 'on_track';
+                    // Compare scraped ETA with shipment's planned delivery date
+                    try {
+                        $scrapedEta = \Carbon\Carbon::parse($result['eta']);
+                        $shipmentEta = $shipment->planned_delivery_date;
+
+                        if ($shipmentEta) {
+                            // Compare dates: On Track if scraped ETA is before or equal to shipment ETA
+                            if ($scrapedEta->lte($shipmentEta)) {
+                                $updateData['tracking_status'] = 'on_track';
+                            } else {
+                                $updateData['tracking_status'] = 'delay';
+                            }
+                        } else {
+                            // No shipment ETA to compare with, consider on track if vessel found
+                            $updateData['tracking_status'] = 'on_track';
+                        }
+
+                        Log::info('ETA comparison completed', [
+                            'shipment_id' => $shipment->id,
+                            'scraped_eta' => $scrapedEta->format('Y-m-d H:i:s'),
+                            'shipment_eta' => $shipmentEta ? $shipmentEta->format('Y-m-d H:i:s') : 'not_set',
+                            'tracking_status' => $updateData['tracking_status']
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to compare ETA dates', [
+                            'shipment_id' => $shipment->id,
+                            'scraped_eta' => $result['eta'],
+                            'error' => $e->getMessage()
+                        ]);
+                        $updateData['tracking_status'] = 'on_track'; // Default to on_track if comparison fails
+                    }
                 } else {
-                    $updateData['tracking_status'] = 'delay';
+                    // Vessel or voyage not found
+                    $updateData['tracking_status'] = 'not_found';
                 }
 
                 $shipment->update($updateData);
@@ -316,9 +347,9 @@ class ShipmentClientController extends Controller
                         : 'Vessel not found in current schedule'
                 ]);
             } else {
-                // Update tracking status to delay if check failed
+                // Update tracking status to not_found if check failed
                 $shipment->update([
-                    'tracking_status' => 'delay'
+                    'tracking_status' => 'not_found'
                 ]);
 
                 $errorMessage = $result['error'] ?? 'Unknown error during vessel tracking';
@@ -331,14 +362,14 @@ class ShipmentClientController extends Controller
                 return response()->json([
                     'success' => false,
                     'error' => $errorMessage,
-                    'tracking_status' => 'delay'
+                    'tracking_status' => 'not_found'
                 ]);
             }
 
         } catch (\Exception $e) {
-            // Update tracking status to delay on exception
+            // Update tracking status to not_found on exception
             $shipment->update([
-                'tracking_status' => 'delay'
+                'tracking_status' => 'not_found'
             ]);
 
             Log::error('ETA check exception', [
@@ -350,7 +381,7 @@ class ShipmentClientController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to check vessel ETA: ' . $e->getMessage(),
-                'tracking_status' => 'delay'
+                'tracking_status' => 'not_found'
             ]);
         }
     }
