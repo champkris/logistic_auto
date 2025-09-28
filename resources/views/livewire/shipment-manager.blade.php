@@ -239,11 +239,15 @@
 
                                     <!-- Customs Status -->
                                     <td class="px-1 py-1 text-xs text-center">
-                                        <span class="px-1 py-0.5 rounded text-xs font-medium
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium
                                             @if($shipment->customs_clearance_status === 'received')
-                                                bg-yellow-200 text-yellow-800
+                                                bg-green-100 text-green-800
+                                            @elseif($shipment->customs_clearance_status === 'processing')
+                                                bg-yellow-100 text-yellow-800
+                                            @elseif($shipment->customs_clearance_status === 'pending')
+                                                bg-red-100 text-red-800
                                             @else
-                                                bg-gray-100 text-gray-700
+                                                bg-gray-100 text-gray-600
                                             @endif">
                                             {{ $this->customsClearanceOptions[$shipment->customs_clearance_status] ?? '-' }}
                                         </span>
@@ -263,11 +267,15 @@
 
                                     <!-- DO Status -->
                                     <td class="px-1 py-1 text-xs text-center">
-                                        <span class="px-1 py-0.5 rounded text-xs font-medium
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium
                                             @if($shipment->do_status === 'received')
-                                                bg-green-200 text-green-800
+                                                bg-green-100 text-green-800
+                                            @elseif($shipment->do_status === 'processing')
+                                                bg-blue-100 text-blue-800
+                                            @elseif($shipment->do_status === 'pending')
+                                                bg-orange-100 text-orange-800
                                             @else
-                                                bg-gray-100 text-gray-700
+                                                bg-gray-100 text-gray-600
                                             @endif">
                                             {{ $this->doStatusOptions[$shipment->do_status] ?? '-' }}
                                         </span>
