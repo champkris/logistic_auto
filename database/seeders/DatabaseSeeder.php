@@ -38,13 +38,13 @@ class DatabaseSeeder extends Seeder
             ShipmentSeeder::class,        // Updated shipment records with new fields
         ]);
 
-        // Optional: Sample data for testing
-        if (app()->environment('local', 'development')) {
-            $this->command->info('Loading sample data for development environment...');
-            $this->call([
-                SampleDataSeeder::class,
-            ]);
-        }
+        // Optional: Sample data for testing (disabled - needs updating)
+        // if (app()->environment('local', 'development')) {
+        //     $this->command->info('Loading sample data for development environment...');
+        //     $this->call([
+        //         SampleDataSeeder::class,
+        //     ]);
+        // }
 
         $this->command->info('Database seeding completed successfully!');
         $this->command->info('- 8 terminals configured (including SIAM and KERRY)');

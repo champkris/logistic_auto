@@ -8,6 +8,7 @@ use App\Models\Shipment;
 use App\Models\Customer;
 use App\Models\Vessel;
 use App\Models\DropdownSetting;
+use Illuminate\Support\Facades\Log;
 
 class ShipmentManager extends Component
 {
@@ -25,6 +26,8 @@ class ShipmentManager extends Component
     public $quantity_number = '';    public $quantity_unit = '';
     public $customer_id = '';
     public $vessel_id = '';
+    public $vessel_name = '';  // New field for vessel name input
+    public $vessel_suggestions = [];  // For autocomplete suggestions
     public $joint_pickup = '';
     public $customs_clearance_status = 'pending';
     public $overtime_status = 'none';
@@ -109,6 +112,7 @@ class ShipmentManager extends Component
         'weight_kgm' => 'nullable|numeric|min:0',
         'quantity_number' => 'nullable|numeric|min:0',        'quantity_unit' => 'nullable|string|max:255',
         'vessel_id' => 'nullable|exists:vessels,id',
+        'vessel_name' => 'nullable|string|max:255',
         'joint_pickup' => 'nullable|string|max:255',
         'customs_clearance_status' => 'required|in:' . implode(',', $customsOptions),
         'overtime_status' => 'required|in:' . implode(',', $overtimeOptions),
@@ -213,6 +217,111 @@ class ShipmentManager extends Component
         $this->quantityUnitOptions = !empty($dynamicQuantityUnit) ? $dynamicQuantityUnit : [];
     }
 
+    /**
+     * Update vessel suggestions based on input
+     * Note: Livewire v3 lifecycle method naming
+     */
+    public function updatedVesselName($value)
+    {
+        Log::info('updatedVesselName called with value: ' . $value);
+
+        if (strlen($value) >= 2) {
+            // Search for vessels matching the input
+            $this->vessel_suggestions = Vessel::where('name', 'like', '%' . $value . '%')
+                ->orderBy('name')
+                ->take(10)
+                ->pluck('name')
+                ->toArray();
+
+            Log::info('Found suggestions: ' . json_encode($this->vessel_suggestions));
+        } else {
+            $this->vessel_suggestions = [];
+        }
+    }
+
+    /**
+     * Alternative method name for Livewire updates - try with underscore naming
+     */
+    public function updated($propertyName, $value)
+    {
+        Log::info('updated called with property: ' . $propertyName . ' value: ' . $value);
+
+        if ($propertyName === 'vessel_name') {
+            $this->updatedVesselName($value);
+        }
+    }
+
+    /**
+     * Search vessels based on current input
+     */
+    public function searchVessels()
+    {
+        Log::info('searchVessels called with vessel_name: ' . $this->vessel_name);
+
+        if (!empty($this->vessel_name) && strlen($this->vessel_name) >= 2) {
+            // Search for vessels matching the input (case insensitive)
+            $this->vessel_suggestions = Vessel::where('name', 'like', '%' . $this->vessel_name . '%')
+                ->orderBy('name')
+                ->take(10)
+                ->pluck('name')
+                ->toArray();
+
+            Log::info('Found suggestions via searchVessels: ' . json_encode($this->vessel_suggestions));
+        } else {
+            $this->vessel_suggestions = [];
+            Log::info('Cleared suggestions - input too short or empty');
+        }
+    }
+
+    /**
+     * Select a vessel from suggestions
+     */
+    public function selectVessel($vesselName)
+    {
+        Log::info('selectVessel called with: ' . $vesselName);
+
+        $vessel = Vessel::where('name', $vesselName)->first();
+        if ($vessel) {
+            $this->vessel_id = $vessel->id;
+            $this->vessel_name = $vessel->name;
+            Log::info('Selected existing vessel: ' . $vessel->name);
+        } else {
+            $this->vessel_id = null;
+            $this->vessel_name = $vesselName;
+            Log::info('Set vessel name for new vessel: ' . $vesselName);
+        }
+
+        // Clear suggestions after selection
+        $this->vessel_suggestions = [];
+        Log::info('Cleared suggestions after selection');
+    }
+
+    /**
+     * Create or find vessel by name
+     */
+    private function resolveVessel()
+    {
+        if (!empty($this->vessel_name)) {
+            // Try to find existing vessel
+            $vessel = Vessel::where('name', $this->vessel_name)->first();
+
+            if (!$vessel) {
+                // Create new vessel if it doesn't exist
+                $vessel = Vessel::create([
+                    'name' => $this->vessel_name,
+                    'vessel_code' => strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $this->vessel_name), 0, 10)),
+                    'imo_number' => null,
+                    'call_sign' => null,
+                    'flag' => null
+                ]);
+            }
+
+            return $vessel->id;
+        }
+
+        return $this->vessel_id ?: null;
+    }
+
     public function render()
     {
         $query = Shipment::with(['customer', 'vessel', 'shipmentClients']);
@@ -294,6 +403,8 @@ class ShipmentManager extends Component
         $this->quantity_number = '';        $this->quantity_unit = '';
         $this->customer_id = '';
         $this->vessel_id = '';
+        $this->vessel_name = '';
+        $this->vessel_suggestions = [];
         $this->joint_pickup = '';
         $this->customs_clearance_status = 'pending';
         $this->overtime_status = 'none';
@@ -327,6 +438,9 @@ class ShipmentManager extends Component
             if ($this->cargo_weight) $cargoDetails['weight_kg'] = $this->cargo_weight;
             if ($this->cargo_volume) $cargoDetails['volume_cbm'] = $this->cargo_volume;
 
+            // Resolve vessel (create if new or find existing)
+            $resolvedVesselId = $this->resolveVessel();
+
             $shipmentData = [
                 'client_requested_delivery_date' => $this->client_requested_delivery_date ?: null,
                 'hbl_number' => $this->hbl_number,
@@ -336,7 +450,7 @@ class ShipmentManager extends Component
                 'weight_kgm' => $this->weight_kgm ?: null,
                 'quantity_number' => $this->quantity_number ?: null,                'quantity_unit' => $this->quantity_unit,
                 'customer_id' => $this->customer_id,
-                'vessel_id' => $this->vessel_id ?: null,
+                'vessel_id' => $resolvedVesselId,
                 'joint_pickup' => $this->joint_pickup,
                 'customs_clearance_status' => $this->customs_clearance_status,
                 'overtime_status' => $this->overtime_status,
@@ -386,6 +500,7 @@ class ShipmentManager extends Component
             $this->quantity_number = $this->editingShipment->quantity_number;            $this->quantity_unit = $this->editingShipment->quantity_unit;
             $this->customer_id = $this->editingShipment->customer_id;
             $this->vessel_id = $this->editingShipment->vessel_id;
+            $this->vessel_name = $this->editingShipment->vessel ? $this->editingShipment->vessel->name : '';
             $this->joint_pickup = $this->editingShipment->joint_pickup;
             $this->customs_clearance_status = $this->editingShipment->customs_clearance_status ?? 'pending';
             $this->overtime_status = $this->editingShipment->overtime_status ?? 'none';

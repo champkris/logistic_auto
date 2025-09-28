@@ -228,24 +228,91 @@ class CheckAllShipmentsETA extends Command
                 // Store bot ETA if found
                 if ($vesselFound && isset($result['eta']) && $result['eta']) {
                     try {
-                        $etaDate = Carbon::parse($result['eta']);
-                        $updateData['bot_received_eta_date'] = $etaDate;
+                        // Try to parse ETA with different formats
+                        $etaString = $result['eta'];
+                        $etaDate = null;
+
+                        // Try common formats in order of preference
+                        $formats = [
+                            'Y-m-d',           // 2025-09-23
+                            'm/d/Y',           // 09/23/2025 (US format)
+                            'd/m/Y',           // 23/09/2025 (DD/MM/YYYY format from TIPS)
+                            'Y/m/d',           // 2025/09/23
+                            'd-m-Y',           // 23-09-2025
+                            'Y-m-d H:i:s',     // 2025-09-23 08:00:00
+                            'd/m/Y H:i',       // 23/09/2025 08:00
+                        ];
+
+                        // First try Carbon::parse (handles most standard formats)
+                        try {
+                            $etaDate = Carbon::parse($etaString);
+                        } catch (\Exception $e) {
+                            // If parse fails, try specific formats
+                            foreach ($formats as $format) {
+                                try {
+                                    $etaDate = Carbon::createFromFormat($format, $etaString);
+                                    break;
+                                } catch (\Exception $e) {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if ($etaDate) {
+                            $updateData['bot_received_eta_date'] = $etaDate;
+                        }
                     } catch (\Exception $e) {
-                        // Ignore ETA parsing errors
+                        // Log ETA parsing errors for debugging
+                        Log::warning("Failed to parse ETA date", [
+                            'shipment_id' => $shipment->id,
+                            'eta_string' => $result['eta'],
+                            'error' => $e->getMessage()
+                        ]);
                     }
                 }
 
                 // Determine tracking status
                 if ($vesselFound && isset($result['eta']) && $result['eta']) {
                     try {
-                        $scrapedEta = Carbon::parse($result['eta']);
-                        $shipmentEta = $shipment->planned_delivery_date;
+                        // Use the same ETA parsing logic as above
+                        $etaString = $result['eta'];
+                        $scrapedEta = null;
 
-                        if ($shipmentEta) {
-                            if ($scrapedEta->lte($shipmentEta)) {
-                                $updateData['tracking_status'] = 'on_track';
+                        // First try Carbon::parse (handles most standard formats)
+                        try {
+                            $scrapedEta = Carbon::parse($etaString);
+                        } catch (\Exception $e) {
+                            // If parse fails, try specific formats
+                            $formats = [
+                                'Y-m-d',           // 2025-09-23
+                                'm/d/Y',           // 09/23/2025 (US format)
+                                'd/m/Y',           // 23/09/2025 (DD/MM/YYYY format from TIPS)
+                                'Y/m/d',           // 2025/09/23
+                                'd-m-Y',           // 23-09-2025
+                                'Y-m-d H:i:s',     // 2025-09-23 08:00:00
+                                'd/m/Y H:i',       // 23/09/2025 08:00
+                            ];
+
+                            foreach ($formats as $format) {
+                                try {
+                                    $scrapedEta = Carbon::createFromFormat($format, $etaString);
+                                    break;
+                                } catch (\Exception $e) {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if ($scrapedEta) {
+                            $shipmentEta = $shipment->planned_delivery_date;
+                            if ($shipmentEta) {
+                                if ($scrapedEta->lte($shipmentEta)) {
+                                    $updateData['tracking_status'] = 'on_track';
+                                } else {
+                                    $updateData['tracking_status'] = 'delay';
+                                }
                             } else {
-                                $updateData['tracking_status'] = 'delay';
+                                $updateData['tracking_status'] = 'on_track';
                             }
                         } else {
                             $updateData['tracking_status'] = 'on_track';

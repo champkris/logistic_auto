@@ -45,6 +45,11 @@ new class extends Component
                        wire:navigate>
                         👥 Customers
                     </a>
+                    <a href="{{ route('schedules') }}"
+                       class="{{ request()->routeIs('schedules') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                       wire:navigate>
+                        ⏰ Schedules
+                    </a>
                     <a href="{{ route('settings') }}"
                        class="{{ request()->routeIs('settings') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                        wire:navigate>
@@ -85,10 +90,6 @@ new class extends Component
                             🚢 Vessel Test
                         </x-dropdown-link>
 
-                        <x-dropdown-link :href="route('schedules')" wire:navigate>
-                            ⏰ Schedules
-                        </x-dropdown-link>
-
                         <div class="border-t border-gray-100 my-1"></div>
 
                         <!-- Authentication -->
@@ -125,6 +126,9 @@ new class extends Component
             <x-responsive-nav-link :href="route('customers')" :active="request()->routeIs('customers')" wire:navigate>
                 👥 Customers
             </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('schedules')" :active="request()->routeIs('schedules')" wire:navigate>
+                ⏰ Schedules
+            </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('settings')" :active="request()->routeIs('settings')" wire:navigate>
                 ⚙️ Settings
             </x-responsive-nav-link>
@@ -146,10 +150,6 @@ new class extends Component
 
                 <x-responsive-nav-link :href="route('vessel-test')" wire:navigate>
                     🚢 Vessel Test
-                </x-responsive-nav-link>
-
-                <x-responsive-nav-link :href="route('schedules')" wire:navigate>
-                    ⏰ Schedules
                 </x-responsive-nav-link>
 
                 <div class="border-t border-gray-200 my-2"></div>

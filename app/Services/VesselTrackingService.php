@@ -20,7 +20,7 @@ class VesselTrackingService
             'name' => 'TIPS',
             'url' => 'https://www.tips.co.th/container/shipSched/List',
             'vessel_full' => 'SRI SUREE V.25080S',
-            'method' => 'tips'
+            'method' => 'tips_browser'
         ],
         'B5C3' => [
             'name' => 'LCIT',
@@ -306,6 +306,116 @@ class VesselTrackingService
         }
 
         return $this->parseVesselData($response->body(), $config);
+    }
+
+    protected function tips_browser($config)
+    {
+        try {
+            $vesselName = $config['vessel_name'] ?? 'SRI SUREE';
+            $voyageCode = $config['voyage_code'] ?? '';
+
+            \Log::info("Starting TIPS browser automation", [
+                'vessel' => $vesselName,
+                'voyage' => $voyageCode,
+                'terminal' => 'B4'
+            ]);
+
+            $browserAutomationPath = base_path('browser-automation');
+
+            // Use proc_open to call the TIPS wrapper with vessel name and voyage
+            $command = sprintf(
+                "cd %s && timeout 120 node tips-wrapper.js %s %s 2>/dev/null",
+                escapeshellarg($browserAutomationPath),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
+            );
+
+            $descriptors = [
+                0 => ['pipe', 'r'],  // stdin
+                1 => ['pipe', 'w'],  // stdout (JSON)
+                2 => ['pipe', 'w']   // stderr (logs)
+            ];
+
+            $process = proc_open($command, $descriptors, $pipes);
+
+            if (is_resource($process)) {
+                fclose($pipes[0]); // Close stdin
+
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
+
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+
+                $returnCode = proc_close($process);
+
+                // Log the browser automation logs for debugging
+                if (!empty($logOutput)) {
+                    \Log::info("TIPS browser automation logs:", ['logs' => $logOutput]);
+                }
+
+                if (!empty($jsonOutput)) {
+                    $result = json_decode($jsonOutput, true);
+
+                    if ($result && isset($result['success'])) {
+                        \Log::info("TIPS browser automation result:", $result);
+
+                        return [
+                            'success' => $result['success'],
+                            'terminal' => $result['terminal'] ?? 'TIPS',
+                            'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                            'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                            'vessel_found' => $result['vessel_found'] ?? false,
+                            'voyage_found' => $result['voyage_found'] ?? false,
+                            'eta' => $result['eta'],
+                            'search_method' => 'tips_browser_automation',
+                            'pages_scanned' => $result['pages_scanned'] ?? null,
+                            'checked_at' => now()
+                        ];
+                    }
+                }
+
+                // If we get here, something went wrong
+                \Log::error("TIPS browser automation failed", [
+                    'return_code' => $returnCode,
+                    'json_output' => $jsonOutput,
+                    'log_output' => $logOutput
+                ]);
+
+                return [
+                    'success' => false,
+                    'terminal' => 'TIPS',
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'eta' => null,
+                    'error' => 'Browser automation process failed',
+                    'search_method' => 'tips_browser_automation_failed',
+                    'checked_at' => now()
+                ];
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("TIPS browser automation exception", [
+                'error' => $e->getMessage(),
+                'vessel' => $vesselName ?? 'unknown',
+                'voyage' => $voyageCode ?? 'unknown'
+            ]);
+
+            return [
+                'success' => false,
+                'terminal' => 'TIPS',
+                'vessel_name' => $vesselName ?? 'unknown',
+                'voyage_code' => $voyageCode ?? 'unknown',
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'eta' => null,
+                'error' => $e->getMessage(),
+                'search_method' => 'tips_browser_automation_error',
+                'checked_at' => now()
+            ];
+        }
     }
 
     protected function lcit($config)

@@ -188,7 +188,7 @@
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ท่าเรือ</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ชิ้ปปิ้ง</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">CS</th>
-                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Last ETA Check</th>
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">Scraped ETA</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">On Track?</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">LINE</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">STATUS</th>
@@ -330,23 +330,15 @@
                                     <!-- CS Reference -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->cs_reference ?? '-' }}</td>
 
-                                    <!-- Last ETA Check -->
+                                    <!-- Scraped ETA -->
                                     <td class="px-1 py-1 text-xs text-center">
-                                        <div class="space-y-1">
-                                            @if($shipment->last_eta_check_date)
-                                                <div class="text-blue-600" title="Bot check date">
-                                                    🤖 {{ $shipment->last_eta_check_date->format('d/m H:i') }}
-                                                </div>
-                                            @endif
-                                            @if($shipment->bot_received_eta_date)
-                                                <div class="text-green-600" title="Received ETA date">
-                                                    📅 {{ $shipment->bot_received_eta_date->format('d/m H:i') }}
-                                                </div>
-                                            @endif
-                                            @if(!$shipment->last_eta_check_date && !$shipment->bot_received_eta_date)
-                                                <span class="text-gray-500">-</span>
-                                            @endif
-                                        </div>
+                                        @if($shipment->bot_received_eta_date)
+                                            <div class="text-green-600" title="Scraped ETA from terminal">
+                                                📅 {{ $shipment->bot_received_eta_date->format('d/m H:i') }}
+                                            </div>
+                                        @else
+                                            <span class="text-gray-500">-</span>
+                                        @endif
                                     </td>
 
                                     <!-- Tracking Status -->
@@ -738,17 +730,55 @@
                         </div>
 
                         <!-- Vessel -->
-                        <div>
-                            <label for="vessel_id" class="block text-sm font-medium text-gray-700">VESSEL NAME</label>
-                            <select wire:model="vessel_id"
-                                    id="vessel_id"
-                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                <option value="">Select Vessel</option>
-                                @foreach($this->vessels as $vessel)
-                                    <option value="{{ $vessel->id }}">{{ $vessel->name }}</option>
-                                @endforeach
-                            </select>
-                            @error('vessel_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        <div class="relative">
+                            <label for="vessel_name" class="block text-sm font-medium text-gray-700">VESSEL NAME</label>
+                            <input wire:model="vessel_name"
+                                   wire:keyup.debounce.300ms="searchVessels"
+                                   type="text"
+                                   id="vessel_name"
+                                   placeholder="Type to search or enter new vessel name"
+                                   autocomplete="off"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+
+                            <!-- Autocomplete suggestions dropdown -->
+                            @if(!empty($vessel_suggestions))
+                                <div class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                                    @foreach($vessel_suggestions as $suggestion)
+                                        <div wire:click="selectVessel('{{ $suggestion }}')"
+                                             class="w-full text-left px-3 py-2 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer border-b border-gray-100 last:border-0">
+                                            <div class="flex items-center">
+                                                <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                                </svg>
+                                                {{ $suggestion }}
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                    @if($vessel_name && !in_array($vessel_name, $vessel_suggestions))
+                                        <div class="px-3 py-2 text-sm text-green-600 bg-green-50 border-t">
+                                            <div class="flex items-center">
+                                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                                </svg>
+                                                Will create new vessel: "{{ $vessel_name }}"
+                                            </div>
+                                        </div>
+                                    @endif
+                                </div>
+                            @elseif($vessel_name && strlen($vessel_name) >= 2)
+                                <div class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                                    <div class="px-3 py-2 text-sm text-green-600 bg-green-50">
+                                        <div class="flex items-center">
+                                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                            </svg>
+                                            Will create new vessel: "{{ $vessel_name }}"
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+
+                            @error('vessel_name') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- Row 4: Additional Fields -->

@@ -279,15 +279,45 @@ class ShipmentClientController extends Controller
                 $vesselFound = isset($result['vessel_found']) ? $result['vessel_found'] : $result['success'];
                 if ($vesselFound && isset($result['eta']) && $result['eta']) {
                     try {
-                        $etaDate = \Carbon\Carbon::parse($result['eta']);
-                        // Only store the bot ETA, do not overwrite original planned_delivery_date
-                        $updateData['bot_received_eta_date'] = $etaDate; // Store the actual ETA from port website
-                        Log::info('Stored bot ETA without updating original planned delivery date', [
-                            'shipment_id' => $shipment->id,
-                            'original_planned_eta' => $shipment->planned_delivery_date ? $shipment->planned_delivery_date->format('Y-m-d H:i:s') : 'null',
-                            'bot_scraped_eta' => $etaDate->format('Y-m-d H:i:s'),
-                            'port_eta' => $result['eta']
-                        ]);
+                        // Try to parse ETA with different formats
+                        $etaString = $result['eta'];
+                        $etaDate = null;
+
+                        // First try Carbon::parse (handles most standard formats)
+                        try {
+                            $etaDate = \Carbon\Carbon::parse($etaString);
+                        } catch (\Exception $e) {
+                            // If parse fails, try specific formats
+                            $formats = [
+                                'd/m/Y',           // 23/09/2025 (DD/MM/YYYY format from TIPS) - try this FIRST
+                                'Y-m-d',           // 2025-09-23
+                                'm/d/Y',           // 09/23/2025 (US format)
+                                'Y/m/d',           // 2025/09/23
+                                'd-m-Y',           // 23-09-2025
+                                'Y-m-d H:i:s',     // 2025-09-23 08:00:00
+                                'd/m/Y H:i',       // 23/09/2025 08:00
+                            ];
+
+                            foreach ($formats as $format) {
+                                try {
+                                    $etaDate = \Carbon\Carbon::createFromFormat($format, $etaString);
+                                    break;
+                                } catch (\Exception $e) {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if ($etaDate) {
+                            // Only store the bot ETA, do not overwrite original planned_delivery_date
+                            $updateData['bot_received_eta_date'] = $etaDate; // Store the actual ETA from port website
+                            Log::info('Stored bot ETA without updating original planned delivery date', [
+                                'shipment_id' => $shipment->id,
+                                'original_planned_eta' => $shipment->planned_delivery_date ? $shipment->planned_delivery_date->format('Y-m-d H:i:s') : 'null',
+                                'bot_scraped_eta' => $etaDate->format('Y-m-d H:i:s'),
+                                'port_eta' => $result['eta']
+                            ]);
+                        }
                     } catch (\Exception $e) {
                         Log::warning('Failed to parse ETA date', [
                             'shipment_id' => $shipment->id,
@@ -301,27 +331,60 @@ class ShipmentClientController extends Controller
                 if ($vesselFound && isset($result['eta']) && $result['eta']) {
                     // Compare scraped ETA with shipment's planned delivery date
                     try {
-                        $scrapedEta = \Carbon\Carbon::parse($result['eta']);
-                        $shipmentEta = $shipment->planned_delivery_date;
+                        // Use the same ETA parsing logic as above
+                        $etaString = $result['eta'];
+                        $scrapedEta = null;
 
-                        if ($shipmentEta) {
-                            // Compare dates: On Track if scraped ETA is before or equal to shipment ETA
-                            if ($scrapedEta->lte($shipmentEta)) {
-                                $updateData['tracking_status'] = 'on_track';
-                            } else {
-                                $updateData['tracking_status'] = 'delay';
+                        // First try Carbon::parse (handles most standard formats)
+                        try {
+                            $scrapedEta = \Carbon\Carbon::parse($etaString);
+                        } catch (\Exception $e) {
+                            // If parse fails, try specific formats
+                            $formats = [
+                                'd/m/Y',           // 23/09/2025 (DD/MM/YYYY format from TIPS) - try this FIRST
+                                'Y-m-d',           // 2025-09-23
+                                'm/d/Y',           // 09/23/2025 (US format)
+                                'Y/m/d',           // 2025/09/23
+                                'd-m-Y',           // 23-09-2025
+                                'Y-m-d H:i:s',     // 2025-09-23 08:00:00
+                                'd/m/Y H:i',       // 23/09/2025 08:00
+                            ];
+
+                            foreach ($formats as $format) {
+                                try {
+                                    $scrapedEta = \Carbon\Carbon::createFromFormat($format, $etaString);
+                                    break;
+                                } catch (\Exception $e) {
+                                    continue;
+                                }
                             }
-                        } else {
-                            // No shipment ETA to compare with, consider on track if vessel found
-                            $updateData['tracking_status'] = 'on_track';
                         }
 
-                        Log::info('ETA comparison completed', [
-                            'shipment_id' => $shipment->id,
-                            'scraped_eta' => $scrapedEta->format('Y-m-d H:i:s'),
-                            'shipment_eta' => $shipmentEta ? $shipmentEta->format('Y-m-d H:i:s') : 'not_set',
-                            'tracking_status' => $updateData['tracking_status']
-                        ]);
+                        if ($scrapedEta) {
+                            $shipmentEta = $shipment->planned_delivery_date;
+
+                            if ($shipmentEta) {
+                                // Compare dates: On Track if scraped ETA is before or equal to shipment ETA
+                                if ($scrapedEta->lte($shipmentEta)) {
+                                    $updateData['tracking_status'] = 'on_track';
+                                } else {
+                                    $updateData['tracking_status'] = 'delay';
+                                }
+                            } else {
+                                // No shipment ETA to compare with, consider on track if vessel found
+                                $updateData['tracking_status'] = 'on_track';
+                            }
+
+                            Log::info('ETA comparison completed', [
+                                'shipment_id' => $shipment->id,
+                                'scraped_eta' => $scrapedEta->format('Y-m-d H:i:s'),
+                                'shipment_eta' => $shipmentEta ? $shipmentEta->format('Y-m-d H:i:s') : 'not_set',
+                                'tracking_status' => $updateData['tracking_status']
+                            ]);
+                        } else {
+                            // Could not parse ETA, default to on_track
+                            $updateData['tracking_status'] = 'on_track';
+                        }
                     } catch (\Exception $e) {
                         Log::warning('Failed to compare ETA dates', [
                             'shipment_id' => $shipment->id,
