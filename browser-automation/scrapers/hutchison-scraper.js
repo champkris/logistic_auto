@@ -434,6 +434,10 @@ class HutchisonVesselScraper {
                 console.log('Found vessel in Hutchison table:', rowData);
 
                 // Enhanced column mapping for Hutchison format
+                // Based on actual Hutchison Ports table structure:
+                // 0: Vessel Name, 1: Vessel ID, 2: In Voy, 3: Out Voy,
+                // 4: Arrival (ETA), 5: Departure (ETD), 6: Berth Terminal,
+                // 7: Release port, 8: Open Gate, 9: Gate Closing Time
                 let mapping = {
                   vessel_name: rowData[vesselColumnIndex],
                   extraction_method: 'hutchison_table',
@@ -442,44 +446,51 @@ class HutchisonVesselScraper {
                   row_index: i
                 };
 
-                // Try to map common Hutchison columns
-                for (let j = 0; j < rowData.length; j++) {
-                  const cellValue = rowData[j];
-                  const cellLower = cellValue.toLowerCase();
+                // Map columns based on Hutchison's specific structure
+                // The vessel name could be at index 0 or elsewhere, so we use relative positions
 
-                  // Look for voyage codes
-                  if (cellValue.match(/\d{3,4}[SN]?/) && j !== vesselColumnIndex) {
-                    if (!mapping.voyage_code) {
-                      mapping.voyage_code = cellValue.trim();
-                    } else if (!mapping.voyage_out) {
-                      mapping.voyage_out = cellValue.trim();
+                // If we have at least 10 columns, use the standard Hutchison format
+                if (rowData.length >= 10 && vesselColumnIndex === 0) {
+                  // Standard Hutchison Ports column layout
+                  mapping.vessel_id = rowData[1] || null;
+                  mapping.voyage_code = rowData[2] || null;  // In Voyage
+                  mapping.voyage_out = rowData[3] || null;   // Out Voyage
+                  mapping.eta = rowData[4] || null;          // Arrival - THIS IS THE CORRECT ETA
+                  mapping.etd = rowData[5] || null;          // Departure
+                  mapping.terminal = rowData[6] || null;     // Berth Terminal
+                  mapping.release_port = rowData[7] || null; // Release port
+                  mapping.open_gate = rowData[8] || null;    // Open Gate status
+                  mapping.gate_closing = rowData[9] || null; // Gate Closing Time (DO NOT use as ETA)
+                } else {
+                  // Fallback to pattern matching if structure is different
+                  for (let j = 0; j < rowData.length; j++) {
+                    const cellValue = rowData[j];
+                    const cellLower = cellValue.toLowerCase();
+
+                    // Look for voyage codes
+                    if (cellValue.match(/\d{3,4}[SN]?/) && j !== vesselColumnIndex) {
+                      if (!mapping.voyage_code) {
+                        mapping.voyage_code = cellValue.trim();
+                      } else if (!mapping.voyage_out) {
+                        mapping.voyage_out = cellValue.trim();
+                      }
                     }
-                  }
 
-                  // Look for berth/terminal information
-                  if (cellLower.includes('berth') || cellLower.includes('terminal') ||
-                      cellValue.match(/^[A-Z]\d+$/) || cellValue.match(/^C[12]$/)) {
-                    mapping.terminal = cellValue.trim();
-                  }
-
-                  // Look for dates (multiple formats)
-                  if (cellValue.match(/\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}/) ||
-                      cellValue.match(/\d{2,4}-\d{1,2}-\d{1,2}/) ||
-                      cellValue.match(/\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i)) {
-
-                    if (!mapping.eta) {
-                      mapping.eta = cellValue.trim();
-                    } else if (!mapping.etd) {
-                      mapping.etd = cellValue.trim();
+                    // Look for berth/terminal information
+                    if (cellLower.includes('berth') || cellLower.includes('terminal') ||
+                        cellValue.match(/^[A-Z]\d+$/) || cellValue.match(/^C[12]$/)) {
+                      mapping.terminal = cellValue.trim();
                     }
-                  }
 
-                  // Look for time patterns
-                  if (cellValue.match(/\d{1,2}:\d{2}/) && j !== vesselColumnIndex) {
-                    if (mapping.eta && !mapping.eta.includes(':')) {
-                      mapping.eta += ' ' + cellValue.trim();
-                    } else if (mapping.etd && !mapping.etd.includes(':')) {
-                      mapping.etd += ' ' + cellValue.trim();
+                    // For dates, only use the first two date columns (Arrival and Departure)
+                    // Skip the Gate Closing Time
+                    if (cellValue.match(/\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}/) &&
+                        !cellValue.match(/\d{1,2}-[A-Z]{3}-\d{4}/)) {  // Exclude DD-MMM-YYYY format (Gate Closing)
+                      if (!mapping.eta) {
+                        mapping.eta = cellValue.trim();
+                      } else if (!mapping.etd) {
+                        mapping.etd = cellValue.trim();
+                      }
                     }
                   }
                 }
