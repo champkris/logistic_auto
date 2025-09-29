@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\VesselTrackingController;
 use App\Http\Controllers\Api\AutomationController;
 use App\Http\Controllers\Api\SiamComChatbotEtaRequestController;
+use App\Http\Controllers\Api\SiamComEtaAttemptController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +28,10 @@ Route::prefix('siam-com/chatbot/eta')->group(function () {
     Route::get('/pending', [SiamComChatbotEtaRequestController::class, 'getSiamComPendingEta'])->name('api.siam-com.eta.pending');
     Route::put('/update', [SiamComChatbotEtaRequestController::class, 'updateSiamComEtaRequest'])->name('api.siam-com.eta.update');
     Route::get('/all', [SiamComChatbotEtaRequestController::class, 'getAllSiamComEtaRequests'])->name('api.siam-com.eta.all'); // For testing
+    
+    // New endpoints for n8n workflow (using separate controller to bypass cache)
+    Route::get('/get-attempts', [SiamComEtaAttemptController::class, 'getAttempts'])->name('api.siam-com.eta.get-attempts');
+    Route::post('/increment-attempts', [SiamComEtaAttemptController::class, 'incrementAttempts'])->name('api.siam-com.eta.increment-attempts');
 });
 
 // LINE Webhook to capture Group ID (temporary)
@@ -86,5 +91,18 @@ Route::get('/test', function () {
             'POST /api/automation-summary' => 'Store automation run summary',
             'GET /api/automation/status' => 'Get automation system status'
         ]
+    ]);
+});
+
+
+// DIAGNOSTIC TEST ROUTE
+Route::get('/test-controller', function() {
+    $controller = new \App\Http\Controllers\Api\SiamComChatbotEtaRequestController();
+    $methods = get_class_methods($controller);
+    return response()->json([
+        'controller_class' => get_class($controller),
+        'methods' => $methods,
+        'has_getAttempts' => method_exists($controller, 'getAttempts'),
+        'has_incrementAttempts' => method_exists($controller, 'incrementAttempts')
     ]);
 });

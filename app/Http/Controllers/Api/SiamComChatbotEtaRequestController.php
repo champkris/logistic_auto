@@ -234,10 +234,10 @@ class EtaRequestController extends Controller
             $groupId = $data['group_id'] ?? 'default_line_group';
             
             // Find or create ETA request
-            $etaRequest = EtaRequest::where('group_id', $groupId)->first();
+            $etaRequest = SiamComChatbotEtaRequest::where('group_id', $groupId)->first();
             
             if (!$etaRequest) {
-                $etaRequest = EtaRequest::create([
+                $etaRequest = SiamComChatbotEtaRequest::create([
                     'group_id' => $groupId,
                     'vessel_name' => $data['vessel_name'],
                     'voyage_number' => $data['voyage_number'],
@@ -306,7 +306,7 @@ class EtaRequestController extends Controller
     {
         $groupId = $request->query('group_id', 'default_line_group');
         
-        $etaRequest = EtaRequest::where('group_id', $groupId)
+        $etaRequest = SiamComChatbotEtaRequest::where('group_id', $groupId)
             ->where('status', 'PENDING')
             ->first();
 
@@ -343,7 +343,7 @@ class EtaRequestController extends Controller
         ]);
 
         try {
-            $etaRequest = EtaRequest::where('group_id', $data['group_id'])
+            $etaRequest = SiamComChatbotEtaRequest::where('group_id', $data['group_id'])
                 ->where('status', 'PENDING')
                 ->first();
 
@@ -402,11 +402,110 @@ class EtaRequestController extends Controller
      */
     public function getAllRequests()
     {
-        $requests = EtaRequest::orderBy('updated_at', 'desc')->get();
+        $requests = SiamComChatbotEtaRequest::orderBy('updated_at', 'desc')->get();
         
         return response()->json([
             'success' => true,
             'data' => $requests
         ]);
+    }
+
+    /**
+     * Get current attempt count for a group
+     * Used by n8n workflow to check if should continue asking
+     */
+    public function getAttempts(Request $request)
+    {
+        try {
+            $groupId = $request->query('group_id');
+            
+            if (!$groupId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'group_id is required'
+                ], 400);
+            }
+
+            $etaRequest = SiamComChatbotEtaRequest::where('group_id', $groupId)
+                ->where('status', 'PENDING')
+                ->latest('updated_at')
+                ->first();
+            
+            if (!$etaRequest) {
+                return response()->json([
+                    'success' => true,
+                    'attempts' => 0,
+                    'found' => false,
+                    'message' => 'No active ETA request found for this group'
+                ]);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'attempts' => $etaRequest->attempts ?? 1,
+                'found' => true,
+                'vessel_name' => $etaRequest->vessel_name,
+                'voyage_code' => $etaRequest->voyage_code,
+                'last_asked_at' => $etaRequest->last_asked_at
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get Attempts Error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error retrieving attempts: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Increment attempt count after sending follow-up question
+     * Used by n8n workflow after sending a follow-up message to LINE
+     */
+    public function incrementAttempts(Request $request)
+    {
+        try {
+            $groupId = $request->input('group_id');
+            
+            if (!$groupId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'group_id is required'
+                ], 400);
+            }
+
+            $etaRequest = SiamComChatbotEtaRequest::where('group_id', $groupId)
+                ->where('status', 'PENDING')
+                ->latest('updated_at')
+                ->first();
+            
+            if (!$etaRequest) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active ETA request found for this group'
+                ], 404);
+            }
+
+            // Increment attempts
+            $etaRequest->increment('attempts');
+            $etaRequest->touch(); // Update updated_at timestamp
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Attempt count incremented',
+                'attempts' => $etaRequest->attempts,
+                'vessel_name' => $etaRequest->vessel_name,
+                'voyage_code' => $etaRequest->voyage_code
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Increment Attempts Error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error incrementing attempts: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
