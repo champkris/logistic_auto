@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { chromium } = require('playwright');
+const puppeteer = require('puppeteer');
 
 class ShipmentLinkScraper {
     constructor() {
@@ -13,12 +13,12 @@ class ShipmentLinkScraper {
         let context = null;
 
         try {
-            browser = await chromium.launch({
-                headless: true
+            browser = await puppeteer.launch({
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
 
-            context = await browser.newContext();
-            const page = await context.newPage();
+            const page = await browser.newPage();
             page.setDefaultTimeout(30000);
 
             // First try with the provided vessel code to get specific schedule
@@ -27,17 +27,17 @@ class ShipmentLinkScraper {
             console.error(`Navigating to: ${directUrl}`);
 
             await page.goto(directUrl, {
-                waitUntil: 'networkidle',
+                waitUntil: 'networkidle0',
                 timeout: 30000
             });
 
             console.error('Navigation successful');
 
             // Wait for content to load
-            await page.waitForTimeout(3000);
+            await new Promise(resolve => setTimeout(resolve, 3000));
 
             // Check if vessel schedule is displayed
-            const pageText = await page.textContent('body');
+            const pageText = await page.$eval('body', el => el.textContent);
 
             // Check if we got the vessel selection page (which shows all vessels) vs actual schedule page
             const isVesselListPage = pageText.includes('Please select the vessel name to trace the vessel schedules');
@@ -101,12 +101,12 @@ class ShipmentLinkScraper {
                     const fallbackUrl = `${this.baseUrl}?vslCode=BULD`;
 
                     await page.goto(fallbackUrl, {
-                        waitUntil: 'networkidle',
+                        waitUntil: 'networkidle0',
                         timeout: 30000
                     });
 
-                    await page.waitForTimeout(3000);
-                    const fallbackPageText = await page.textContent('body');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    const fallbackPageText = await page.$eval('body', el => el.textContent);
 
                     // Check again for schedule data
                     if (fallbackPageText.includes('The Vessel Schedules of') || fallbackPageText.includes('are as following')) {
@@ -342,9 +342,6 @@ class ShipmentLinkScraper {
                 details: 'Scraper encountered an error while processing the page'
             };
         } finally {
-            if (context) {
-                await context.close();
-            }
             if (browser) {
                 await browser.close();
             }

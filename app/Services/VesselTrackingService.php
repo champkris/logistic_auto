@@ -13,7 +13,7 @@ class VesselTrackingService
     protected $terminals = [
         'C1C2' => [
             'name' => 'Hutchison Ports',
-            'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:17:6927160550678:::::',
+            'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::',
             'vessel_full' => 'WAN HAI 517 S093',
             'method' => 'hutchison_browser'
         ],
@@ -236,8 +236,22 @@ class VesselTrackingService
                                 'result' => $result
                             ]);
 
+                            // Ensure success field is properly set when vessel not found
+                            $result['success'] = true; // The scraping succeeded, just no vessel found
                             $result['vessel_found'] = false;
                             $result['voyage_found'] = false;
+                            $result['eta'] = null;
+
+                            // Add terminal and vessel info for consistency
+                            if (!isset($result['terminal'])) {
+                                $result['terminal'] = 'Hutchison Ports';
+                            }
+                            if (!isset($result['vessel_name'])) {
+                                $result['vessel_name'] = $vesselName;
+                            }
+                            if (!isset($result['voyage_code'])) {
+                                $result['voyage_code'] = $expectedVoyageCode ?? null;
+                            }
                         }
 
                 return $result;
