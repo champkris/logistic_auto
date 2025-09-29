@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Services\VesselNameParser;
+use App\Services\BrowserAutomationService;
 
 class VesselTrackingService
 {
@@ -182,40 +183,25 @@ class VesselTrackingService
             ]);
 
             $browserAutomationPath = base_path('browser-automation');
+            $scriptPath = $browserAutomationPath . '/hutchison-wrapper.js';
 
-            // Use proc_open to separate stdout (JSON) from stderr (logs)
-            // Pass just the vessel name - not the full name with voyage code
-            $command = "cd {$browserAutomationPath} && timeout 90 node hutchison-wrapper.js '{$vesselName}'";
+            // Use the new BrowserAutomationService to handle Node.js version issues
+            $result = BrowserAutomationService::runNodeScript($scriptPath, [$vesselName], 90);
 
-            $descriptors = [
-                0 => ['pipe', 'r'],  // stdin
-                1 => ['pipe', 'w'],  // stdout (JSON)
-                2 => ['pipe', 'w']   // stderr (logs)
-            ];
+            $jsonOutput = $result['stdout'];
+            $logOutput = $result['stderr'];
+            $returnCode = $result['return_code'];
 
-            $process = proc_open($command, $descriptors, $pipes);
+            // Log the browser automation logs for debugging
+            if (!empty($logOutput)) {
+                \Log::info("Hutchison browser automation logs: " . $logOutput);
+            }
 
-            if (is_resource($process)) {
-                fclose($pipes[0]); // Close stdin
+            // Check if we have valid JSON output regardless of return code
+            if (!empty($jsonOutput)) {
+                $result = json_decode($jsonOutput, true);
 
-                $jsonOutput = stream_get_contents($pipes[1]);
-                $logOutput = stream_get_contents($pipes[2]);
-
-                fclose($pipes[1]);
-                fclose($pipes[2]);
-
-                $returnCode = proc_close($process);
-
-                // Log the browser automation logs for debugging
-                if (!empty($logOutput)) {
-                    \Log::info("Hutchison browser automation logs: " . $logOutput);
-                }
-
-                // Check if we have valid JSON output regardless of return code
-                if (!empty($jsonOutput)) {
-                    $result = json_decode($jsonOutput, true);
-
-                    if (json_last_error() === JSON_ERROR_NONE && isset($result['success'])) {
+                if (json_last_error() === JSON_ERROR_NONE && isset($result['success'])) {
                         if ($result['success']) {
                             // Validate voyage code if we have an expected one
                             $voyageFound = true;
@@ -254,21 +240,18 @@ class VesselTrackingService
                             $result['voyage_found'] = false;
                         }
 
-                        return $result;
-                    } else {
-                        \Log::error("Invalid JSON from Hutchison browser automation: " . $jsonOutput);
-                        throw new \Exception("Invalid JSON response from browser automation");
-                    }
-                } else {
-                    \Log::error("Hutchison browser automation failed - no output", [
-                        'return_code' => $returnCode,
-                        'log_output' => $logOutput
-                    ]);
-                    throw new \Exception("Browser automation failed with no output. Return code: {$returnCode}");
-                }
+                return $result;
             } else {
-                throw new \Exception("Failed to start browser automation process");
+                \Log::error("Invalid JSON from Hutchison browser automation: " . $jsonOutput);
+                throw new \Exception("Invalid JSON response from browser automation");
             }
+        } else {
+            \Log::error("Hutchison browser automation failed - no output", [
+                'return_code' => $returnCode,
+                'log_output' => $logOutput
+            ]);
+            throw new \Exception("Browser automation failed with no output. Return code: {$returnCode}");
+        }
 
         } catch (\Exception $e) {
             \Log::error("Hutchison browser automation exception: " . $e->getMessage());
@@ -603,45 +586,27 @@ class VesselTrackingService
         // LCB1 - Use Browser Automation (required for dynamic content)
         try {
             $vesselName = $config['vessel_name'] ?? 'MARSA PRIDE';
-            
-            // Call the browser automation wrapper
+
+            // Use the new BrowserAutomationService
             $browserAutomationPath = base_path('browser-automation');
-            
-            // FIXED: Use proc_open to separate stdout (JSON) from stderr (logs)
-            $command = "cd {$browserAutomationPath} && timeout 60 node laravel-wrapper.js '{$vesselName}'";
-            
-            $descriptors = [
-                0 => ['pipe', 'r'],  // stdin
-                1 => ['pipe', 'w'],  // stdout (JSON)
-                2 => ['pipe', 'w']   // stderr (logs)
-            ];
-            
-            $process = proc_open($command, $descriptors, $pipes);
-            
-            if (is_resource($process)) {
-                fclose($pipes[0]); // Close stdin
+            $scriptPath = $browserAutomationPath . '/laravel-wrapper.js';
+
+            $result = BrowserAutomationService::runNodeScript($scriptPath, [$vesselName], 60);
+
+            $jsonOutput = $result['stdout'];
+            $logOutput = $result['stderr'];
+            $returnCode = $result['return_code'];
                 
-                $jsonOutput = stream_get_contents($pipes[1]);
-                $logOutput = stream_get_contents($pipes[2]);
-                
-                fclose($pipes[1]);
-                fclose($pipes[2]);
-                
-                $returnCode = proc_close($process);
-                
-                // Log the browser automation logs for debugging
-                if (!empty($logOutput)) {
-                    \Log::info("Browser automation logs:", ['logs' => $logOutput]);
-                }
-                
-                if (!$jsonOutput) {
-                    throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
-                }
-                
-                $output = $jsonOutput;
-            } else {
-                throw new \Exception("Failed to start browser automation process");
+            // Log the browser automation logs for debugging
+            if (!empty($logOutput)) {
+                \Log::info("Browser automation logs:", ['logs' => $logOutput]);
             }
+
+            if (!$jsonOutput) {
+                throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
+            }
+
+            $output = $jsonOutput;
             
             if (!$output) {
                 throw new \Exception("Browser automation failed: no output");
