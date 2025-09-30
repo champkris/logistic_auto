@@ -77,16 +77,41 @@ class DropdownSettingsSeeder extends Seeder
                 ['value' => 'other', 'label' => 'OTHER', 'email' => null, 'sort_order' => 15],
             ],
 
-            // Port Terminal / ท่าเรือ (using VesselTrackingService codes)
+            // Port Terminal / ท่าเรือ (expanded list with individual ports)
             'port_terminal' => [
-                ['value' => 'C1C2', 'label' => 'C1C2 (Hutchison Ports)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:17:6927160550678:::::', 'sort_order' => 1],
-                ['value' => 'B4', 'label' => 'B4 (TIPS)', 'url' => 'https://www.tips.co.th/container/shipSched/List', 'sort_order' => 2],
-                ['value' => 'B5C3', 'label' => 'B5C3 (LCIT)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 3],
-                ['value' => 'B3', 'label' => 'B3 (ESCO)', 'url' => 'https://service.esco.co.th/BerthSchedule', 'sort_order' => 4],
-                ['value' => 'A0B1', 'label' => 'A0B1 (LCB1)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 5],
-                ['value' => 'B2', 'label' => 'B2 (ShipmentLink)', 'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp', 'sort_order' => 6],
-                ['value' => 'SIAM', 'label' => 'SIAM (Siam Commercial)', 'url' => 'n8n_integration', 'sort_order' => 7],
-                ['value' => 'KERRY', 'label' => 'KERRY (Kerry Logistics)', 'url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit', 'sort_order' => 8],
+                // LCB1 Terminals
+                ['value' => 'A0', 'label' => 'A0 (LCB1)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 1],
+                ['value' => 'A3', 'label' => 'A3 (LCB1)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 2],
+                ['value' => 'B1', 'label' => 'B1 (LCB1)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 3],
+
+                // ShipmentLink Terminal
+                ['value' => 'B2', 'label' => 'B2 (ShipmentLink)', 'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp', 'sort_order' => 4],
+
+                // ESCO Terminal
+                ['value' => 'B3', 'label' => 'B3 (ESCO)', 'url' => 'https://service.esco.co.th/BerthSchedule', 'sort_order' => 5],
+
+                // TIPS Terminal
+                ['value' => 'B4', 'label' => 'B4 (TIPS)', 'url' => 'https://www.tips.co.th/container/shipSched/List', 'sort_order' => 6],
+
+                // LCIT Terminals
+                ['value' => 'B5', 'label' => 'B5 (LCIT)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 7],
+
+                // Hutchison Ports Terminals
+                ['value' => 'C1', 'label' => 'C1 (Hutchison Ports)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 8],
+                ['value' => 'C2', 'label' => 'C2 (Hutchison Ports)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 9],
+                ['value' => 'C3', 'label' => 'C3 (LCIT)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 10],
+
+                // Special/Commercial Terminals
+                ['value' => 'SIAM', 'label' => 'SIAM (Siam Commercial)', 'url' => 'n8n_integration', 'sort_order' => 11],
+                ['value' => 'KERRY', 'label' => 'KERRY (Kerry Logistics)', 'url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit', 'sort_order' => 12],
+
+                // JWD Terminal
+                ['value' => 'JWD', 'label' => 'JWD (DG-NET Terminal)', 'url' => 'https://www.dg-net.org/th/service-shipping', 'sort_order' => 13],
+
+                // Legacy support (grouped terminals)
+                ['value' => 'A0B1', 'label' => 'A0B1 (LCB1 - Legacy)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 14],
+                ['value' => 'B5C3', 'label' => 'B5C3 (LCIT - Legacy)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 15],
+                ['value' => 'C1C2', 'label' => 'C1C2 (Hutchison - Legacy)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 16],
             ],
 
             // Quantity Unit Type / ประเภทหน่วยจำนวนสินค้า (simplified to match actual usage)

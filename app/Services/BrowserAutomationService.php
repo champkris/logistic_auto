@@ -136,4 +136,262 @@ class BrowserAutomationService
 
         throw new \Exception("Failed to start browser automation process");
     }
+
+    /**
+     * Scrape JWD Terminal vessel schedule
+     */
+    public function scrapeJWDVesselSchedule($vesselName, $voyageCode)
+    {
+        try {
+            Log::info("Starting JWD scraper", [
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode
+            ]);
+
+            // Create JWD scraper script if it doesn't exist
+            $this->ensureJWDScraperExists();
+
+            $scriptPath = base_path('browser-automation/scrapers/jwd-scraper.js');
+            $args = [$vesselName, $voyageCode];
+
+            $result = self::runNodeScript($scriptPath, $args, 120);
+            $jsonOutput = trim($result['stdout']);
+
+            Log::info("JWD scraper raw output", [
+                'output' => $jsonOutput,
+                'stderr' => $result['stderr']
+            ]);
+
+            if (!empty($jsonOutput)) {
+                $decoded = json_decode($jsonOutput, true);
+
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    Log::info("JWD scraper completed", [
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'result' => $decoded
+                    ]);
+
+                    return $decoded;
+                } else {
+                    Log::error("Invalid JSON from JWD scraper: " . $jsonOutput);
+                    throw new \Exception("Invalid JSON response from JWD scraper");
+                }
+            } else {
+                Log::error("Empty output from JWD scraper", [
+                    'stderr' => $result['stderr'],
+                    'return_code' => $result['return_code']
+                ]);
+                throw new \Exception("Empty response from JWD scraper");
+            }
+
+        } catch (\Exception $e) {
+            Log::error("JWD scraper error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'eta' => null
+            ];
+        }
+    }
+
+    /**
+     * Ensure JWD scraper script exists
+     */
+    private function ensureJWDScraperExists()
+    {
+        $scraperPath = base_path('browser-automation/scrapers/jwd-scraper.js');
+
+        if (!file_exists($scraperPath)) {
+            $this->createJWDScraperScript($scraperPath);
+        }
+    }
+
+    /**
+     * Create JWD scraper script
+     */
+    private function createJWDScraperScript($path)
+    {
+        $script = <<<'JS'
+const puppeteer = require('puppeteer');
+
+async function scrapeJWDSchedule(vesselName, voyageCode) {
+    let browser = null;
+
+    try {
+        console.error(`Starting JWD scraper for vessel: ${vesselName}, voyage: ${voyageCode}`);
+
+        browser = await puppeteer.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ]
+        });
+
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+
+        console.error('Navigating to JWD tracking page...');
+        await page.goto('https://www.dg-net.org/th/service-tracking', {
+            waitUntil: 'networkidle2',
+            timeout: 30000
+        });
+
+        console.error('Searching for vessel in form...');
+
+        // Try to fill the vessel search form
+        try {
+            // Wait for vessel name input
+            await page.waitForSelector('input[name*="vessel"], input[id*="vessel"], input[placeholder*="vessel"]', { timeout: 5000 });
+
+            // Fill vessel name
+            await page.type('input[name*="vessel"], input[id*="vessel"], input[placeholder*="vessel"]', vesselName);
+
+            // Fill voyage if there's a voyage field
+            const voyageSelector = 'input[name*="voyage"], input[name*="voy"], input[id*="voyage"], input[placeholder*="voyage"]';
+            if (await page.$(voyageSelector)) {
+                await page.type(voyageSelector, voyageCode);
+            }
+
+            // Click search/submit button
+            const searchButton = await page.$('button[type="submit"], input[type="submit"], button:contains("Search"), button:contains("search")');
+            if (searchButton) {
+                await searchButton.click();
+                await page.waitForTimeout(3000);
+            }
+        } catch (formError) {
+            console.error('Form interaction error:', formError.message);
+        }
+
+        // Look for vessel schedule table or data
+        console.error('Looking for vessel schedule data...');
+
+        const vessels = await page.evaluate((searchVessel, searchVoyage) => {
+            const results = [];
+
+            // Look for tables with vessel data
+            const tables = document.querySelectorAll('table');
+
+            for (const table of tables) {
+                const rows = table.querySelectorAll('tr');
+
+                for (const row of rows) {
+                    const cells = row.querySelectorAll('td, th');
+                    const rowText = row.textContent || '';
+
+                    // Check if this row contains our vessel
+                    if (rowText.toLowerCase().includes(searchVessel.toLowerCase()) ||
+                        rowText.includes(searchVoyage)) {
+
+                        const cellTexts = Array.from(cells).map(cell => cell.textContent.trim());
+
+                        // Look for ETA/date patterns
+                        const etaPattern = /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/;
+                        const timePattern = /\d{1,2}:\d{2}/;
+
+                        let eta = null;
+                        for (const cellText of cellTexts) {
+                            const dateMatch = cellText.match(etaPattern);
+                            if (dateMatch) {
+                                eta = dateMatch[0];
+                                // Look for time in the same cell
+                                const timeMatch = cellText.match(timePattern);
+                                if (timeMatch) {
+                                    eta += ' ' + timeMatch[0];
+                                }
+                                break;
+                            }
+                        }
+
+                        results.push({
+                            vessel_name: searchVessel,
+                            voyage_code: searchVoyage,
+                            eta: eta,
+                            row_text: rowText,
+                            cells: cellTexts
+                        });
+                    }
+                }
+            }
+
+            return results;
+        }, vesselName, voyageCode);
+
+        console.error(`Found ${vessels.length} matching vessels`);
+
+        if (vessels.length > 0) {
+            const vessel = vessels[0];
+            return {
+                success: true,
+                vessel_found: true,
+                voyage_found: true,
+                vessel_name: vesselName,
+                voyage_code: voyageCode,
+                eta: vessel.eta,
+                terminal: 'JWD Terminal',
+                message: `Found vessel ${vesselName} voyage ${voyageCode}`,
+                raw_data: vessel
+            };
+        } else {
+            return {
+                success: true,
+                vessel_found: false,
+                voyage_found: false,
+                vessel_name: vesselName,
+                voyage_code: voyageCode,
+                eta: null,
+                terminal: 'JWD Terminal',
+                message: `Vessel ${vesselName} voyage ${voyageCode} not found in schedule`
+            };
+        }
+
+    } catch (error) {
+        console.error('JWD scraper error:', error);
+        return {
+            success: false,
+            error: error.message,
+            vessel_found: false,
+            voyage_found: false,
+            vessel_name: vesselName,
+            voyage_code: voyageCode,
+            eta: null
+        };
+    } finally {
+        if (browser) {
+            await browser.close();
+        }
+    }
+}
+
+// Main execution
+(async () => {
+    const vesselName = process.argv[2];
+    const voyageCode = process.argv[3];
+
+    if (!vesselName || !voyageCode) {
+        console.log(JSON.stringify({
+            success: false,
+            error: 'Missing vessel name or voyage code parameters'
+        }));
+        process.exit(1);
+    }
+
+    const result = await scrapeJWDSchedule(vesselName, voyageCode);
+    console.log(JSON.stringify(result));
+})();
+JS;
+
+        file_put_contents($path, $script);
+        chmod($path, 0755);
+
+        Log::info("Created JWD scraper script", ['path' => $path]);
+    }
 }

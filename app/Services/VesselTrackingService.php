@@ -10,64 +10,128 @@ use App\Services\BrowserAutomationService;
 
 class VesselTrackingService
 {
+    /**
+     * Port to terminal mapping
+     * Multiple ports can use the same terminal/scraper
+     */
+    protected $portToTerminal = [
+        // Hutchison Ports
+        'C1' => 'hutchison',
+        'C2' => 'hutchison',
+        'C1C2' => 'hutchison', // Legacy support
+
+        // TIPS
+        'B4' => 'tips',
+
+        // LCIT
+        'B5' => 'lcit',
+        'C3' => 'lcit',
+        'B5C3' => 'lcit', // Legacy support
+
+        // ESCO
+        'B3' => 'esco',
+
+        // LCB1
+        'A0' => 'lcb1',
+        'B1' => 'lcb1',
+        'A0B1' => 'lcb1', // Legacy support
+
+        // ShipmentLink
+        'B2' => 'shipmentlink',
+
+        // Additional ports that may use existing scrapers
+        'A3' => 'lcb1', // Assuming A3 uses same system as A0/B1
+
+        // Siam Commercial
+        'SIAM' => 'siam',
+
+        // Kerry Logistics
+        'KERRY' => 'kerry',
+
+        // JWD Terminal
+        'JWD' => 'jwd',
+    ];
+
+    /**
+     * Terminal configurations
+     * Contains the scraper settings for each terminal operator
+     */
     protected $terminals = [
-        'C1C2' => [
+        'hutchison' => [
             'name' => 'Hutchison Ports',
             'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::',
             'vessel_full' => 'WAN HAI 517 S093',
-            'method' => 'hutchison_browser'
+            'method' => 'hutchison_browser',
+            'ports' => ['C1', 'C2', 'C1C2']
         ],
-        'B4' => [
+        'tips' => [
             'name' => 'TIPS',
             'url' => 'https://www.tips.co.th/container/shipSched/List',
             'vessel_full' => 'SRI SUREE V.25080S',
-            'method' => 'tips_browser'
+            'method' => 'tips_browser',
+            'ports' => ['B4']
         ],
-        'B5C3' => [
+        'lcit' => [
             'name' => 'LCIT',
             'url' => 'https://www.lcit.com/home',
             'vessel_full' => 'SKY SUNSHINE V.2513S',
             'vessel_name' => 'SKY SUNSHINE',
             'voyage_code' => '2513S',
-            'method' => 'lcit'
+            'method' => 'lcit',
+            'ports' => ['B5', 'C3', 'B5C3']
         ],
-        'B3' => [
+        'esco' => [
             'name' => 'ESCO',
             'url' => 'https://service.esco.co.th/BerthSchedule',
             'vessel_full' => 'CUL NANSHA V. 2528S',
-            'method' => 'esco'
+            'method' => 'esco',
+            'ports' => ['B3']
         ],
-        'A0B1' => [
+        'lcb1' => [
             'name' => 'LCB1',
             'url' => 'https://www.lcb1.com/BerthSchedule',
             'vessel_full' => 'MARSA PRIDE 528S',
-            'method' => 'lcb1'
+            'method' => 'lcb1',
+            'ports' => ['A0', 'B1', 'A0B1', 'A3']
         ],
-        'B2' => [
+        'shipmentlink' => [
             'name' => 'ShipmentLink',
             'url' => 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp',
             'vessel_full' => 'EVER BASIS 0813-068S',
             'vessel_name' => 'EVER BASIS',
             'voyage_code' => '0813-068S',
-            'vessel_code' => 'BASS', // Updated to correct vessel code for EVER BASIS
-            'method' => 'shipmentlink_browser'
+            'vessel_code' => 'BASS',
+            'method' => 'shipmentlink_browser',
+            'ports' => ['B2']
         ],
-        'SIAM' => [
+        'siam' => [
             'name' => 'Siam Commercial',
-            'url' => 'n8n_integration', // Using n8n to send LINE messages to port staff
+            'url' => 'n8n_integration',
             'vessel_full' => 'SAMPLE VESSEL V.001S',
             'vessel_name' => 'SAMPLE VESSEL',
             'voyage_code' => '001S',
-            'method' => 'siam_n8n_line'
+            'method' => 'siam_n8n_line',
+            'ports' => ['SIAM']
         ],
-        'KERRY' => [
+        'kerry' => [
             'name' => 'Kerry Logistics',
             'url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit',
             'vessel_full' => 'BUXMELODY 230N',
             'vessel_name' => 'BUXMELODY',
             'voyage_code' => '230N',
             'search_url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit/List',
-            'method' => 'kerry_http_request'
+            'method' => 'kerry_http_request',
+            'ports' => ['KERRY']
+        ],
+        'jwd' => [
+            'name' => 'JWD Terminal',
+            'url' => 'https://www.dg-net.org/th/service-shipping',
+            'api_url' => 'https://www.dg-net.org/th/service-api/shipping-schedule',
+            'vessel_full' => 'JOSCO HELEN 2520S',
+            'vessel_name' => 'JOSCO HELEN',
+            'voyage_code' => '2520S',
+            'method' => 'jwd_http_request',
+            'ports' => ['JWD']
         ]
     ];
 
@@ -75,45 +139,68 @@ class VesselTrackingService
     {
         // Auto-parse vessel names in terminal config
         foreach ($this->terminals as $code => &$config) {
-            $parsed = VesselNameParser::parse($config['vessel_full']);
-            $config['vessel_name'] = $parsed['vessel_name'];
-            $config['voyage_code'] = $parsed['voyage_code'];
+            if (isset($config['vessel_full'])) {
+                $parsed = VesselNameParser::parse($config['vessel_full']);
+                $config['vessel_name'] = $parsed['vessel_name'];
+                $config['voyage_code'] = $parsed['voyage_code'];
+            }
         }
     }
 
     /**
      * Check ETA for a specific vessel by parsing the vessel name automatically
      */
-    public function checkVesselETAByName($vesselFullName, $terminalCode = null)
+    public function checkVesselETAByName($vesselFullName, $portCode = null)
     {
         $parsed = VesselNameParser::parse($vesselFullName);
-        
-        // If no terminal specified, try all terminals
-        if (!$terminalCode) {
+
+        // If no port specified, try all unique terminals
+        if (!$portCode) {
             $results = [];
-            foreach ($this->terminals as $code => $config) {
-                $results[$code] = $this->checkVesselETAWithParsedName($parsed, $code);
+            $processedTerminals = [];
+
+            foreach ($this->portToTerminal as $port => $terminalKey) {
+                // Skip if we've already processed this terminal
+                if (in_array($terminalKey, $processedTerminals)) {
+                    continue;
+                }
+
+                $results[$port] = $this->checkVesselETAWithParsedName($parsed, $port);
+                $processedTerminals[] = $terminalKey;
             }
             return $results;
         }
-        
-        return $this->checkVesselETAWithParsedName($parsed, $terminalCode);
+
+        return $this->checkVesselETAWithParsedName($parsed, $portCode);
     }
 
     /**
      * Check ETA using parsed vessel name components
      */
-    protected function checkVesselETAWithParsedName($parsedVessel, $terminalCode)
+    protected function checkVesselETAWithParsedName($parsedVessel, $portCode)
     {
-        $config = $this->terminals[$terminalCode] ?? null;
+        // Get the terminal key from port code
+        $terminalKey = $this->portToTerminal[strtoupper($portCode)] ?? null;
+
+        if (!$terminalKey) {
+            // Try legacy format (e.g., C1C2 instead of C1/C2)
+            $terminalKey = $this->portToTerminal[$portCode] ?? null;
+        }
+
+        if (!$terminalKey) {
+            throw new \Exception("Unknown port code: {$portCode}");
+        }
+
+        $config = $this->terminals[$terminalKey] ?? null;
         if (!$config) {
-            throw new \Exception("Unknown terminal code: {$terminalCode}");
+            throw new \Exception("Terminal configuration not found for port: {$portCode}");
         }
 
         // Override config with the vessel we're actually searching for
         $config['vessel_full'] = $parsedVessel['full_name'];
         $config['vessel_name'] = $parsedVessel['vessel_name'];
         $config['voyage_code'] = $parsedVessel['voyage_code'];
+        $config['port_code'] = $portCode; // Keep track of which port was requested
 
         try {
             $method = $config['method'];
@@ -123,6 +210,7 @@ class VesselTrackingService
                 'success' => false,
                 'error' => $e->getMessage(),
                 'terminal' => $config['name'],
+                'port_code' => $portCode,
                 'vessel_full' => $parsedVessel['full_name'],
                 'vessel_name' => $parsedVessel['vessel_name'],
                 'voyage_code' => $parsedVessel['voyage_code'],
@@ -134,35 +222,49 @@ class VesselTrackingService
     public function testAllTerminals()
     {
         $results = [];
-        
-        foreach ($this->terminals as $terminalCode => $config) {
-            echo "🚢 Testing Terminal {$terminalCode} ({$config['name']}) - Vessel: {$config['vessel_name']} + Voyage: {$config['voyage_code']}\n";
+        $processedTerminals = [];
+
+        foreach ($this->portToTerminal as $portCode => $terminalKey) {
+            // Skip if we've already tested this terminal
+            if (in_array($terminalKey, $processedTerminals)) {
+                continue;
+            }
+
+            $config = $this->terminals[$terminalKey];
+            echo "🚢 Testing Terminal {$terminalKey} ({$config['name']}) - Ports: " . implode(', ', $config['ports']) . "\n";
+            if (isset($config['vessel_name']) && isset($config['voyage_code'])) {
+                echo "   Test Vessel: {$config['vessel_name']} + Voyage: {$config['voyage_code']}\n";
+            }
             echo "📍 URL: {$config['url']}\n";
-            
-            $result = $this->checkVesselETA($terminalCode, $config);
-            $results[$terminalCode] = $result;
-            
-            $this->displayResult($terminalCode, $result);
+
+            $result = $this->checkVesselETA($portCode, $config);
+            $results[$terminalKey] = $result;
+
+            $this->displayResult($terminalKey, $result);
             echo "─────────────────────────────────────────────────────────\n";
-            
+
+            $processedTerminals[] = $terminalKey;
+
             // Be respectful - wait between requests
             sleep(2);
         }
-        
+
         return $results;
     }
 
-    public function checkVesselETA($terminalCode, $config)
+    public function checkVesselETA($portCode, $config)
     {
         try {
             $method = $config['method'];
+            $config['port_code'] = $portCode; // Add port code to config
             return $this->$method($config);
         } catch (\Exception $e) {
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
                 'terminal' => $config['name'],
-                'vessel_full' => $config['vessel_full'],
+                'port_code' => $portCode,
+                'vessel_full' => $config['vessel_full'] ?? '',
                 'vessel_name' => $config['vessel_name'] ?? '',
                 'voyage_code' => $config['voyage_code'] ?? '',
                 'checked_at' => now()
@@ -1368,14 +1470,65 @@ class VesselTrackingService
         echo "🕐 Checked at: {$result['checked_at']}\n";
     }
 
+    /**
+     * Get all terminal configurations
+     */
     public function getTerminals()
     {
         return $this->terminals;
     }
 
-    public function getTerminalByCode($code)
+    /**
+     * Get terminal configuration by port code
+     */
+    public function getTerminalByPortCode($portCode)
     {
-        return $this->terminals[$code] ?? null;
+        $terminalKey = $this->portToTerminal[strtoupper($portCode)] ?? null;
+
+        if (!$terminalKey) {
+            // Try legacy format
+            $terminalKey = $this->portToTerminal[$portCode] ?? null;
+        }
+
+        if (!$terminalKey) {
+            return null;
+        }
+
+        return $this->terminals[$terminalKey] ?? null;
+    }
+
+    /**
+     * Get terminal configuration by terminal key
+     */
+    public function getTerminalByKey($terminalKey)
+    {
+        return $this->terminals[$terminalKey] ?? null;
+    }
+
+    /**
+     * Get all port codes
+     */
+    public function getPortCodes()
+    {
+        return array_keys($this->portToTerminal);
+    }
+
+    /**
+     * Get ports for a specific terminal
+     */
+    public function getPortsForTerminal($terminalKey)
+    {
+        $terminal = $this->terminals[$terminalKey] ?? null;
+        return $terminal ? $terminal['ports'] : [];
+    }
+
+    /**
+     * Check if port code is supported
+     */
+    public function isPortSupported($portCode)
+    {
+        return isset($this->portToTerminal[strtoupper($portCode)]) ||
+               isset($this->portToTerminal[$portCode]);
     }
 
     /**
@@ -1631,6 +1784,273 @@ class VesselTrackingService
         } catch (\Exception $e) {
             \Log::error("Kerry ETA parsing error: " . $e->getMessage());
             return null;
+        }
+    }
+
+    /**
+     * JWD Terminal HTTP Request
+     */
+    protected function jwd_http_request($config)
+    {
+        try {
+            $vesselName = $config['vessel_name'];
+            $voyageCode = $config['voyage_code'];
+            $apiUrl = $config['api_url'];
+
+            \Log::info("Starting JWD HTTP request for vessel: {$vesselName} voyage: {$voyageCode}");
+
+            // Make HTTP request to JWD API
+            $response = Http::timeout(30)->get($apiUrl);
+
+            if (!$response->successful()) {
+                throw new \Exception("Failed to fetch JWD schedule data: HTTP " . $response->status());
+            }
+
+            $html = $response->body();
+
+            // Parse the HTML table data
+            $vesselData = $this->parseJWDScheduleHTML($html, $vesselName, $voyageCode);
+
+            if ($vesselData) {
+                \Log::info("JWD HTTP request completed successfully", [
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta_found' => !empty($vesselData['eta'])
+                ]);
+
+                return [
+                    'success' => true,
+                    'vessel_found' => true,
+                    'voyage_found' => true,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => $vesselData['eta'],
+                    'berth' => $vesselData['berth'] ?? null,
+                    'eta_type' => $vesselData['eta_type'] ?? 'arrival',
+                    'terminal' => 'JWD Terminal',
+                    'method' => 'jwd_http_request',
+                    'checked_at' => now()
+                ];
+            } else {
+                \Log::info("JWD vessel not found", [
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode
+                ]);
+
+                return [
+                    'success' => true,
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'terminal' => 'JWD Terminal',
+                    'method' => 'jwd_http_request',
+                    'checked_at' => now()
+                ];
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("JWD HTTP request error: " . $e->getMessage());
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'vessel_name' => $config['vessel_name'] ?? '',
+                'voyage_code' => $config['voyage_code'] ?? '',
+                'eta' => null,
+                'terminal' => 'JWD Terminal',
+                'method' => 'jwd_http_request',
+                'checked_at' => now()
+            ];
+        }
+    }
+
+    /**
+     * Parse JWD schedule HTML and extract vessel data
+     */
+    protected function parseJWDScheduleHTML($html, $vesselName, $voyageCode)
+    {
+        try {
+            // Load HTML into DOMDocument
+            $dom = new \DOMDocument();
+            @$dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+
+            $xpath = new \DOMXPath($dom);
+
+            // Find all table rows
+            $rows = $xpath->query('//tr');
+
+            foreach ($rows as $row) {
+                $cells = $xpath->query('td', $row);
+
+                // Skip if not enough cells (header row or incomplete data)
+                if ($cells->length < 6) {
+                    continue;
+                }
+
+                // Extract cell values based on table structure:
+                // No. | VESSEL NAME | VOYAGE (IN/OUT) | ESTIMATE (ARRIVAL/DEPARTURE) | BERTH
+                $vesselNameCell = $cells->item(1) ? trim($cells->item(1)->textContent) : '';
+                $voyageInCell = $cells->item(2) ? trim($cells->item(2)->textContent) : '';
+                $voyageOutCell = $cells->item(3) ? trim($cells->item(3)->textContent) : '';
+                $arrivalCell = $cells->item(4) ? trim($cells->item(4)->textContent) : '';
+                $departureCell = $cells->item(5) ? trim($cells->item(5)->textContent) : '';
+                $berthCell = $cells->item(6) ? trim($cells->item(6)->textContent) : '';
+
+                // Check if this row matches our search criteria
+                $vesselMatch = stripos($vesselNameCell, $vesselName) !== false;
+                $voyageInMatch = $voyageInCell === $voyageCode;
+                $voyageOutMatch = $voyageOutCell === $voyageCode;
+
+                if ($vesselMatch && ($voyageInMatch || $voyageOutMatch)) {
+                    // Determine which date to use (arrival or departure) based on which voyage matched
+                    $eta = null;
+                    $etaType = 'arrival';
+
+                    if ($voyageInMatch && !empty($arrivalCell)) {
+                        $eta = $arrivalCell;
+                        $etaType = 'arrival';
+                    } elseif ($voyageOutMatch && !empty($departureCell)) {
+                        $eta = $departureCell;
+                        $etaType = 'departure';
+                    }
+
+                    // Format ETA to standard format
+                    if ($eta) {
+                        $eta = $this->formatJWDDateTime($eta);
+                    }
+
+                    return [
+                        'vessel_name' => $vesselNameCell,
+                        'voyage_in' => $voyageInCell,
+                        'voyage_out' => $voyageOutCell,
+                        'matched_voyage' => $voyageInMatch ? $voyageInCell : $voyageOutCell,
+                        'eta' => $eta,
+                        'eta_type' => $etaType,
+                        'berth' => $berthCell,
+                        'raw_data' => [
+                            'vessel' => $vesselNameCell,
+                            'voyage_in' => $voyageInCell,
+                            'voyage_out' => $voyageOutCell,
+                            'arrival' => $arrivalCell,
+                            'departure' => $departureCell,
+                            'berth' => $berthCell
+                        ]
+                    ];
+                }
+            }
+
+            return null; // Vessel not found
+
+        } catch (\Exception $e) {
+            \Log::error("JWD HTML parsing error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Format JWD datetime to standard format
+     */
+    protected function formatJWDDateTime($dateTimeString)
+    {
+        try {
+            // JWD format: "30 Sep 2025 05:00:00"
+            $pattern = '/(\d{1,2})\s+(\w{3})\s+(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})/';
+            if (preg_match($pattern, $dateTimeString, $matches)) {
+                $day = str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+                $month = $matches[2];
+                $year = $matches[3];
+                $hour = str_pad($matches[4], 2, '0', STR_PAD_LEFT);
+                $minute = $matches[5];
+                $second = $matches[6];
+
+                $monthMap = [
+                    'Jan' => '01', 'Feb' => '02', 'Mar' => '03', 'Apr' => '04',
+                    'May' => '05', 'Jun' => '06', 'Jul' => '07', 'Aug' => '08',
+                    'Sep' => '09', 'Oct' => '10', 'Nov' => '11', 'Dec' => '12'
+                ];
+
+                if (isset($monthMap[$month])) {
+                    return "{$year}-{$monthMap[$month]}-{$day} {$hour}:{$minute}:{$second}";
+                }
+            }
+
+            // If format doesn't match, return original
+            return $dateTimeString;
+
+        } catch (\Exception $e) {
+            \Log::warning("JWD datetime formatting error: " . $e->getMessage());
+            return $dateTimeString;
+        }
+    }
+
+    /**
+     * JWD Terminal Browser Automation
+     */
+    protected function jwd_browser($config)
+    {
+        try {
+            $vesselName = $config['vessel_name'];
+            $voyageCode = $config['voyage_code'];
+
+            \Log::info("Starting JWD browser automation for vessel: {$vesselName} voyage: {$voyageCode}");
+
+            $browserService = new BrowserAutomationService();
+            $result = $browserService->scrapeJWDVesselSchedule($vesselName, $voyageCode);
+
+            if ($result && isset($result['success']) && $result['success']) {
+                \Log::info("JWD browser automation completed successfully", [
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'vessel_found' => $result['vessel_found'] ?? false,
+                    'eta_found' => !empty($result['eta'])
+                ]);
+
+                // Add terminal and vessel info for consistency
+                $result['terminal'] = 'JWD Terminal';
+                $result['vessel_name'] = $vesselName;
+                $result['voyage_code'] = $voyageCode;
+                $result['method'] = 'jwd_browser';
+                $result['checked_at'] = now();
+
+                return $result;
+            } else {
+                \Log::error("JWD browser automation failed", [
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'result' => $result
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => 'JWD browser automation failed',
+                    'terminal' => 'JWD Terminal',
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'eta' => null,
+                    'checked_at' => now()
+                ];
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("JWD browser automation exception: " . $e->getMessage());
+
+            return [
+                'success' => false,
+                'error' => 'Exception: ' . $e->getMessage(),
+                'terminal' => 'JWD Terminal',
+                'vessel_name' => $config['vessel_name'] ?? '',
+                'voyage_code' => $config['voyage_code'] ?? '',
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'eta' => null,
+                'checked_at' => now()
+            ];
         }
     }
 }
