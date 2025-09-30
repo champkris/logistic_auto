@@ -328,7 +328,9 @@ class ShipmentClientController extends Controller
                 }
 
                 // Determine tracking status based on comparison with shipment's planned ETA
-                if ($vesselFound && isset($result['eta']) && $result['eta']) {
+                // Both vessel AND voyage must be found to proceed with comparison
+                $voyageFound = isset($result['voyage_found']) ? $result['voyage_found'] : false;
+                if ($vesselFound && $voyageFound && isset($result['eta']) && $result['eta']) {
                     // Compare scraped ETA with shipment's planned delivery date
                     try {
                         // Use the same ETA parsing logic as above
@@ -394,7 +396,7 @@ class ShipmentClientController extends Controller
                         $updateData['tracking_status'] = 'on_track'; // Default to on_track if comparison fails
                     }
                 } else {
-                    // Vessel or voyage not found
+                    // Either vessel or voyage (or both) not found
                     $updateData['tracking_status'] = 'not_found';
                 }
 

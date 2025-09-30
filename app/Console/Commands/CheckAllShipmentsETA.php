@@ -272,7 +272,9 @@ class CheckAllShipmentsETA extends Command
                 }
 
                 // Determine tracking status
-                if ($vesselFound && isset($result['eta']) && $result['eta']) {
+                // Both vessel AND voyage must be found to proceed with comparison
+                $voyageFound = isset($result['voyage_found']) ? $result['voyage_found'] : false;
+                if ($vesselFound && $voyageFound && isset($result['eta']) && $result['eta']) {
                     try {
                         // Use the same ETA parsing logic as above
                         $etaString = $result['eta'];
