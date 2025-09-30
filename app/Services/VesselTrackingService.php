@@ -41,6 +41,7 @@ class VesselTrackingService
 
         // Additional ports that may use existing scrapers
         'A3' => 'lcb1', // Assuming A3 uses same system as A0/B1
+        'D1' => 'lcb1', // Assuming D1 uses same system as A0/B1/A3
 
         // Siam Commercial
         'SIAM' => 'siam',
@@ -92,7 +93,7 @@ class VesselTrackingService
             'url' => 'https://www.lcb1.com/BerthSchedule',
             'vessel_full' => 'MARSA PRIDE 528S',
             'method' => 'lcb1',
-            'ports' => ['A0', 'B1', 'A0B1', 'A3']
+            'ports' => ['A0', 'B1', 'A0B1', 'A3', 'D1']
         ],
         'shipmentlink' => [
             'name' => 'ShipmentLink',

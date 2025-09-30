@@ -96,22 +96,25 @@ class DropdownSettingsSeeder extends Seeder
                 // LCIT Terminals
                 ['value' => 'B5', 'label' => 'B5 (LCIT)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 7],
 
+                // D1 Terminal
+                ['value' => 'D1', 'label' => 'D1 (LCB1)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 8],
+
                 // Hutchison Ports Terminals
-                ['value' => 'C1', 'label' => 'C1 (Hutchison Ports)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 8],
-                ['value' => 'C2', 'label' => 'C2 (Hutchison Ports)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 9],
-                ['value' => 'C3', 'label' => 'C3 (LCIT)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 10],
+                ['value' => 'C1', 'label' => 'C1 (Hutchison Ports)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 9],
+                ['value' => 'C2', 'label' => 'C2 (Hutchison Ports)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 10],
+                ['value' => 'C3', 'label' => 'C3 (LCIT)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 11],
 
                 // Special/Commercial Terminals
-                ['value' => 'SIAM', 'label' => 'SIAM (Siam Commercial)', 'url' => 'n8n_integration', 'sort_order' => 11],
-                ['value' => 'KERRY', 'label' => 'KERRY (Kerry Logistics)', 'url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit', 'sort_order' => 12],
+                ['value' => 'SIAM', 'label' => 'SIAM (Siam Commercial)', 'url' => 'n8n_integration', 'sort_order' => 12],
+                ['value' => 'KERRY', 'label' => 'KERRY (Kerry Logistics)', 'url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit', 'sort_order' => 13],
 
                 // JWD Terminal
-                ['value' => 'JWD', 'label' => 'JWD (DG-NET Terminal)', 'url' => 'https://www.dg-net.org/th/service-shipping', 'sort_order' => 13],
+                ['value' => 'JWD', 'label' => 'JWD (DG-NET Terminal)', 'url' => 'https://www.dg-net.org/th/service-shipping', 'sort_order' => 14],
 
                 // Legacy support (grouped terminals)
-                ['value' => 'A0B1', 'label' => 'A0B1 (LCB1 - Legacy)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 14],
-                ['value' => 'B5C3', 'label' => 'B5C3 (LCIT - Legacy)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 15],
-                ['value' => 'C1C2', 'label' => 'C1C2 (Hutchison - Legacy)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 16],
+                ['value' => 'A0B1', 'label' => 'A0B1 (LCB1 - Legacy)', 'url' => 'https://www.lcb1.com/BerthSchedule', 'sort_order' => 15],
+                ['value' => 'B5C3', 'label' => 'B5C3 (LCIT - Legacy)', 'url' => 'https://www.lcit.com/home', 'sort_order' => 16],
+                ['value' => 'C1C2', 'label' => 'C1C2 (Hutchison - Legacy)', 'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::', 'sort_order' => 17],
             ],
 
             // Quantity Unit Type / ประเภทหน่วยจำนวนสินค้า (simplified to match actual usage)
