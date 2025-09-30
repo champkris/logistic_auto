@@ -235,7 +235,7 @@ Route::post('/vessel-test-public/single', function (Request $request) {
         $request->validate([
             'vessel_name' => 'required|string|max:255',
             'voyage_code' => 'nullable|string|max:100',
-            'terminal' => 'required|string|in:C1C2,B4,B5C3,B3,A0B1,B2,KERRY'
+            'terminal' => 'required|string|in:C1C2,B4,B5C3,B3,A0B1,B2,KERRY,SIAM'
         ]);
 
         $vesselName = trim($request->input('vessel_name'));
@@ -308,6 +308,13 @@ Route::post('/vessel-test-public/single', function (Request $request) {
         ], 500);
     }
 })->name('vessel-test-public.single');
+
+// SIAM Commercial Terminal - Chatbot Integration Routes
+use App\Http\Controllers\SiamTerminalController;
+
+Route::post('/vessel-test-public/siam/start', [SiamTerminalController::class, 'startChatbotRequest'])->name('vessel-test.siam.start');
+Route::get('/vessel-test-public/siam/poll', [SiamTerminalController::class, 'pollChatbotStatus'])->name('vessel-test.siam.poll');
+Route::get('/vessel-test-public/siam/config', [SiamTerminalController::class, 'getConfig'])->name('vessel-test.siam.config');
 
 // Authentication Routes
 require __DIR__.'/auth.php';

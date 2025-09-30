@@ -72,6 +72,7 @@
                             <option value="A0B1">A0B1 - LCB1</option>
                             <option value="B2">B2 - ShipmentLink (ECTT)</option>
                             <option value="KERRY">KERRY - Kerry Logistics</option>
+                            <option value="SIAM">SIAM - Siam Commercial</option>
                         </select>
                     </div>
 
@@ -102,7 +103,7 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <h2 class="text-xl font-semibold text-gray-800">🌐 Test All Terminals</h2>
-                        <p class="text-gray-600">This will check all 6 terminals with their default test vessels</p>
+                        <p class="text-gray-600">This will check all 8 terminals with their default test vessels</p>
                     </div>
                     <button id="runTest" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition">
                         Run Full Test
@@ -165,6 +166,12 @@
                         <p class="text-xs text-gray-500 mt-1">🚢 Default: BUXMELODY</p>
                         <p class="text-xs text-gray-400">🧭 Voyage: 230N</p>
                     </div>
+                    <div class="border rounded-lg p-4 hover:bg-blue-50 transition">
+                        <h3 class="font-semibold text-blue-600">Terminal SIAM</h3>
+                        <p class="text-sm text-gray-600">Siam Commercial</p>
+                        <p class="text-xs text-gray-500 mt-1">🚢 Default: MAKHA BHUM</p>
+                        <p class="text-xs text-gray-400">🧭 Voyage: 119S</p>
+                    </div>
                 </div>
 
                 <div class="mt-6 bg-blue-50 p-4 rounded-lg">
@@ -213,6 +220,12 @@
 
             if (!vesselName || !terminal) {
                 alert('Please fill in vessel name and select a terminal');
+                return;
+            }
+
+            // Check if SIAM terminal - handle with chatbot
+            if (terminal === 'SIAM') {
+                await handleSiamTerminalTest(vesselName, voyageCode, button, results, resultContainer);
                 return;
             }
 
@@ -512,5 +525,152 @@
                 button.disabled = false;
             }
         });
+
+        // ========================================
+        // SIAM Terminal Helper Functions
+        // ========================================
+
+        async function handleSiamTerminalTest(vesselName, voyageCode, button, results, resultContainer) {
+            if (!voyageCode) {
+                alert('Voyage code is required for SIAM terminal');
+                button.innerHTML = '<span>🔍</span><span>Test This Vessel</span>';
+                button.disabled = false;
+                return;
+            }
+
+            button.innerHTML = '<span class="loading"></span> Starting Chatbot...';
+            button.disabled = true;
+            results.classList.remove('hidden');
+            
+            resultContainer.innerHTML = `
+                <div class="border rounded-lg p-4 border-blue-200 bg-blue-50">
+                    <div class="flex items-center mb-3">
+                        <span class="loading mr-3"></span>
+                        <h3 class="font-semibold text-blue-800 text-lg">🤖 Chatbot Initialization</h3>
+                    </div>
+                    <p class="text-blue-700">Triggering n8n workflow for SIAM Commercial...</p>
+                </div>
+            `;
+
+            try {
+                const startResponse = await fetch('/vessel-test-public/siam/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify({ vessel_name: vesselName, voyage_code: voyageCode })
+                });
+
+                const startData = await startResponse.json();
+                if (!startData.success) throw new Error(startData.error || 'Failed to start chatbot');
+
+                if (startData.status === 'cached') {
+                    resultContainer.innerHTML = `
+                        <div class="border rounded-lg p-4 border-green-200 bg-green-50">
+                            <h3 class="font-semibold text-green-800 text-lg mb-3">✅ SIAM Commercial (Cached)</h3>
+                            <div class="bg-white p-4 rounded border-l-4 border-green-500">
+                                <p class="font-medium text-green-800">📦 Using Cached Data (${startData.data.hours_ago}h ago)</p>
+                                <p class="text-green-700 font-medium text-lg mt-2">🕒 ETA: ${startData.data.eta || 'N/A'}</p>
+                            </div>
+                        </div>
+                    `;
+                    button.innerHTML = '<span>🔍</span><span>Test This Vessel</span>';
+                    button.disabled = false;
+                    return;
+                }
+
+                resultContainer.innerHTML = `
+                    <div class="border rounded-lg p-4 border-blue-200 bg-blue-50">
+                        <div class="flex items-center mb-3">
+                            <span class="loading mr-3"></span>
+                            <h3 class="font-semibold text-blue-800 text-lg">💬 Chatbot Active</h3>
+                        </div>
+                        <p class="text-blue-700 mb-2" id="chatbot-status">Contacting Siam Commercial admin...</p>
+                        <div class="mt-3 bg-white p-3 rounded">
+                            <p class="text-sm">🚢 ${vesselName} | 🧭 ${voyageCode}</p>
+                            <p class="text-sm text-gray-500 mt-2">⏱️ Wait time: 1-5 minutes</p>
+                            <p class="text-sm text-blue-600 mt-1" id="elapsed-time">Elapsed: 0s</p>
+                        </div>
+                    </div>
+                `;
+
+                pollSiamChatbotStatus(vesselName, voyageCode, resultContainer, button);
+
+            } catch (error) {
+                resultContainer.innerHTML = `
+                    <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
+                        <p class="text-red-800 font-medium">❌ Error: ${error.message}</p>
+                    </div>
+                `;
+                button.innerHTML = '<span>🔍</span><span>Test This Vessel</span>';
+                button.disabled = false;
+            }
+        }
+
+        let pollInterval = null;
+        let elapsedSeconds = 0;
+
+        function pollSiamChatbotStatus(vesselName, voyageCode, resultContainer, button) {
+            if (pollInterval) clearInterval(pollInterval);
+            
+            elapsedSeconds = 0;
+            const elapsedTimer = setInterval(() => {
+                elapsedSeconds++;
+                const el = document.getElementById('elapsed-time');
+                if (el) el.textContent = `Elapsed: ${Math.floor(elapsedSeconds/60)}m ${elapsedSeconds%60}s`;
+            }, 1000);
+
+            pollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/vessel-test-public/siam/poll?vessel_name=${encodeURIComponent(vesselName)}&voyage_code=${encodeURIComponent(voyageCode)}`);
+                    const data = await res.json();
+
+                    const statusEl = document.getElementById('chatbot-status');
+                    if (statusEl && data.message) statusEl.textContent = data.message;
+
+                    if (data.status === 'complete') {
+                        clearInterval(pollInterval);
+                        clearInterval(elapsedTimer);
+                        resultContainer.innerHTML = `
+                            <div class="border rounded-lg p-4 border-green-200 bg-green-50">
+                                <h3 class="font-semibold text-green-800 text-lg mb-3">✅ SIAM Commercial</h3>
+                                <div class="bg-white p-4 rounded border-l-4 border-green-500">
+                                    <p class="font-medium text-green-800 mb-2">🎉 ETA Received!</p>
+                                    <p class="text-green-700 font-medium text-lg">🕒 ETA: ${data.data.eta || 'N/A'}</p>
+                                    <p class="text-xs text-gray-500 mt-2">✅ Vessel Found | ✅ Voyage Matched</p>
+                                </div>
+                            </div>
+                        `;
+                        button.innerHTML = '<span>🔍</span><span>Test This Vessel</span>';
+                        button.disabled = false;
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        clearInterval(elapsedTimer);
+                        resultContainer.innerHTML = `
+                            <div class="border rounded-lg p-4 border-yellow-200 bg-yellow-50">
+                                <h3 class="font-semibold text-yellow-800 text-lg mb-3">⚠️ SIAM Commercial</h3>
+                                <div class="bg-white p-4 rounded border-l-4 border-yellow-500">
+                                    <p class="font-medium text-yellow-800">❌ No Response from Admin</p>
+                                    <p class="text-sm text-yellow-700 mt-2">Admin did not respond after multiple attempts.</p>
+                                </div>
+                            </div>
+                        `;
+                        button.innerHTML = '<span>🔍</span><span>Test This Vessel</span>';
+                        button.disabled = false;
+                    }
+
+                    if (elapsedSeconds > 300) {
+                        clearInterval(pollInterval);
+                        clearInterval(elapsedTimer);
+                        resultContainer.innerHTML = `<div class="border rounded-lg p-4 border-gray-200"><p class="text-gray-800">⏱️ Request timeout after 5 minutes</p></div>`;
+                        button.innerHTML = '<span>🔍</span><span>Test This Vessel</span>';
+                        button.disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Poll error:', error);
+                }
+            }, 5000);
+        }
     </script>
 </x-app-layout>
