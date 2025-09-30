@@ -24,8 +24,12 @@ class SiamComChatbotEtaRequestController extends Controller
             // Hardcoded Siam Com LINE group ID - never changes
             $groupId = env('SIAM_COM_LINE_GROUP_ID', 'siam_com_line_group_C123456789');
             
-            // Find or create Siam Com ETA request
-            $etaRequest = SiamComChatbotEtaRequest::where('group_id', $groupId)->first();
+            // CRITICAL FIX: Find by group_id + vessel_name + voyage_code (not just group_id)
+            // This allows different ships to be cached separately
+            $etaRequest = SiamComChatbotEtaRequest::where('group_id', $groupId)
+                ->where('vessel_name', $data['vessel_name'])
+                ->where('voyage_code', $data['voyage_code'])
+                ->first();
             
             if (!$etaRequest) {
                 $etaRequest = SiamComChatbotEtaRequest::create([
