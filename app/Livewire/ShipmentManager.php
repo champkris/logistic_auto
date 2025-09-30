@@ -73,6 +73,7 @@ class ShipmentManager extends Component
     // Available options
     public $customers = [];
     public $vessels = [];
+    public $portUrls = [];
 
     public $customsClearanceOptions = [];
     public $overtimeOptions = [];
@@ -154,6 +155,12 @@ class ShipmentManager extends Component
 
         // Load dynamic dropdown options from settings
         $this->loadDynamicOptions();
+
+        // Load port URLs for clickable links
+        $this->portUrls = DropdownSetting::where('field_name', 'port_terminal')
+            ->whereNotNull('url')
+            ->pluck('url', 'value')
+            ->toArray();
     }
 
     /**
@@ -426,10 +433,7 @@ class ShipmentManager extends Component
 
         $shipments = $query->paginate(10);
 
-        // Get port URLs for making them clickable
-        $portUrls = $this->portUrls;
-
-        return view('livewire.shipment-manager', compact('shipments', 'portUrls'))->layout('layouts.app', ['title' => 'Shipment Management']);
+        return view('livewire.shipment-manager', compact('shipments'))->layout('layouts.app', ['title' => 'Shipment Management']);
     }
 
     public function openModal()
@@ -705,16 +709,5 @@ class ShipmentManager extends Component
                 'initiated_by' => $log->initiatedBy ? $log->initiatedBy->name : 'System',
             ];
         });
-    }
-
-    /**
-     * Get port terminal URLs for making them clickable
-     */
-    public function getPortUrlsAttribute()
-    {
-        return DropdownSetting::where('field_name', 'port_terminal')
-            ->whereNotNull('url')
-            ->pluck('url', 'value')
-            ->toArray();
     }
 }

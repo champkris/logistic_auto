@@ -404,8 +404,8 @@
 
                                     <!-- Port Terminal -->
                                     <td class="px-1 py-1 text-xs text-center">
-                                        @if($shipment->port_terminal && isset($portUrls[$shipment->port_terminal]))
-                                            <a href="{{ $portUrls[$shipment->port_terminal] }}"
+                                        @if($shipment->port_terminal && isset($this->portUrls[$shipment->port_terminal]))
+                                            <a href="{{ $this->portUrls[$shipment->port_terminal] }}"
                                                target="_blank"
                                                class="text-blue-600 hover:text-blue-800 hover:underline"
                                                title="Open {{ $shipment->port_terminal }} terminal website">
