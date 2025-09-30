@@ -403,7 +403,18 @@
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->voyage ?? '-' }}</td>
 
                                     <!-- Port Terminal -->
-                                    <td class="px-1 py-1 text-xs text-center">{{ $shipment->port_terminal ?? '-' }}</td>
+                                    <td class="px-1 py-1 text-xs text-center">
+                                        @if($shipment->port_terminal && isset($portUrls[$shipment->port_terminal]))
+                                            <a href="{{ $portUrls[$shipment->port_terminal] }}"
+                                               target="_blank"
+                                               class="text-blue-600 hover:text-blue-800 hover:underline"
+                                               title="Open {{ $shipment->port_terminal }} terminal website">
+                                                {{ $shipment->port_terminal }} 🔗
+                                            </a>
+                                        @else
+                                            {{ $shipment->port_terminal ?? '-' }}
+                                        @endif
+                                    </td>
 
                                     <!-- Shipping Team -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->shipping_team ?? '-' }}</td>
