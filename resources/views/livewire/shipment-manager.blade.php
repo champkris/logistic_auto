@@ -428,11 +428,15 @@
                                             <span class="px-2 py-1 rounded-full text-xs font-medium
                                                 @if($shipment->tracking_status === 'on_track')
                                                     bg-green-100 text-green-800
+                                                @elseif($shipment->tracking_status === 'not_found')
+                                                    bg-gray-100 text-gray-800
                                                 @else
                                                     bg-red-100 text-red-800
                                                 @endif">
                                                 @if($shipment->tracking_status === 'on_track')
                                                     ✅ On Track
+                                                @elseif($shipment->tracking_status === 'not_found')
+                                                    ❓ Not Found
                                                 @else
                                                     ⚠️ Delay
                                                 @endif
@@ -1146,7 +1150,7 @@
                 message += `Terminal: ${result.terminal}\n`;
                 message += `Vessel Found: ${result.vessel_found ? 'Yes' : 'No'}\n`;
                 message += `Voyage Found: ${result.voyage_found ? 'Yes' : 'No'}\n`;
-                message += `Tracking Status: ${result.tracking_status === 'on_track' ? 'On Track' : 'Delay'}\n`;
+                message += `Tracking Status: ${result.tracking_status === 'on_track' ? 'On Track' : (result.tracking_status === 'not_found' ? 'Not Found' : 'Delay')}\n`;
 
                 if (result.eta) {
                     message += `ETA: ${result.eta}\n`;

@@ -64,7 +64,7 @@ class ShipmentManager extends Component
     public $filterCsReference = '';
 
     // Sorting properties
-    public $sortField = 'created_at';
+    public $sortField = 'client_requested_delivery_date';
     public $sortDirection = 'desc';
 
     // Expandable rows for ETA history
