@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Vessel;
 use App\Models\DropdownSetting;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class ShipmentManager extends Component
 {
@@ -78,6 +79,9 @@ class ShipmentManager extends Component
     // Auto port selection
     public $searchingPort = false;
     public $currentSearchPort = '';
+
+    // Track which fields were auto-filled for highlighting
+    public $autoFilledFields = [];
 
     public $customsClearanceOptions = [];
     public $overtimeOptions = [];
@@ -488,6 +492,7 @@ class ShipmentManager extends Component
         $this->last_eta_check_date = '';
         $this->bot_received_eta_date = '';
         $this->tracking_status = '';
+        $this->autoFilledFields = [];
     }
 
 
@@ -551,9 +556,15 @@ class ShipmentManager extends Component
 
     public function edit($shipmentId)
     {
+        Log::info('Edit method called', ['shipment_id' => $shipmentId]);
+
         $this->editingShipment = Shipment::find($shipmentId);
-        
+
         if ($this->editingShipment) {
+            Log::info('Shipment found, loading data');
+            // Clear auto-filled fields array when editing existing shipment
+            $this->autoFilledFields = [];
+
             $this->client_requested_delivery_date = $this->editingShipment->client_requested_delivery_date?->format('Y-m-d\TH:i');
             $this->hbl_number = $this->editingShipment->hbl_number;
             $this->mbl_number = $this->editingShipment->mbl_number;
@@ -661,6 +672,24 @@ class ShipmentManager extends Component
         $this->resetPage();
     }
 
+    /**
+     * Clear auto-filled highlighting when user manually edits these fields
+     */
+    public function updatedVoyage()
+    {
+        $this->autoFilledFields = array_diff($this->autoFilledFields, ['voyage']);
+    }
+
+    public function updatedPortTerminal()
+    {
+        $this->autoFilledFields = array_diff($this->autoFilledFields, ['port_terminal']);
+    }
+
+    public function updatedPlannedDeliveryDate()
+    {
+        $this->autoFilledFields = array_diff($this->autoFilledFields, ['planned_delivery_date']);
+    }
+
     public function resetFilters()
     {
         $this->filterCustomer = '';
@@ -719,12 +748,54 @@ class ShipmentManager extends Component
      * Auto-select port terminal based on vessel name
      * Searches across all configured ports to find where the vessel is scheduled
      * Only selects ports with current year ETA that are not in the past
+     *
+     * OPTIMIZED: Uses caching (15 min TTL) and early exit for faster performance
      */
     public function autoSelectPort()
     {
         if (empty($this->vessel_name)) {
             session()->flash('error', 'Please enter a vessel name first');
             return;
+        }
+
+        // Check cache first (15 minute TTL) for significant speed improvement
+        $cacheKey = 'vessel_port_' . md5(strtolower(trim($this->vessel_name)));
+        $cached = Cache::get($cacheKey);
+
+        if ($cached && isset($cached['checked_at'])) {
+            $ageMinutes = now()->diffInMinutes($cached['checked_at']);
+
+            if ($ageMinutes < 15) {
+                // Track which fields are being auto-filled
+                $this->autoFilledFields = [];
+
+                // Use cached result
+                if (isset($cached['port_terminal']) && $cached['port_terminal']) {
+                    $this->port_terminal = $cached['port_terminal'];
+                    $this->autoFilledFields[] = 'port_terminal';
+                }
+
+                if (isset($cached['voyage']) && $cached['voyage']) {
+                    $this->voyage = $cached['voyage'];
+                    $this->autoFilledFields[] = 'voyage';
+                }
+
+                if (isset($cached['eta']) && $cached['eta']) {
+                    $this->planned_delivery_date = $cached['eta'];
+                    $this->autoFilledFields[] = 'planned_delivery_date';
+                }
+
+                $portLabel = $this->portTerminalOptions[$this->port_terminal] ?? $this->port_terminal;
+                session()->flash('message', "✅ Found vessel at port: {$portLabel} (cached, {$ageMinutes} min ago)");
+
+                Log::info('Auto port detection - cache hit', [
+                    'vessel' => $this->vessel_name,
+                    'port_terminal' => $this->port_terminal,
+                    'cache_age_minutes' => $ageMinutes
+                ]);
+
+                return;
+            }
         }
 
         $this->searchingPort = true;
@@ -746,9 +817,8 @@ class ShipmentManager extends Component
 
             // Get current year for filtering
             $currentYear = now()->year;
-            $foundPorts = [];
 
-            // Try to find the vessel in each port
+            // Try to find the vessel in each port - EARLY EXIT on first valid match
             foreach ($portsToSearch as $portCode) {
                 $this->currentSearchPort = $portCode;
 
@@ -782,20 +852,66 @@ class ShipmentManager extends Component
                             }
                         }
 
-                        // Only consider ports with current year ETA that are not in the past
+                        // OPTIMIZATION: Early exit when valid vessel found - don't check other ports
                         if ($isValidEta && $etaDate) {
-                            Log::info("Adding port to foundPorts", [
+                            Log::info("Found valid vessel - using immediately without checking other ports", [
                                 'searched_port' => $portCode,
                                 'returned_port_terminal' => $result['port_terminal'] ?? 'not set',
                                 'voyage' => $result['voyage_code'] ?? 'not set',
                                 'eta' => $etaDate->format('Y-m-d H:i')
                             ]);
 
-                            $foundPorts[] = [
-                                'port_code' => $portCode,
-                                'result' => $result,
-                                'eta_date' => $etaDate
-                            ];
+                            // Track which fields are being auto-filled
+                            $this->autoFilledFields = [];
+
+                            // Set port terminal - use specific terminal from scraper if available (e.g., A0, B1 from LCB1)
+                            if (isset($result['port_terminal']) && !empty($result['port_terminal'])) {
+                                $this->port_terminal = $result['port_terminal'];
+                                $this->autoFilledFields[] = 'port_terminal';
+                                Log::info("Using specific terminal from scraper: {$result['port_terminal']}");
+                            } else {
+                                $this->port_terminal = $portCode;
+                                $this->autoFilledFields[] = 'port_terminal';
+                            }
+
+                            // If voyage was also found, set it
+                            if (isset($result['voyage_code']) && $result['voyage_code']) {
+                                $this->voyage = $result['voyage_code'];
+                                $this->autoFilledFields[] = 'voyage';
+                            }
+
+                            // If ETA was found, set it
+                            if ($etaDate) {
+                                $this->planned_delivery_date = $etaDate->format('Y-m-d\TH:i');
+                                $this->autoFilledFields[] = 'planned_delivery_date';
+                            }
+
+                            $this->searchingPort = false;
+                            $this->currentSearchPort = '';
+
+                            $portLabel = $this->portTerminalOptions[$portCode] ?? $portCode;
+                            session()->flash('message', "✅ Found vessel at port: {$portLabel}");
+
+                            // Cache the result for 15 minutes
+                            Cache::put($cacheKey, [
+                                'port_terminal' => $this->port_terminal,
+                                'port_label' => $portLabel,
+                                'voyage' => $this->voyage,
+                                'eta' => $this->planned_delivery_date,
+                                'checked_at' => now()
+                            ], now()->addMinutes(15));
+
+                            // Log successful detection
+                            Log::info('Auto port detection successful (early exit)', [
+                                'vessel' => $this->vessel_name,
+                                'searched_port_code' => $portCode,
+                                'selected_terminal' => $this->port_terminal,
+                                'voyage' => $this->voyage ?? null,
+                                'eta' => $this->planned_delivery_date ?? null,
+                                'current_year_filter' => $currentYear
+                            ]);
+
+                            return; // EARLY EXIT - stop checking other ports
                         }
                     }
                 } catch (\Exception $e) {
@@ -803,77 +919,6 @@ class ShipmentManager extends Component
                     Log::debug("Port check failed for {$portCode}: " . $e->getMessage());
                     continue;
                 }
-            }
-
-            // If we found vessel in multiple ports with current year ETA, prioritize by voyage match
-            if (!empty($foundPorts)) {
-                // Prioritize ports with exact voyage match if user provided a voyage in vessel name
-                $selectedPort = $foundPorts[0];
-
-                // Check if vessel name includes a voyage code
-                $vesselNameParts = explode(' ', trim($this->vessel_name));
-                $lastPart = end($vesselNameParts);
-
-                // If last part looks like a voyage code (contains numbers and possibly letters)
-                if (preg_match('/\d/', $lastPart)) {
-                    // Look for exact voyage match
-                    foreach ($foundPorts as $port) {
-                        if (isset($port['result']['voyage_code']) &&
-                            strtoupper($port['result']['voyage_code']) === strtoupper($lastPart)) {
-                            $selectedPort = $port;
-                            Log::info("Prioritized port {$port['port_code']} due to exact voyage match: {$lastPart}");
-                            break;
-                        }
-                    }
-                }
-
-                $portCode = $selectedPort['port_code'];
-                $result = $selectedPort['result'];
-                $etaDate = $selectedPort['eta_date'];
-
-                // Set port terminal - use specific terminal from scraper if available (e.g., A0, B1 from LCB1)
-                if (isset($result['port_terminal']) && !empty($result['port_terminal'])) {
-                    $this->port_terminal = $result['port_terminal'];
-                    Log::info("Using specific terminal from scraper: {$result['port_terminal']}");
-                } else {
-                    $this->port_terminal = $portCode;
-                }
-
-                // If voyage was also found, set it
-                if (isset($result['voyage_code']) && $result['voyage_code']) {
-                    $this->voyage = $result['voyage_code'];
-                }
-
-                // If ETA was found, set it
-                if ($etaDate) {
-                    $this->planned_delivery_date = $etaDate->format('Y-m-d\TH:i');
-                }
-
-                $this->searchingPort = false;
-                $this->currentSearchPort = '';
-
-                $portLabel = $this->portTerminalOptions[$portCode] ?? $portCode;
-                $message = "✅ Found vessel at port: {$portLabel}";
-
-                // Add note if multiple ports were found
-                if (count($foundPorts) > 1) {
-                    $message .= " (selected from " . count($foundPorts) . " ports with current year ETA)";
-                }
-
-                session()->flash('message', $message);
-
-                // Log successful detection
-                Log::info('Auto port detection successful', [
-                    'vessel' => $this->vessel_name,
-                    'searched_port_code' => $portCode,
-                    'selected_terminal' => $this->port_terminal,
-                    'voyage' => $this->voyage ?? null,
-                    'eta' => $this->planned_delivery_date ?? null,
-                    'total_ports_found' => count($foundPorts),
-                    'current_year_filter' => $currentYear
-                ]);
-
-                return;
             }
 
             // Vessel not found in any port with valid ETA
