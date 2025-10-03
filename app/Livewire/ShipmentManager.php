@@ -798,9 +798,28 @@ class ShipmentManager extends Component
                 }
             }
 
-            // If we found vessel in multiple ports with current year ETA, select the first one
+            // If we found vessel in multiple ports with current year ETA, prioritize by voyage match
             if (!empty($foundPorts)) {
+                // Prioritize ports with exact voyage match if user provided a voyage in vessel name
                 $selectedPort = $foundPorts[0];
+
+                // Check if vessel name includes a voyage code
+                $vesselNameParts = explode(' ', trim($this->vessel_name));
+                $lastPart = end($vesselNameParts);
+
+                // If last part looks like a voyage code (contains numbers and possibly letters)
+                if (preg_match('/\d/', $lastPart)) {
+                    // Look for exact voyage match
+                    foreach ($foundPorts as $port) {
+                        if (isset($port['result']['voyage_code']) &&
+                            strtoupper($port['result']['voyage_code']) === strtoupper($lastPart)) {
+                            $selectedPort = $port;
+                            Log::info("Prioritized port {$port['port_code']} due to exact voyage match: {$lastPart}");
+                            break;
+                        }
+                    }
+                }
+
                 $portCode = $selectedPort['port_code'];
                 $result = $selectedPort['result'];
                 $etaDate = $selectedPort['eta_date'];
