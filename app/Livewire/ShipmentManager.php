@@ -718,7 +718,7 @@ class ShipmentManager extends Component
     /**
      * Auto-select port terminal based on vessel name
      * Searches across all configured ports to find where the vessel is scheduled
-     * Only selects ports with current year ETA
+     * Only selects ports with current year ETA that are not in the past
      */
     public function autoSelectPort()
     {
@@ -757,27 +757,38 @@ class ShipmentManager extends Component
                     $result = $vesselTrackingService->checkVesselETAByName($this->vessel_name, $portCode);
 
                     if ($result && $result['success'] && $result['vessel_found']) {
-                        // Check if ETA exists and is in current year
-                        $etaYear = null;
+                        // Check if ETA exists and is in current year and not in the past
+                        $etaDate = null;
+                        $isValidEta = false;
+
                         if (isset($result['eta']) && $result['eta']) {
                             try {
                                 $etaDate = \Carbon\Carbon::parse($result['eta']);
-                                $etaYear = $etaDate->year;
+                                $now = now();
+
+                                // Check if ETA is in current year and not in the past (same month or future)
+                                if ($etaDate->year === $currentYear && $etaDate->isSameMonth($now) || $etaDate->isFuture()) {
+                                    $isValidEta = true;
+                                } else {
+                                    if ($etaDate->year !== $currentYear) {
+                                        Log::info("Skipping port {$portCode} - ETA year {$etaDate->year} does not match current year {$currentYear}");
+                                    } else {
+                                        Log::info("Skipping port {$portCode} - ETA date {$etaDate->format('Y-m-d')} is in the past");
+                                    }
+                                }
                             } catch (\Exception $e) {
-                                // Could not parse ETA, skip year check
+                                // Could not parse ETA, skip this port
                                 Log::debug("Could not parse ETA for {$portCode}: " . $e->getMessage());
                             }
                         }
 
-                        // Only consider ports with current year ETA
-                        if ($etaYear === $currentYear) {
+                        // Only consider ports with current year ETA that are not in the past
+                        if ($isValidEta && $etaDate) {
                             $foundPorts[] = [
                                 'port_code' => $portCode,
                                 'result' => $result,
-                                'eta_date' => $etaDate ?? null
+                                'eta_date' => $etaDate
                             ];
-                        } else {
-                            Log::info("Skipping port {$portCode} - ETA year {$etaYear} does not match current year {$currentYear}");
                         }
                     }
                 } catch (\Exception $e) {
@@ -833,10 +844,10 @@ class ShipmentManager extends Component
                 return;
             }
 
-            // Vessel not found in any port with current year ETA
+            // Vessel not found in any port with valid ETA
             $this->searchingPort = false;
             $this->currentSearchPort = '';
-            session()->flash('error', "❌ Vessel '{$this->vessel_name}' not found in any port terminal with {$currentYear} ETA");
+            session()->flash('error', "❌ Vessel '{$this->vessel_name}' not found in any port terminal with current or future {$currentYear} ETA");
 
         } catch (\Exception $e) {
             $this->searchingPort = false;
