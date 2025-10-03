@@ -75,6 +75,10 @@ class ShipmentManager extends Component
     public $vessels = [];
     public $portUrls = [];
 
+    // Auto port selection
+    public $searchingPort = false;
+    public $currentSearchPort = '';
+
     public $customsClearanceOptions = [];
     public $overtimeOptions = [];
     public $doStatusOptions = [];
@@ -709,5 +713,140 @@ class ShipmentManager extends Component
                 'initiated_by' => $log->initiatedBy ? $log->initiatedBy->name : 'System',
             ];
         });
+    }
+
+    /**
+     * Auto-select port terminal based on vessel name
+     * Searches across all configured ports to find where the vessel is scheduled
+     * Only selects ports with current year ETA
+     */
+    public function autoSelectPort()
+    {
+        if (empty($this->vessel_name)) {
+            session()->flash('error', 'Please enter a vessel name first');
+            return;
+        }
+
+        $this->searchingPort = true;
+
+        try {
+            // Get the vessel tracking service
+            $vesselTrackingService = new \App\Services\VesselTrackingService();
+
+            // Get all available port terminals
+            $availablePorts = array_keys($this->portTerminalOptions);
+
+            // Limit search to common ports first for speed
+            $priorityPorts = ['C1', 'C2', 'B5', 'C3', 'A0', 'B1', 'B3', 'B4', 'SIAM', 'KERRY', 'JWD', 'D1'];
+            $otherPorts = array_diff($availablePorts, $priorityPorts);
+            $portsToSearch = array_merge(
+                array_intersect($priorityPorts, $availablePorts),
+                $otherPorts
+            );
+
+            // Get current year for filtering
+            $currentYear = now()->year;
+            $foundPorts = [];
+
+            // Try to find the vessel in each port
+            foreach ($portsToSearch as $portCode) {
+                $this->currentSearchPort = $portCode;
+
+                try {
+                    // Check if vessel exists in this port
+                    $result = $vesselTrackingService->checkVesselETAByName($this->vessel_name, $portCode);
+
+                    if ($result && $result['success'] && $result['vessel_found']) {
+                        // Check if ETA exists and is in current year
+                        $etaYear = null;
+                        if (isset($result['eta']) && $result['eta']) {
+                            try {
+                                $etaDate = \Carbon\Carbon::parse($result['eta']);
+                                $etaYear = $etaDate->year;
+                            } catch (\Exception $e) {
+                                // Could not parse ETA, skip year check
+                                Log::debug("Could not parse ETA for {$portCode}: " . $e->getMessage());
+                            }
+                        }
+
+                        // Only consider ports with current year ETA
+                        if ($etaYear === $currentYear) {
+                            $foundPorts[] = [
+                                'port_code' => $portCode,
+                                'result' => $result,
+                                'eta_date' => $etaDate ?? null
+                            ];
+                        } else {
+                            Log::info("Skipping port {$portCode} - ETA year {$etaYear} does not match current year {$currentYear}");
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // Continue to next port if this one fails
+                    Log::debug("Port check failed for {$portCode}: " . $e->getMessage());
+                    continue;
+                }
+            }
+
+            // If we found vessel in multiple ports with current year ETA, select the first one
+            if (!empty($foundPorts)) {
+                $selectedPort = $foundPorts[0];
+                $portCode = $selectedPort['port_code'];
+                $result = $selectedPort['result'];
+                $etaDate = $selectedPort['eta_date'];
+
+                // Set port terminal
+                $this->port_terminal = $portCode;
+
+                // If voyage was also found, set it
+                if (isset($result['voyage_code']) && $result['voyage_code']) {
+                    $this->voyage = $result['voyage_code'];
+                }
+
+                // If ETA was found, set it
+                if ($etaDate) {
+                    $this->planned_delivery_date = $etaDate->format('Y-m-d\TH:i');
+                }
+
+                $this->searchingPort = false;
+                $this->currentSearchPort = '';
+
+                $portLabel = $this->portTerminalOptions[$portCode] ?? $portCode;
+                $message = "✅ Found vessel at port: {$portLabel}";
+
+                // Add note if multiple ports were found
+                if (count($foundPorts) > 1) {
+                    $message .= " (selected from " . count($foundPorts) . " ports with current year ETA)";
+                }
+
+                session()->flash('message', $message);
+
+                // Log successful detection
+                Log::info('Auto port detection successful', [
+                    'vessel' => $this->vessel_name,
+                    'port' => $portCode,
+                    'voyage' => $this->voyage ?? null,
+                    'eta' => $this->planned_delivery_date ?? null,
+                    'total_ports_found' => count($foundPorts),
+                    'current_year_filter' => $currentYear
+                ]);
+
+                return;
+            }
+
+            // Vessel not found in any port with current year ETA
+            $this->searchingPort = false;
+            $this->currentSearchPort = '';
+            session()->flash('error', "❌ Vessel '{$this->vessel_name}' not found in any port terminal with {$currentYear} ETA");
+
+        } catch (\Exception $e) {
+            $this->searchingPort = false;
+            $this->currentSearchPort = '';
+
+            Log::error('Auto port selection failed', [
+                'vessel_name' => $this->vessel_name,
+                'error' => $e->getMessage()
+            ]);
+            session()->flash('error', 'Failed to auto-detect port. Please select manually.');
+        }
     }
 }
