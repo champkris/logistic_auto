@@ -745,19 +745,19 @@ class VesselTrackingService
             
             // Log the parsed result for debugging
             \Log::info("LCB1 Browser Automation Result:", ['result' => $result]);
-            
+
             // Check if this is a "no data found" scenario vs actual error
             if (!$result['success']) {
                 $errorMessage = $result['error'] ?? $result['message'] ?? 'Unknown error';
-                
+
                 // Handle "no data found" as a valid result, not an error
-                if (str_contains($errorMessage, 'No current schedule data') || 
+                if (str_contains($errorMessage, 'No current schedule data') ||
                     str_contains($errorMessage, 'no schedule data available') ||
                     str_contains($errorMessage, 'no schedule data') ||
                     isset($result['details']) && str_contains($result['details'], 'no schedule data')) {
-                    
+
                     \Log::info("Terminal {$config['name']}: No schedule data found for {$vesselName} - this is expected for vessels without current schedules");
-                    
+
                     return [
                         'success' => true,
                         'terminal' => $config['name'],
@@ -774,15 +774,16 @@ class VesselTrackingService
                         'checked_at' => now()
                     ];
                 }
-                
+
                 // This is an actual automation error
                 throw new \Exception("Browser automation error: " . $errorMessage);
             }
-            
+
             // Convert to Laravel expected format
             return [
                 'success' => true,
                 'terminal' => $config['name'],
+                'port_terminal' => $result['port_terminal'] ?? null,  // Specific terminal (A0, B1, etc.)
                 'vessel_found' => true,
                 'voyage_found' => !empty($result['voyage_code']),
                 'vessel_name' => $result['vessel_name'] ?? $vesselName,

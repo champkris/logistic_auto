@@ -784,6 +784,13 @@ class ShipmentManager extends Component
 
                         // Only consider ports with current year ETA that are not in the past
                         if ($isValidEta && $etaDate) {
+                            Log::info("Adding port to foundPorts", [
+                                'searched_port' => $portCode,
+                                'returned_port_terminal' => $result['port_terminal'] ?? 'not set',
+                                'voyage' => $result['voyage_code'] ?? 'not set',
+                                'eta' => $etaDate->format('Y-m-d H:i')
+                            ]);
+
                             $foundPorts[] = [
                                 'port_code' => $portCode,
                                 'result' => $result,
@@ -858,7 +865,8 @@ class ShipmentManager extends Component
                 // Log successful detection
                 Log::info('Auto port detection successful', [
                     'vessel' => $this->vessel_name,
-                    'port' => $portCode,
+                    'searched_port_code' => $portCode,
+                    'selected_terminal' => $this->port_terminal,
                     'voyage' => $this->voyage ?? null,
                     'eta' => $this->planned_delivery_date ?? null,
                     'total_ports_found' => count($foundPorts),
