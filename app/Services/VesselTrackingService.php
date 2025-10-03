@@ -703,12 +703,19 @@ class VesselTrackingService
         // LCB1 - Use Browser Automation (required for dynamic content)
         try {
             $vesselName = $config['vessel_name'] ?? 'MARSA PRIDE';
+            $voyageCode = $config['voyage_code'] ?? '';
 
             // Use the new BrowserAutomationService
             $browserAutomationPath = base_path('browser-automation');
             $scriptPath = $browserAutomationPath . '/laravel-wrapper.js';
 
-            $result = BrowserAutomationService::runNodeScript($scriptPath, [$vesselName], 60);
+            // Pass vessel name and voyage code to scraper
+            $args = [$vesselName];
+            if (!empty($voyageCode)) {
+                $args[] = $voyageCode;
+            }
+
+            $result = BrowserAutomationService::runNodeScript($scriptPath, $args, 60);
 
             $jsonOutput = $result['stdout'];
             $logOutput = $result['stderr'];

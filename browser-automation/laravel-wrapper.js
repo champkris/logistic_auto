@@ -8,12 +8,13 @@ const { LCB1VesselScraper } = require('./scrapers/lcb1-scraper');
 async function main() {
   const args = process.argv.slice(2);
   const vesselName = args[0] || 'MARSA PRIDE';
-  
+  const voyageCode = args[1] || null;  // Optional voyage code parameter
+
   const scraper = new LCB1VesselScraper();
-  
+
   try {
     await scraper.initialize();
-    const result = await scraper.scrapeVesselSchedule(vesselName);
+    const result = await scraper.scrapeVesselSchedule(vesselName, voyageCode);
     
     // Output clean JSON to stdout for Laravel to parse
     console.log(JSON.stringify(result, null, 2));

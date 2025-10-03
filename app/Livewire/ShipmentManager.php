@@ -824,8 +824,13 @@ class ShipmentManager extends Component
                 $result = $selectedPort['result'];
                 $etaDate = $selectedPort['eta_date'];
 
-                // Set port terminal
-                $this->port_terminal = $portCode;
+                // Set port terminal - use specific terminal from scraper if available (e.g., A0, B1 from LCB1)
+                if (isset($result['port_terminal']) && !empty($result['port_terminal'])) {
+                    $this->port_terminal = $result['port_terminal'];
+                    Log::info("Using specific terminal from scraper: {$result['port_terminal']}");
+                } else {
+                    $this->port_terminal = $portCode;
+                }
 
                 // If voyage was also found, set it
                 if (isset($result['voyage_code']) && $result['voyage_code']) {

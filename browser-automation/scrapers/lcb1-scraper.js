@@ -183,9 +183,9 @@ class LCB1VesselScraper {
     }
   }
   
-  async scrapeVesselSchedule(vesselName = 'MARSA PRIDE') {
+  async scrapeVesselSchedule(vesselName = 'MARSA PRIDE', voyageCode = null) {
     try {
-      logger.info(`🔍 Scraping LCB1 schedule for vessel: ${vesselName}`);
+      logger.info(`🔍 Scraping LCB1 schedule for vessel: ${vesselName}${voyageCode ? ' voyage: ' + voyageCode : ''}`);
       
       // Navigate to LCB1 berth schedule
       await this.page.goto('https://www.lcb1.com/BerthSchedule', {
@@ -499,14 +499,35 @@ class LCB1VesselScraper {
       }, vesselName);
       
       logger.info(`📊 Extracted ${scheduleData.length} schedule entries`);
-      
+
       if (scheduleData.length > 0) {
-        // Process and format the first matching result
-        const schedule = scheduleData[0];
+        // If voyage code is specified, filter by it
+        let schedule = scheduleData[0];
+
+        if (voyageCode && scheduleData.length > 1) {
+          logger.info(`🔍 Filtering ${scheduleData.length} entries by voyage code: ${voyageCode}`);
+          const voyageUpper = voyageCode.toUpperCase();
+
+          const matchedSchedule = scheduleData.find(s => {
+            const voyageIn = s.voyage_in ? s.voyage_in.toUpperCase().trim() : '';
+            const voyageOut = s.voyage_out ? s.voyage_out.toUpperCase().trim() : '';
+            return voyageIn === voyageUpper || voyageOut === voyageUpper;
+          });
+
+          if (matchedSchedule) {
+            schedule = matchedSchedule;
+            logger.info(`✅ Found matching voyage: ${schedule.voyage_in || schedule.voyage_out} at terminal ${schedule.terminal}`);
+          } else {
+            logger.warn(`⚠️ No exact voyage match found for ${voyageCode}, using first result`);
+          }
+        }
+
+        // Process and format the matching result
         
         const result = {
           success: true,
           terminal: 'LCB1',
+          port_terminal: schedule.terminal || null,  // A0, B1, etc.
           vessel_name: vesselName,
           voyage_code: schedule.voyage_in || null,
           voyage_out: schedule.voyage_out || null,
