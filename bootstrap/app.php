@@ -17,6 +17,17 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withSchedule(function ($schedule) {
+        // Daily scraping of vessel schedules from all terminals (3 AM)
+        $schedule->command('vessel:scrape-schedules')
+            ->dailyAt('03:00')
+            ->name('daily-vessel-scrape')
+            ->onSuccess(function () {
+                \Illuminate\Support\Facades\Log::info('Daily vessel schedule scraping completed successfully');
+            })
+            ->onFailure(function () {
+                \Illuminate\Support\Facades\Log::error('Daily vessel schedule scraping failed');
+            });
+
         // Check for due ETA schedules every minute
         $schedule->call(function () {
             $schedules = \App\Models\EtaCheckSchedule::dueForExecution()->get();

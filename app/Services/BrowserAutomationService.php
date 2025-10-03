@@ -394,4 +394,142 @@ JS;
 
         Log::info("Created JWD scraper script", ['path' => $path]);
     }
+
+    /**
+     * Scrape full schedule from Hutchison terminal
+     * Returns all vessels without requiring vessel name input
+     */
+    public function scrapeHutchisonFullSchedule(string $terminal): ?array
+    {
+        $nodePath = self::getNodePath();
+        $scriptPath = base_path('browser-automation/scrapers/hutchison-full-schedule-scraper.js');
+
+        if (!file_exists($scriptPath)) {
+            Log::error("Hutchison full schedule scraper not found", ['path' => $scriptPath]);
+            return null;
+        }
+
+        $command = sprintf(
+            '%s %s %s 2>/dev/null',
+            escapeshellarg($nodePath),
+            escapeshellarg($scriptPath),
+            escapeshellarg($terminal)
+        );
+
+        Log::info("Running Hutchison full schedule scraper", [
+            'terminal' => $terminal,
+            'command' => $command
+        ]);
+
+        $output = shell_exec($command);
+
+        if (!$output) {
+            Log::error("No output from Hutchison scraper");
+            return null;
+        }
+
+        // Parse JSON output
+        $result = json_decode($output, true);
+
+        if (!$result) {
+            Log::error("Failed to parse Hutchison scraper output", ['output' => $output]);
+            return null;
+        }
+
+        Log::info("Hutchison full schedule scraping complete", [
+            'terminal' => $terminal,
+            'vessel_count' => count($result['vessels'] ?? [])
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * Scrape full schedule from Shipmentlink terminal (SIAM, KERRY)
+     */
+    public function scrapeShipmentlinkFullSchedule(string $terminal): ?array
+    {
+        $nodePath = self::getNodePath();
+        $scriptPath = base_path('browser-automation/scrapers/shipmentlink-full-schedule-scraper.js');
+
+        if (!file_exists($scriptPath)) {
+            Log::error("Shipmentlink full schedule scraper not found", ['path' => $scriptPath]);
+            return null;
+        }
+
+        $command = sprintf(
+            '%s %s %s 2>/dev/null',
+            escapeshellarg($nodePath),
+            escapeshellarg($scriptPath),
+            escapeshellarg($terminal)
+        );
+
+        Log::info("Running Shipmentlink full schedule scraper", [
+            'terminal' => $terminal,
+            'command' => $command
+        ]);
+
+        $output = shell_exec($command);
+
+        if (!$output) {
+            Log::error("No output from Shipmentlink scraper");
+            return null;
+        }
+
+        $result = json_decode($output, true);
+
+        if (!$result) {
+            Log::error("Failed to parse Shipmentlink scraper output", ['output' => $output]);
+            return null;
+        }
+
+        Log::info("Shipmentlink full schedule scraping complete", [
+            'terminal' => $terminal,
+            'vessel_count' => count($result['vessels'] ?? [])
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * Scrape full schedule from TIPS terminal
+     */
+    public function scrapeTipsFullSchedule(): ?array
+    {
+        $nodePath = self::getNodePath();
+        $scriptPath = base_path('browser-automation/scrapers/tips-full-schedule-scraper.js');
+
+        if (!file_exists($scriptPath)) {
+            Log::error("TIPS full schedule scraper not found", ['path' => $scriptPath]);
+            return null;
+        }
+
+        $command = sprintf(
+            '%s %s 2>/dev/null',
+            escapeshellarg($nodePath),
+            escapeshellarg($scriptPath)
+        );
+
+        Log::info("Running TIPS full schedule scraper", ['command' => $command]);
+
+        $output = shell_exec($command);
+
+        if (!$output) {
+            Log::error("No output from TIPS scraper");
+            return null;
+        }
+
+        $result = json_decode($output, true);
+
+        if (!$result) {
+            Log::error("Failed to parse TIPS scraper output", ['output' => $output]);
+            return null;
+        }
+
+        Log::info("TIPS full schedule scraping complete", [
+            'vessel_count' => count($result['vessels'] ?? [])
+        ]);
+
+        return $result;
+    }
 }

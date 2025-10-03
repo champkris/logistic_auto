@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Services\VesselNameParser;
 use App\Services\BrowserAutomationService;
+use App\Models\VesselSchedule;
 
 class VesselTrackingService
 {
@@ -180,6 +181,41 @@ class VesselTrackingService
      */
     protected function checkVesselETAWithParsedName($parsedVessel, $portCode)
     {
+        // OPTIMIZATION: Check local database first (from daily scrapes)
+        $dbSchedule = VesselSchedule::findVessel($parsedVessel['vessel_name'], $portCode);
+
+        if ($dbSchedule) {
+            Log::info('Vessel schedule found in database (instant lookup)', [
+                'vessel' => $parsedVessel['vessel_name'],
+                'port' => $portCode,
+                'eta' => $dbSchedule->eta,
+                'source' => $dbSchedule->source,
+                'age_hours' => $dbSchedule->scraped_at->diffInHours(now())
+            ]);
+
+            return [
+                'success' => true,
+                'vessel_found' => true,
+                'vessel_name' => $dbSchedule->vessel_name,
+                'voyage_code' => $dbSchedule->voyage_code,
+                'port_terminal' => $dbSchedule->port_terminal,
+                'berth' => $dbSchedule->berth,
+                'eta' => $dbSchedule->eta->format('Y-m-d H:i:s'),
+                'etd' => $dbSchedule->etd?->format('Y-m-d H:i:s'),
+                'cutoff' => $dbSchedule->cutoff?->format('Y-m-d H:i:s'),
+                'opengate' => $dbSchedule->opengate?->format('Y-m-d H:i:s'),
+                'source' => $dbSchedule->source . '_db_cached',
+                'scraped_at' => $dbSchedule->scraped_at->format('Y-m-d H:i:s'),
+                'from_database' => true,
+            ];
+        }
+
+        // Not in database - fall back to live scraping
+        Log::info('Vessel not in database, falling back to live scraping', [
+            'vessel' => $parsedVessel['vessel_name'],
+            'port' => $portCode
+        ]);
+
         // Get the terminal key from port code
         $terminalKey = $this->portToTerminal[strtoupper($portCode)] ?? null;
 
