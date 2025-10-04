@@ -574,4 +574,46 @@ JS;
 
         return $result;
     }
+
+    /**
+     * Scrape full schedule from LCIT (B5) terminal
+     */
+    public function scrapeLcitFullSchedule(): ?array
+    {
+        $nodePath = self::getNodePath();
+        $scriptPath = base_path('browser-automation/scrapers/lcit-full-schedule-scraper.js');
+
+        if (!file_exists($scriptPath)) {
+            Log::error("LCIT full schedule scraper not found", ['path' => $scriptPath]);
+            return null;
+        }
+
+        $command = sprintf(
+            '%s %s 2>/dev/null',
+            escapeshellarg($nodePath),
+            escapeshellarg($scriptPath)
+        );
+
+        Log::info("Running LCIT full schedule scraper", ['command' => $command]);
+
+        $output = shell_exec($command);
+
+        if (!$output) {
+            Log::error("No output from LCIT scraper");
+            return null;
+        }
+
+        $result = json_decode($output, true);
+
+        if (!$result) {
+            Log::error("Failed to parse LCIT scraper output", ['output' => $output]);
+            return null;
+        }
+
+        Log::info("LCIT full schedule scraping complete", [
+            'vessel_count' => count($result['vessels'] ?? [])
+        ]);
+
+        return $result;
+    }
 }

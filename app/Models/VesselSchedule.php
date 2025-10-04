@@ -60,11 +60,11 @@ class VesselSchedule extends Model
     }
 
     /**
-     * Scope to get schedules with future ETA
+     * Scope to get schedules with future ETA or within last month
      */
     public function scopeFutureEta($query)
     {
-        return $query->where('eta', '>', now());
+        return $query->where('eta', '>', now()->subMonth());
     }
 
     /**

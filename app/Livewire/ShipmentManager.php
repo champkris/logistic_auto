@@ -813,10 +813,10 @@ class ShipmentManager extends Component
 
             // If user pre-filled voyage code, filter by it
             if (!empty($this->voyage)) {
-                $dbQuery->where('voyage_code', 'LIKE', '%' . $this->voyage . '%');
+                $dbQuery->where('voyage_code', 'LIKE', '%' . trim($this->voyage) . '%');
                 Log::info('Searching with pre-filled voyage code', [
                     'vessel' => $this->vessel_name,
-                    'voyage' => $this->voyage
+                    'voyage' => trim($this->voyage)
                 ]);
             }
 
@@ -844,7 +844,7 @@ class ShipmentManager extends Component
                 }
 
                 if ($dbVessel->eta) {
-                    $this->planned_delivery_date = $dbVessel->eta->format('Y-m-d');
+                    $this->planned_delivery_date = $dbVessel->eta->format('Y-m-d\TH:i');
                     $this->autoFilledFields[] = 'planned_delivery_date';
                 }
 
@@ -866,13 +866,22 @@ class ShipmentManager extends Component
             // Get all available port terminals
             $availablePorts = array_keys($this->portTerminalOptions);
 
-            // Limit search to common ports first for speed
-            $priorityPorts = ['C1', 'C2', 'B5', 'C3', 'A0', 'B1', 'B3', 'B4', 'SIAM', 'KERRY', 'JWD', 'D1'];
-            $otherPorts = array_diff($availablePorts, $priorityPorts);
+            // Ports that are daily scraped - skip these since we already checked database
+            // If vessel not in DB, it means it's definitely not at these ports
+            $dailyScrapedPorts = ['C1', 'C2', 'C3', 'D1', 'B3', 'B4', 'B5']; // C1,C2,C3,D1 from Hutchison, B3 from ESCO, B4 from TIPS, B5,C3 from LCIT
+
+            // Limit search to common ports first for speed (excluding daily scraped ones)
+            $priorityPorts = ['A0', 'B1', 'SIAM', 'KERRY', 'JWD'];
+            $otherPorts = array_diff($availablePorts, array_merge($priorityPorts, $dailyScrapedPorts));
             $portsToSearch = array_merge(
                 array_intersect($priorityPorts, $availablePorts),
                 $otherPorts
             );
+
+            Log::info('Skipping daily-scraped ports (already checked in database)', [
+                'skipped_ports' => implode(', ', $dailyScrapedPorts),
+                'searching_ports' => implode(', ', $portsToSearch)
+            ]);
 
             // Get current year for filtering
             $currentYear = now()->year;
@@ -882,21 +891,35 @@ class ShipmentManager extends Component
                 $this->currentSearchPort = $portCode;
 
                 try {
-                    // Build vessel search string with voyage code if user provided it
-                    $vesselSearchString = $this->vessel_name;
+                    // Search by vessel name only (not including voyage in search string)
+                    // Voyage filtering happens in the result matching below
                     if (!empty($this->voyage)) {
-                        $vesselSearchString .= ' ' . $this->voyage;
-                        Log::info("Searching with user-provided voyage code", [
+                        Log::info("Searching for vessel with user-provided voyage code", [
                             'vessel' => $this->vessel_name,
-                            'voyage' => $this->voyage,
+                            'voyage' => trim($this->voyage),
                             'port' => $portCode
                         ]);
                     }
 
                     // Check if vessel exists in this port
-                    $result = $vesselTrackingService->checkVesselETAByName($vesselSearchString, $portCode);
+                    $result = $vesselTrackingService->checkVesselETAByName($this->vessel_name, $portCode);
 
                     if ($result && $result['success'] && $result['vessel_found']) {
+                        // If user provided voyage code, verify it matches
+                        if (!empty($this->voyage)) {
+                            $resultVoyage = $result['voyage_code'] ?? '';
+                            $userVoyage = trim($this->voyage);
+
+                            // Check if voyage codes match (case-insensitive partial match)
+                            if (!empty($resultVoyage) && stripos($resultVoyage, $userVoyage) === false && stripos($userVoyage, $resultVoyage) === false) {
+                                Log::info("Skipping port {$portCode} - voyage code mismatch", [
+                                    'user_voyage' => $userVoyage,
+                                    'found_voyage' => $resultVoyage
+                                ]);
+                                continue; // Skip this port, try next
+                            }
+                        }
+
                         // Check if ETA exists and is in current year and not in the past
                         $etaDate = null;
                         $isValidEta = false;
@@ -966,7 +989,7 @@ class ShipmentManager extends Component
                             Cache::put($cacheKey, [
                                 'port_terminal' => $this->port_terminal,
                                 'port_label' => $portLabel,
-                                'voyage' => $this->voyage,
+                                'voyage' => !empty($this->voyage) ? trim($this->voyage) : null,
                                 'eta' => $this->planned_delivery_date,
                                 'checked_at' => now()
                             ], now()->addMinutes(15));

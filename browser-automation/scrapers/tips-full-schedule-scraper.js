@@ -41,6 +41,38 @@ class TipsFullScheduleScraper {
       console.error('📄 Page loaded, extracting schedule...');
       await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // Change DataTables page size to show all entries
+      try {
+        const changed = await this.page.evaluate(() => {
+          // Try different selectors for the page length dropdown
+          const selectors = [
+            'select[name="DataTables_Table_0_length"]',
+            'select[name*="length"]',
+            '.dataTables_length select',
+            'select'
+          ];
+
+          for (const selector of selectors) {
+            const select = document.querySelector(selector);
+            if (select && select.name && select.name.includes('length')) {
+              select.value = '100';
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (changed) {
+          console.error('✅ Changed page size to 100');
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for table to reload
+        } else {
+          console.error('⚠️  Could not find page size selector');
+        }
+      } catch (e) {
+        console.error('⚠️  Could not change page size:', e.message);
+      }
+
       // Extract vessels from the page
       const vessels = await this.page.evaluate(() => {
         const results = [];

@@ -33,7 +33,8 @@ class ScrapeVesselSchedules extends Command
         'hutchison' => ['C1', 'C2', 'C3', 'D1'],
         'shipmentlink' => ['SIAM', 'KERRY'],
         'tips' => ['TIPS'],
-        'esco' => ['B3'],
+        'esco' => ['B3'], // ESCO is separate website from LCIT
+        'lcit' => ['B5', 'C3'], // LCIT API covers both B5 and C3
         // LCB1 requires vessel name, so we'll skip for daily scrape
         // 'lcb1' => ['A0', 'B1', 'B4'],
     ];
@@ -110,6 +111,10 @@ class ScrapeVesselSchedules extends Command
                 $count = $this->scrapeEsco();
                 break;
 
+            case 'lcit':
+                $count = $this->scrapeLcit();
+                break;
+
             default:
                 $this->warn("   Unknown scraper: {$scraper}");
         }
@@ -140,11 +145,15 @@ class ScrapeVesselSchedules extends Command
                 }
 
                 foreach ($result['vessels'] as $vessel) {
+                    // Use actual berth as port_terminal (e.g., "D1" from "Berth Terminal" column)
+                    // If berth is not set, fall back to the terminal parameter
+                    $portTerminal = $vessel['berth'] ?? $terminal;
+
                     $this->storeVesselSchedule([
                         'vessel_name' => $vessel['vessel_name'] ?? '',
                         'voyage_code' => $vessel['voyage'] ?? null,
-                        'port_terminal' => $terminal,
-                        'berth' => $vessel['berth'] ?? null,
+                        'port_terminal' => $portTerminal,
+                        'berth' => $portTerminal,
                         'eta' => $vessel['eta'] ?? null,
                         'etd' => $vessel['etd'] ?? null,
                         'cutoff' => null,
@@ -226,8 +235,8 @@ class ScrapeVesselSchedules extends Command
                 $this->storeVesselSchedule([
                     'vessel_name' => $vessel['vessel_name'] ?? '',
                     'voyage_code' => $vessel['voyage'] ?? null,
-                    'port_terminal' => 'TIPS',
-                    'berth' => $vessel['berth'] ?? null,
+                    'port_terminal' => 'B4', // TIPS is terminal B4
+                    'berth' => $vessel['berth'] ?? 'B4',
                     'eta' => $vessel['eta'] ?? null,
                     'etd' => $vessel['etd'] ?? null,
                     'cutoff' => null,
@@ -285,6 +294,49 @@ class ScrapeVesselSchedules extends Command
     }
 
     /**
+     * Scrape LCIT (B5) terminal
+     */
+    protected function scrapeLcit(): int
+    {
+        $count = 0;
+        $automation = new BrowserAutomationService();
+
+        try {
+            $this->line("   Processing B5 (LCIT)...");
+
+            $result = $automation->scrapeLcitFullSchedule();
+
+            if (!$result || !isset($result['vessels']) || !is_array($result['vessels'])) {
+                $this->warn("   No data returned for LCIT");
+                return 0;
+            }
+
+            foreach ($result['vessels'] as $vessel) {
+                // Use berth as port_terminal (C3, B5, etc.)
+                $portTerminal = $vessel['berth'] ?? 'B5';
+
+                $this->storeVesselSchedule([
+                    'vessel_name' => $vessel['vessel_name'] ?? '',
+                    'voyage_code' => $vessel['voyage'] ?? null,
+                    'port_terminal' => $portTerminal,
+                    'berth' => $portTerminal,
+                    'eta' => $vessel['eta'] ?? null,
+                    'etd' => $vessel['etd'] ?? null,
+                    'cutoff' => $vessel['cutoff'] ?? null,
+                    'opengate' => $vessel['opengate'] ?? null,
+                    'source' => 'lcit',
+                    'raw_data' => $vessel,
+                ]);
+                $count++;
+            }
+        } catch (\Exception $e) {
+            $this->error("   Error scraping LCIT: " . $e->getMessage());
+        }
+
+        return $count;
+    }
+
+    /**
      * Store or update vessel schedule in database
      */
     protected function storeVesselSchedule(array $data): void
@@ -297,8 +349,14 @@ class ScrapeVesselSchedules extends Command
         $eta = $this->parseDate($data['eta']);
         $etd = $this->parseDate($data['etd']);
 
-        // Skip if no valid ETA or if ETA is in the past
-        if (!$eta || $eta->isPast()) {
+        // Skip if no valid ETA
+        if (!$eta) {
+            return;
+        }
+
+        // Skip if ETA is more than 1 month in the past
+        $oneMonthAgo = now()->subMonth();
+        if ($eta->lt($oneMonthAgo)) {
             return;
         }
 
@@ -335,7 +393,27 @@ class ScrapeVesselSchedules extends Command
         }
 
         try {
-            // Try common Asian/European date formats first (DD/MM/YYYY)
+            // Try LCIT format first (04 OCT 25/21:00)
+            if (preg_match('/^(\d{1,2})\s+([A-Z]{3})\s+(\d{2})\/(\d{2}):(\d{2})/', $date, $matches)) {
+                $day = (int)$matches[1];
+                $month = $matches[2];
+                $year = (int)$matches[3];
+                $hour = (int)$matches[4];
+                $minute = (int)$matches[5];
+
+                $monthMap = [
+                    'JAN' => 1, 'FEB' => 2, 'MAR' => 3, 'APR' => 4, 'MAY' => 5, 'JUN' => 6,
+                    'JUL' => 7, 'AUG' => 8, 'SEP' => 9, 'OCT' => 10, 'NOV' => 11, 'DEC' => 12
+                ];
+
+                if (isset($monthMap[$month])) {
+                    // Handle 2-digit year (25 = 2025, 98 = 1998)
+                    $fullYear = $year < 50 ? 2000 + $year : 1900 + $year;
+                    return Carbon::create($fullYear, $monthMap[$month], $day, $hour, $minute);
+                }
+            }
+
+            // Try common Asian/European date formats (DD/MM/YYYY)
             if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})/', $date)) {
                 return Carbon::createFromFormat('d/m/Y H:i', $date)
                     ?? Carbon::createFromFormat('d/m/Y', $date);
