@@ -1,18 +1,18 @@
 const puppeteer = require('puppeteer');
 
 /**
- * TIPS Full Schedule Scraper
- * Scrapes all vessel schedules from TIPS terminal
+ * ESCO (B3) Full Schedule Scraper
+ * Scrapes all vessel schedules from ESCO terminal
  */
-class TipsFullScheduleScraper {
+class EscoFullScheduleScraper {
   constructor() {
     this.browser = null;
     this.page = null;
-    this.baseUrl = 'https://www.tips.co.th/container/shipSched/List';
+    this.baseUrl = 'https://service.esco.co.th/BerthSchedule';
   }
 
   async initialize() {
-    console.error('🚀 Initializing TIPS Full Schedule Scraper...');
+    console.error('🚀 Initializing ESCO Full Schedule Scraper...');
 
     this.browser = await puppeteer.launch({
       headless: true,
@@ -31,7 +31,7 @@ class TipsFullScheduleScraper {
 
   async scrapeFullSchedule() {
     try {
-      console.error(`🔍 Scraping full schedule from TIPS`);
+      console.error(`🔍 Scraping full schedule from ESCO (B3)`);
 
       await this.page.goto(this.baseUrl, {
         waitUntil: 'networkidle2',
@@ -50,38 +50,41 @@ class TipsFullScheduleScraper {
           try {
             const cells = row.querySelectorAll('td');
 
-            // TIPS table structure:
-            // [0] Vessel Name
-            // [1] Id
-            // [2] Radio Call Sign
-            // [3] I/B Voyage (Inbound)
-            // [4] O/B Voyage (Outbound)
-            // [5] Gate open
-            // [6] Estimate (ETA)
-            // [7] Actual (ATA)
-            // [8] Closing Time
-            // [9] Service (Berth/Terminal)
+            // ESCO table structure:
+            // [0] Vessel Name (e.g., "M.V. XIN MING ZHOU 108")
+            // [1] VOY IN (Inbound voyage)
+            // [2] VOY OUT (Outbound voyage)
+            // [3] STATUS (e.g., "DEPARTED", "BERTHED")
+            // [4] ETB (Estimated Time of Berthing / ETA)
+            // [5] ETD (Estimated Time of Departure)
+            // [6] GATE OPEN
+            // [7] GATE CLOSE
 
-            if (cells.length >= 10) {
-              const vesselName = cells[0]?.innerText?.trim();
-              const voyageIn = cells[3]?.innerText?.trim();
-              const eta = cells[6]?.innerText?.trim();  // Estimate column
-              const ata = cells[7]?.innerText?.trim();  // Actual column
-              const etd = cells[9]?.innerText?.trim();  // Service/departure
-              const berth = cells[9]?.innerText?.trim(); // Service column might have berth
+            if (cells.length >= 6) {
+              const vesselName = cells[0]?.innerText?.trim().replace(/^M\.V\.\s*/i, ''); // Remove "M.V." prefix
+              const voyageIn = cells[1]?.innerText?.trim();
+              const voyageOut = cells[2]?.innerText?.trim();
+              const status = cells[3]?.innerText?.trim();
+              const etb = cells[4]?.innerText?.trim(); // ETA
+              const etd = cells[5]?.innerText?.trim();
+              const gateOpen = cells[6]?.innerText?.trim();
+              const gateClose = cells[7]?.innerText?.trim();
 
               // Skip header rows and empty rows
               if (vesselName &&
                   vesselName.length > 2 &&
                   !vesselName.toLowerCase().includes('vessel') &&
-                  vesselName !== 'Vessel Name') {
+                  vesselName !== 'VESSEL') {
 
                 results.push({
                   vessel_name: vesselName,
-                  voyage: voyageIn,
-                  eta: ata || eta,  // Use actual if available, otherwise estimate
+                  voyage: voyageIn || voyageOut, // Use inbound voyage, fallback to outbound
+                  eta: etb,
                   etd: etd,
-                  berth: berth || null
+                  status: status,
+                  opengate: gateOpen,
+                  cutoff: gateClose,
+                  berth: 'B3' // ESCO is terminal B3
                 });
               }
             }
@@ -93,23 +96,20 @@ class TipsFullScheduleScraper {
         return results;
       });
 
-      // TODO: Add pagination support if TIPS website has pagination
-      // For now, single page scraping is sufficient
-
-      console.error(`✅ Found ${vessels.length} vessels from TIPS`);
+      console.error(`✅ Found ${vessels.length} vessels from ESCO`);
 
       return {
         success: true,
-        terminal: 'TIPS',
+        terminal: 'B3',
         vessels: vessels,
         scraped_at: new Date().toISOString()
       };
 
     } catch (error) {
-      console.error(`❌ Error scraping TIPS:`, error.message);
+      console.error(`❌ Error scraping ESCO:`, error.message);
       return {
         success: false,
-        terminal: 'TIPS',
+        terminal: 'B3',
         error: error.message,
         vessels: []
       };
@@ -125,7 +125,7 @@ class TipsFullScheduleScraper {
 }
 
 async function main() {
-  const scraper = new TipsFullScheduleScraper();
+  const scraper = new EscoFullScheduleScraper();
 
   try {
     await scraper.initialize();
@@ -147,4 +147,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = TipsFullScheduleScraper;
+module.exports = EscoFullScheduleScraper;

@@ -80,7 +80,8 @@ class VesselSchedule extends Model
      */
     public static function findVessel(string $vesselName, ?string $portTerminal = null)
     {
-        $query = static::fresh()
+        $query = static::query()
+            ->fresh()
             ->forVessel($vesselName)
             ->futureEta()
             ->currentYear()
@@ -98,7 +99,8 @@ class VesselSchedule extends Model
      */
     public static function findVesselAllPorts(string $vesselName)
     {
-        return static::fresh()
+        return static::query()
+            ->fresh()
             ->forVessel($vesselName)
             ->futureEta()
             ->currentYear()

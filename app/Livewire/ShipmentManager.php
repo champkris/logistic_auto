@@ -801,6 +801,49 @@ class ShipmentManager extends Component
         $this->searchingPort = true;
 
         try {
+            // OPTIMIZATION: Check database FIRST before any live scraping
+            $dbVessel = \App\Models\VesselSchedule::query()
+                ->fresh()
+                ->forVessel($this->vessel_name)
+                ->futureEta()
+                ->currentYear()
+                ->orderBy('eta', 'asc')
+                ->first();
+
+            if ($dbVessel) {
+                Log::info('Vessel found in database (pre-search optimization)', [
+                    'vessel' => $this->vessel_name,
+                    'port' => $dbVessel->port_terminal,
+                    'eta' => $dbVessel->eta
+                ]);
+
+                // Track which fields are being auto-filled
+                $this->autoFilledFields = [];
+
+                $this->port_terminal = $dbVessel->port_terminal;
+                $this->autoFilledFields[] = 'port_terminal';
+
+                if ($dbVessel->voyage_code) {
+                    $this->voyage = $dbVessel->voyage_code;
+                    $this->autoFilledFields[] = 'voyage';
+                }
+
+                if ($dbVessel->eta) {
+                    $this->planned_delivery_date = $dbVessel->eta->format('Y-m-d');
+                    $this->autoFilledFields[] = 'planned_delivery_date';
+                }
+
+                $portLabel = $this->portTerminalOptions[$this->port_terminal] ?? $this->port_terminal;
+                session()->flash('message', "✅ Found vessel at port: {$portLabel} (from database)");
+
+                $this->searchingPort = false;
+                return;
+            }
+
+            Log::info('Vessel not in database, proceeding with live scraping', [
+                'vessel' => $this->vessel_name
+            ]);
+
             // Get the vessel tracking service
             $vesselTrackingService = new \App\Services\VesselTrackingService();
 

@@ -8,10 +8,8 @@ class ShipmentlinkFullScheduleScraper {
   constructor() {
     this.browser = null;
     this.page = null;
-    this.baseUrls = {
-      'SIAM': 'https://www.shipmentlink.com/servlet/TDB1_VesselScheduleByTerminal.do?terminalId=SIAM',
-      'KERRY': 'https://www.shipmentlink.com/servlet/TDB1_VesselScheduleByTerminal.do?terminalId=KERRY'
-    };
+    // ShipmentLink uses a single URL for all schedules, filtered by dropdown
+    this.baseUrl = 'https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp';
   }
 
   async initialize() {
@@ -34,64 +32,25 @@ class ShipmentlinkFullScheduleScraper {
 
   async scrapeFullSchedule(terminal) {
     try {
-      const url = this.baseUrls[terminal];
-      if (!url) {
-        throw new Error(`Unknown terminal: ${terminal}`);
-      }
+      console.error(`⚠️  Shipmentlink does not support full schedule scraping`);
+      console.error(`   This terminal requires vessel code for individual lookups`);
+      console.error(`   Cannot scrape all vessels for terminal: ${terminal}`);
 
-      console.error(`🔍 Scraping full schedule for ${terminal} from ${url}`);
-
-      await this.page.goto(url, {
-        waitUntil: 'networkidle2',
-        timeout: 30000
-      });
-
-      console.error('📄 Page loaded, extracting schedule...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const vessels = await this.page.evaluate(() => {
-        const results = [];
-        const rows = document.querySelectorAll('table tr, .schedule-table tr');
-
-        rows.forEach(row => {
-          try {
-            const cells = row.querySelectorAll('td');
-
-            if (cells.length >= 3) {
-              const vesselName = cells[0]?.innerText?.trim();
-              const voyage = cells[1]?.innerText?.trim();
-              const eta = cells[2]?.innerText?.trim();
-              const etd = cells[3]?.innerText?.trim();
-
-              if (vesselName && vesselName.length > 2 && !vesselName.includes('Vessel')) {
-                results.push({
-                  vessel_name: vesselName,
-                  voyage: voyage,
-                  eta: eta,
-                  etd: etd,
-                  berth: null
-                });
-              }
-            }
-          } catch (e) {
-            // Skip invalid rows
-          }
-        });
-
-        return results;
-      });
-
-      console.error(`✅ Found ${vessels.length} vessels for ${terminal}`);
+      // Shipmentlink website (https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp)
+      // requires a vessel code parameter (?vslCode=XXX) to show schedules
+      // It does NOT display a full terminal schedule like Hutchison or TIPS
+      // Therefore, this scraper cannot provide bulk vessel data
 
       return {
         success: true,
         terminal: terminal,
-        vessels: vessels,
-        scraped_at: new Date().toISOString()
+        vessels: [], // Always empty - Shipmentlink doesn't support full schedule
+        scraped_at: new Date().toISOString(),
+        message: 'Shipmentlink requires vessel code - full schedule not available'
       };
 
     } catch (error) {
-      console.error(`❌ Error scraping ${terminal}:`, error.message);
+      console.error(`❌ Error: ${error.message}`);
       return {
         success: false,
         terminal: terminal,

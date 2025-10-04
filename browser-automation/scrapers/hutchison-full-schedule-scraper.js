@@ -43,49 +43,104 @@ class HutchisonFullScheduleScraper {
       console.error('📄 Page loaded, waiting for table...');
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Look for the schedule table
-      const vessels = await this.page.evaluate(() => {
-        const results = [];
+      let allVessels = [];
+      let currentPage = 1;
+      let hasMorePages = true;
 
-        // Find all table rows - adjust selector based on actual page structure
-        const rows = document.querySelectorAll('table tr, .schedule-row, .vessel-row');
+      // Loop through all pages
+      while (hasMorePages) {
+        console.error(`📄 Scraping page ${currentPage}...`);
 
-        rows.forEach(row => {
-          try {
-            // Extract vessel data from row
-            // This is a template - adjust based on actual HTML structure
-            const cells = row.querySelectorAll('td');
+        // Extract vessels from current page
+        const vessels = await this.page.evaluate(() => {
+          const results = [];
 
-            if (cells.length >= 4) {
-              const vesselName = cells[0]?.innerText?.trim();
-              const voyage = cells[1]?.innerText?.trim();
-              const eta = cells[2]?.innerText?.trim();
-              const etd = cells[3]?.innerText?.trim();
+          // Find the main schedule table (Table 1 from debug output)
+          const tables = document.querySelectorAll('table');
+          const scheduleTable = tables[1]; // The second table is the vessel schedule
 
-              if (vesselName && vesselName !== 'Vessel Name') {
-                results.push({
-                  vessel_name: vesselName,
-                  voyage: voyage,
-                  eta: eta,
-                  etd: etd,
-                  berth: cells[4]?.innerText?.trim() || null
-                });
+          if (scheduleTable) {
+            const rows = scheduleTable.querySelectorAll('tbody tr');
+
+            rows.forEach(row => {
+              try {
+                const cells = row.querySelectorAll('td');
+
+                // Hutchison table structure (from debug output):
+                // [0] Vessel Name
+                // [1] Vessel ID
+                // [2] In Voy (Inbound Voyage)
+                // [3] Out Voy (Outbound Voyage)
+                // [4] Arrival (ETA)
+                // [5] Departure (ETD)
+                // [6] Berth Terminal
+                // [7] Release port
+                // [8] Open Gate
+                // [9] Gate Closing Time
+
+                if (cells.length >= 10) {
+                  const vesselName = cells[0]?.innerText?.trim();
+                  const voyageIn = cells[2]?.innerText?.trim();
+                  const voyageOut = cells[3]?.innerText?.trim();
+                  const eta = cells[4]?.innerText?.trim(); // Arrival column
+                  const etd = cells[5]?.innerText?.trim(); // Departure column
+                  const berth = cells[6]?.innerText?.trim();
+                  const openGate = cells[8]?.innerText?.trim();
+                  const cutoff = cells[9]?.innerText?.trim();
+
+                  // Skip header rows
+                  if (vesselName &&
+                      vesselName !== 'Vessel Name' &&
+                      vesselName.length > 2) {
+
+                    results.push({
+                      vessel_name: vesselName,
+                      voyage: voyageIn, // Use inbound voyage as primary
+                      eta: eta,
+                      etd: etd,
+                      berth: berth,
+                      opengate: openGate,
+                      cutoff: cutoff
+                    });
+                  }
+                }
+              } catch (e) {
+                // Skip invalid rows
               }
-            }
-          } catch (e) {
-            // Skip invalid rows
+            });
           }
+
+          return results;
         });
 
-        return results;
-      });
+        allVessels = allVessels.concat(vessels);
+        console.error(`   Found ${vessels.length} vessels on page ${currentPage} (total: ${allVessels.length})`);
 
-      console.error(`✅ Found ${vessels.length} vessels`);
+        // Check if there's a "Next" button and click it
+        hasMorePages = await this.page.evaluate(() => {
+          const nextButton = Array.from(document.querySelectorAll('a, button'))
+            .find(el => el.textContent.includes('Next'));
+
+          if (nextButton && !nextButton.classList.contains('disabled')) {
+            nextButton.click();
+            return true;
+          }
+          return false;
+        });
+
+        if (hasMorePages) {
+          // Wait for page to load
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          currentPage++;
+        }
+      }
+
+      console.error(`✅ Found ${allVessels.length} total vessels across ${currentPage} pages`);
 
       return {
         success: true,
         terminal: terminal,
-        vessels: vessels,
+        vessels: allVessels,
         scraped_at: new Date().toISOString()
       };
 

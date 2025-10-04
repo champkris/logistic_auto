@@ -33,8 +33,9 @@ class ScrapeVesselSchedules extends Command
         'hutchison' => ['C1', 'C2', 'C3', 'D1'],
         'shipmentlink' => ['SIAM', 'KERRY'],
         'tips' => ['TIPS'],
+        'esco' => ['B3'],
         // LCB1 requires vessel name, so we'll skip for daily scrape
-        // 'lcb1' => ['A0', 'B1', 'B3', 'B4'],
+        // 'lcb1' => ['A0', 'B1', 'B4'],
     ];
 
     /**
@@ -103,6 +104,10 @@ class ScrapeVesselSchedules extends Command
 
             case 'tips':
                 $count = $this->scrapeTips();
+                break;
+
+            case 'esco':
+                $count = $this->scrapeEsco();
                 break;
 
             default:
@@ -240,6 +245,46 @@ class ScrapeVesselSchedules extends Command
     }
 
     /**
+     * Scrape ESCO (B3) terminal
+     */
+    protected function scrapeEsco(): int
+    {
+        $count = 0;
+        $automation = new BrowserAutomationService();
+
+        try {
+            $this->line("   Processing B3 (ESCO)...");
+
+            $result = $automation->scrapeEscoFullSchedule();
+
+            if (!$result || !isset($result['vessels']) || !is_array($result['vessels'])) {
+                $this->warn("   No data returned for ESCO");
+                return 0;
+            }
+
+            foreach ($result['vessels'] as $vessel) {
+                $this->storeVesselSchedule([
+                    'vessel_name' => $vessel['vessel_name'] ?? '',
+                    'voyage_code' => $vessel['voyage'] ?? null,
+                    'port_terminal' => 'B3',
+                    'berth' => $vessel['berth'] ?? 'B3',
+                    'eta' => $vessel['eta'] ?? null,
+                    'etd' => $vessel['etd'] ?? null,
+                    'cutoff' => $vessel['cutoff'] ?? null,
+                    'opengate' => $vessel['opengate'] ?? null,
+                    'source' => 'esco',
+                    'raw_data' => $vessel,
+                ]);
+                $count++;
+            }
+        } catch (\Exception $e) {
+            $this->error("   Error scraping ESCO: " . $e->getMessage());
+        }
+
+        return $count;
+    }
+
+    /**
      * Store or update vessel schedule in database
      */
     protected function storeVesselSchedule(array $data): void
@@ -290,6 +335,13 @@ class ScrapeVesselSchedules extends Command
         }
 
         try {
+            // Try common Asian/European date formats first (DD/MM/YYYY)
+            if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})/', $date)) {
+                return Carbon::createFromFormat('d/m/Y H:i', $date)
+                    ?? Carbon::createFromFormat('d/m/Y', $date);
+            }
+
+            // Fallback to Carbon's auto-detection for other formats
             return Carbon::parse($date);
         } catch (\Exception $e) {
             return null;
