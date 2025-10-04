@@ -759,7 +759,9 @@ class ShipmentManager extends Component
         }
 
         // Check cache first (15 minute TTL) for significant speed improvement
-        $cacheKey = 'vessel_port_' . md5(strtolower(trim($this->vessel_name)));
+        // Include voyage in cache key so different voyages are cached separately
+        $cacheKeySuffix = !empty($this->voyage) ? '_' . strtolower(trim($this->voyage)) : '';
+        $cacheKey = 'vessel_port_' . md5(strtolower(trim($this->vessel_name)) . $cacheKeySuffix);
         $cached = Cache::get($cacheKey);
 
         if ($cached && isset($cached['checked_at'])) {
@@ -775,7 +777,8 @@ class ShipmentManager extends Component
                     $this->autoFilledFields[] = 'port_terminal';
                 }
 
-                if (isset($cached['voyage']) && $cached['voyage']) {
+                // Only fill voyage from cache if user didn't pre-fill it
+                if (empty($this->voyage) && isset($cached['voyage']) && $cached['voyage']) {
                     $this->voyage = $cached['voyage'];
                     $this->autoFilledFields[] = 'voyage';
                 }
@@ -802,19 +805,30 @@ class ShipmentManager extends Component
 
         try {
             // OPTIMIZATION: Check database FIRST before any live scraping
-            $dbVessel = \App\Models\VesselSchedule::query()
+            $dbQuery = \App\Models\VesselSchedule::query()
                 ->fresh()
                 ->forVessel($this->vessel_name)
                 ->futureEta()
-                ->currentYear()
-                ->orderBy('eta', 'asc')
-                ->first();
+                ->currentYear();
+
+            // If user pre-filled voyage code, filter by it
+            if (!empty($this->voyage)) {
+                $dbQuery->where('voyage_code', 'LIKE', '%' . $this->voyage . '%');
+                Log::info('Searching with pre-filled voyage code', [
+                    'vessel' => $this->vessel_name,
+                    'voyage' => $this->voyage
+                ]);
+            }
+
+            $dbVessel = $dbQuery->orderBy('eta', 'asc')->first();
 
             if ($dbVessel) {
                 Log::info('Vessel found in database (pre-search optimization)', [
                     'vessel' => $this->vessel_name,
                     'port' => $dbVessel->port_terminal,
-                    'eta' => $dbVessel->eta
+                    'voyage' => $dbVessel->voyage_code,
+                    'eta' => $dbVessel->eta,
+                    'matched_user_voyage' => !empty($this->voyage)
                 ]);
 
                 // Track which fields are being auto-filled
@@ -823,7 +837,8 @@ class ShipmentManager extends Component
                 $this->port_terminal = $dbVessel->port_terminal;
                 $this->autoFilledFields[] = 'port_terminal';
 
-                if ($dbVessel->voyage_code) {
+                // Only fill voyage if user didn't already provide it
+                if (empty($this->voyage) && $dbVessel->voyage_code) {
                     $this->voyage = $dbVessel->voyage_code;
                     $this->autoFilledFields[] = 'voyage';
                 }
@@ -834,7 +849,8 @@ class ShipmentManager extends Component
                 }
 
                 $portLabel = $this->portTerminalOptions[$this->port_terminal] ?? $this->port_terminal;
-                session()->flash('message', "✅ Found vessel at port: {$portLabel} (from database)");
+                $voyageMsg = !empty($this->voyage) ? " (voyage: {$this->voyage})" : "";
+                session()->flash('message', "✅ Found vessel at port: {$portLabel}{$voyageMsg} (from database)");
 
                 $this->searchingPort = false;
                 return;
@@ -866,8 +882,19 @@ class ShipmentManager extends Component
                 $this->currentSearchPort = $portCode;
 
                 try {
+                    // Build vessel search string with voyage code if user provided it
+                    $vesselSearchString = $this->vessel_name;
+                    if (!empty($this->voyage)) {
+                        $vesselSearchString .= ' ' . $this->voyage;
+                        Log::info("Searching with user-provided voyage code", [
+                            'vessel' => $this->vessel_name,
+                            'voyage' => $this->voyage,
+                            'port' => $portCode
+                        ]);
+                    }
+
                     // Check if vessel exists in this port
-                    $result = $vesselTrackingService->checkVesselETAByName($this->vessel_name, $portCode);
+                    $result = $vesselTrackingService->checkVesselETAByName($vesselSearchString, $portCode);
 
                     if ($result && $result['success'] && $result['vessel_found']) {
                         // Check if ETA exists and is in current year and not in the past
@@ -917,8 +944,8 @@ class ShipmentManager extends Component
                                 $this->autoFilledFields[] = 'port_terminal';
                             }
 
-                            // If voyage was also found, set it
-                            if (isset($result['voyage_code']) && $result['voyage_code']) {
+                            // If voyage was also found and user didn't pre-fill it, set it
+                            if (empty($this->voyage) && isset($result['voyage_code']) && $result['voyage_code']) {
                                 $this->voyage = $result['voyage_code'];
                                 $this->autoFilledFields[] = 'voyage';
                             }
