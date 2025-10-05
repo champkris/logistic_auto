@@ -853,24 +853,22 @@ class VesselTrackingService
             $vesselName = $config['vessel_name'] ?? 'EVER BUILD';
             $voyageCode = $config['voyage_code'] ?? '';
 
-            // Extract vessel code from vessel name (last word or configured code)
-            $vesselCode = $config['vessel_code'] ?? $this->extractVesselCode($vesselName);
+            // Build search string with voyage if available
+            $searchString = $voyageCode ? "{$vesselName} {$voyageCode}" : $vesselName;
 
-            \Log::info("Starting ShipmentLink browser automation", [
+            \Log::info("Starting ShipmentLink HTTPS scraper", [
                 'vessel' => $vesselName,
-                'code' => $vesselCode,
-                'voyage' => $voyageCode
+                'voyage' => $voyageCode,
+                'search_string' => $searchString
             ]);
 
             $browserAutomationPath = base_path('browser-automation');
 
-            // Use proc_open with vessel name, code, and voyage
+            // Use the new HTTPS-based scraper (much faster than Puppeteer)
             $command = sprintf(
-                "cd %s && timeout 120 node shipmentlink-wrapper.js %s %s %s 2>/dev/null",
+                "cd %s && timeout 30 node scrapers/shipmentlink-https-scraper.js %s 2>/dev/null",
                 escapeshellarg($browserAutomationPath),
-                escapeshellarg($vesselName),
-                escapeshellarg($vesselCode),
-                escapeshellarg($voyageCode ?: '')
+                escapeshellarg($searchString)
             );
             
             $descriptors = [
@@ -1686,7 +1684,8 @@ class VesselTrackingService
                 'Accept-Encoding' => 'gzip, deflate, br',
                 'Connection' => 'keep-alive',
                 'Upgrade-Insecure-Requests' => '1',
-                'Cache-Control' => 'max-age=0'
+                'Cache-Control' => 'max-age=0',
+                'Cookie' => 'UserToken=00000111112222233333'
             ])
             ->timeout(30)
             ->post($fullUrl);

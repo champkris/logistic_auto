@@ -31,12 +31,11 @@ class ScrapeVesselSchedules extends Command
      */
     protected $scrapableTerminals = [
         'hutchison' => ['C1', 'C2', 'C3', 'D1'],
-        'shipmentlink' => ['SIAM', 'KERRY'],
         'tips' => ['TIPS'],
         'esco' => ['B3'], // ESCO is separate website from LCIT
         'lcit' => ['B5', 'C3'], // LCIT API covers both B5 and C3
-        // LCB1 requires vessel name, so we'll skip for daily scrape
-        // 'lcb1' => ['A0', 'B1', 'B4'],
+        // LCB1 (A0, B1, A3) - keep as live-scrape only (no schedules available)
+        // ShipmentLink B2 - keep as live-scrape only due to connection issues
     ];
 
     /**
@@ -113,6 +112,14 @@ class ScrapeVesselSchedules extends Command
 
             case 'lcit':
                 $count = $this->scrapeLcit();
+                break;
+
+            case 'shipmentlink':
+                $count = $this->scrapeShipmentlinkB2();
+                break;
+
+            case 'lcb1':
+                $count = $this->scrapeLcb1();
                 break;
 
             default:
@@ -424,5 +431,85 @@ class ScrapeVesselSchedules extends Command
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    /**
+     * Scrape ShipmentLink B2 (LAEM CHABANG) terminal
+     */
+    protected function scrapeShipmentlinkB2(): int
+    {
+        $count = 0;
+        $automation = new BrowserAutomationService();
+
+        try {
+            $this->line("   Processing B2 (ShipmentLink)...");
+
+            $result = $automation->scrapeShipmentlinkB2FullSchedule();
+
+            if (!$result || !isset($result['vessels']) || !is_array($result['vessels'])) {
+                $this->warn("   No data returned for ShipmentLink");
+                return 0;
+            }
+
+            foreach ($result['vessels'] as $vessel) {
+                $this->storeVesselSchedule([
+                    'vessel_name' => $vessel['vessel_name'] ?? '',
+                    'voyage_code' => $vessel['voyage'] ?? null,
+                    'port_terminal' => $vessel['port_terminal'] ?? 'B2',
+                    'berth' => $vessel['berth'] ?? 'B2',
+                    'eta' => $vessel['eta'] ?? null,
+                    'etd' => $vessel['etd'] ?? null,
+                    'cutoff' => null,
+                    'opengate' => null,
+                    'source' => 'shipmentlink',
+                    'raw_data' => $vessel['raw_data'] ?? [],
+                ]);
+                $count++;
+            }
+        } catch (\Exception $e) {
+            $this->error("   Error scraping ShipmentLink: " . $e->getMessage());
+        }
+
+        return $count;
+    }
+
+    /**
+     * Scrape LCB1 (A0, B1, A3) terminals
+     */
+    protected function scrapeLcb1(): int
+    {
+        $count = 0;
+        $automation = new BrowserAutomationService();
+
+        try {
+            $this->line("   Processing A0/B1/A3 (LCB1)...");
+
+            $result = $automation->scrapeLcb1FullSchedule();
+
+            if (!$result || !isset($result['vessels']) || !is_array($result['vessels'])) {
+                $this->warn("   No data returned for LCB1");
+                return 0;
+            }
+
+            foreach ($result['vessels'] as $vessel) {
+                $this->storeVesselSchedule([
+                    'vessel_name' => $vessel['vessel_name'] ?? '',
+                    'voyage_code' => $vessel['voyage'] ?? null,
+                    'port_terminal' => $vessel['port_terminal'] ?? 'A0',
+                    'berth' => $vessel['berth'] ?? null,
+                    'eta' => $vessel['eta'] ?? null,
+                    'etd' => $vessel['etd'] ?? null,
+                    'cutoff' => null,
+                    'opengate' => null,
+                    'source' => 'lcb1',
+                    'raw_data' => $vessel['raw_data'] ?? [],
+                ]);
+                $count++;
+            }
+        } catch (\Exception $e) {
+            $this->error("   Error scraping LCB1: " . $e->getMessage());
+        }
+
+        return $count;
     }
 }

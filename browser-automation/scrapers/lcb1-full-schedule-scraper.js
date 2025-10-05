@@ -1,158 +1,186 @@
-const puppeteer = require('puppeteer');
+const https = require('https');
+const { parse } = require('node-html-parser');
 
-/**
- * LCB1 Full Schedule Scraper
- * Scrapes the berth schedule table directly from LCB1 website
- * Covers terminals: A0, B1, A3, D1
- */
-class LCB1FullScheduleScraper {
+class LCB1CurlScraper {
   constructor() {
-    this.browser = null;
-    this.page = null;
-    this.baseUrl = 'https://www.lcb1.com/BerthSchedule';
-  }
-
-  async initialize() {
-    console.error('🚀 Initializing LCB1 Full Schedule Scraper...');
-
-    this.browser = await puppeteer.launch({
-      headless: true,
-      defaultViewport: { width: 1920, height: 1080 },
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage'
-      ]
-    });
-
-    this.page = await this.browser.newPage();
-    await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-    console.error('✅ Browser initialized');
+    this.baseUrl = 'https://www.lcb1.com';
   }
 
   async scrapeFullSchedule() {
-    try {
-      console.error(`🔍 Scraping LCB1 berth schedule...`);
+    console.error('🔍 Fetching vessel list...');
+    const vessels = await this.getAllVessels();
+    console.error(`📦 Found ${vessels.length} vessels`);
 
-      await this.page.goto(this.baseUrl, {
-        waitUntil: 'networkidle2',
-        timeout: 30000
-      });
+    const allSchedules = [];
+    let processedCount = 0;
 
-      console.error('📄 Page loaded, extracting schedule...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    for (const vessel of vessels) {
+      try {
+        const schedules = await this.getVesselSchedule(vessel);
+        allSchedules.push(...schedules);
+        processedCount++;
 
-      // Extract vessels from the berth schedule table
-      const vessels = await this.page.evaluate(() => {
-        const results = [];
-        const rows = document.querySelectorAll('table tbody tr');
+        if (processedCount % 50 === 0) {
+          console.error(`   Processed ${processedCount}/${vessels.length} vessels...`);
+        }
+      } catch (error) {
+        console.error(`   ⚠️  Error with ${vessel}: ${error.message}`);
+      }
 
-        rows.forEach(row => {
-          try {
-            const cells = row.querySelectorAll('td');
+      await this.delay(100);
+    }
 
-            // LCB1 table structure (similar to ESCO):
-            // Typical berth schedule has columns like:
-            // Vessel Name, VOY IN, VOY OUT, STATUS, ETB (ETA), ETD, GATE OPEN, GATE CLOSE, BERTH/TERMINAL
+    console.error(`✅ Scraped ${allSchedules.length} schedules from ${vessels.length} vessels`);
 
-            if (cells.length >= 6) {
-              const vesselName = cells[0]?.innerText?.trim().replace(/^M\.V\.\s*/i, ''); // Remove "M.V." prefix if exists
-              const voyageIn = cells[1]?.innerText?.trim();
-              const voyageOut = cells[2]?.innerText?.trim();
-              const status = cells[3]?.innerText?.trim();
-              const etb = cells[4]?.innerText?.trim(); // ETA
-              const etd = cells[5]?.innerText?.trim();
+    return {
+      success: true,
+      terminals: ['A0', 'B1', 'A3'],
+      vessels: allSchedules,
+      scraped_at: new Date().toISOString()
+    };
+  }
 
-              // Look for terminal/berth in remaining cells
-              let terminal = null;
-              let berth = null;
+  async getAllVessels() {
+    const html = await this.makeRequest('/BerthSchedule', 'GET');
+    const root = parse(html);
 
-              for (let i = 6; i < cells.length; i++) {
-                const cellText = cells[i]?.innerText?.trim();
-                // Look for terminal codes (A0, B1, A3, D1)
-                const terminalMatch = cellText?.match(/(A0|B1|A3|D1)/i);
-                if (terminalMatch) {
-                  terminal = terminalMatch[0].toUpperCase();
-                  berth = cellText;
-                  break;
-                }
+    const select = root.querySelector('#txtVesselName');
+    if (!select) return [];
+
+    const options = select.querySelectorAll('option');
+    return options
+      .map(opt => opt.text.trim())
+      .filter(name => name && name !== 'Select' && name.length > 2);
+  }
+
+  async getVesselSchedule(vesselName) {
+    const postData = `vesselName=${encodeURIComponent(vesselName)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
+
+    const html = await this.makeRequest('/BerthSchedule/Detail', 'POST', postData);
+    return this.parseScheduleHTML(html, vesselName);
+  }
+
+  parseScheduleHTML(html, vesselName) {
+    const root = parse(html);
+    const schedules = [];
+
+    const rows = root.querySelectorAll('tr');
+
+    for (const row of rows) {
+      const cells = row.querySelectorAll('td');
+
+      // LCB1 table format: [#, Vessel, Voyage In, Voyage Out, Berthing Time, Departure Time, Terminal]
+      if (cells.length >= 7) {
+        const rowVessel = cells[1]?.text.trim() || '';
+        const voyageIn = cells[2]?.text.trim() || '';
+        const voyageOut = cells[3]?.text.trim() || '';
+        const berthingTime = cells[4]?.text.trim() || '';
+        const departureTime = cells[5]?.text.trim() || '';
+        const terminal = cells[6]?.text.trim() || '';
+
+        // Skip header row and "No data" row
+        if (rowVessel === 'Vessel Name' || rowVessel === 'No data found.') {
+          continue;
+        }
+
+        // Check if this row matches our vessel
+        if (rowVessel && rowVessel.toUpperCase().includes(vesselName.toUpperCase())) {
+          const eta = this.parseDate(berthingTime);
+          const etd = this.parseDate(departureTime);
+
+          if (eta) {
+            schedules.push({
+              vessel_name: vesselName,
+              voyage: voyageIn || voyageOut || null,
+              port_terminal: terminal || 'A0',
+              berth: terminal || null,
+              eta: eta,
+              etd: etd,
+              source: 'lcb1',
+              raw_data: {
+                vessel: rowVessel,
+                voyage_in: voyageIn,
+                voyage_out: voyageOut,
+                berthing_time: berthingTime,
+                departure_time: departureTime,
+                terminal: terminal
               }
-
-              // Skip header rows and empty rows
-              if (vesselName &&
-                  vesselName.length > 2 &&
-                  !vesselName.toLowerCase().includes('vessel') &&
-                  vesselName !== 'VESSEL' &&
-                  vesselName !== 'Vessel Name') {
-
-                results.push({
-                  vessel_name: vesselName,
-                  voyage: voyageIn || voyageOut, // Use inbound voyage, fallback to outbound
-                  eta: etb,
-                  etd: etd,
-                  status: status,
-                  port_terminal: terminal || 'LCB1', // Default to LCB1 if can't detect specific terminal
-                  berth: berth
-                });
-              }
-            }
-          } catch (e) {
-            // Skip invalid rows
+            });
           }
-        });
+        }
+      }
+    }
 
-        return results;
-      });
+    return schedules;
+  }
 
-      console.error(`✅ Found ${vessels.length} vessels from LCB1`);
+  parseDate(dateStr) {
+    if (!dateStr || dateStr === '' || dateStr === '-') return null;
 
-      return {
-        success: true,
-        terminal: 'LCB1',
-        vessels: vessels,
-        scraped_at: new Date().toISOString()
-      };
+    try {
+      // LCB1 format: "DD/MM/YYYY - HH:MM"
+      const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2}):(\d{2})/);
+      if (match) {
+        const [, day, month, year, hour, minute] = match;
+        return `${year}-${month}-${day} ${hour}:${minute}:00`;
+      }
 
+      return null;
     } catch (error) {
-      console.error(`❌ Error scraping LCB1:`, error.message);
-      return {
-        success: false,
-        terminal: 'LCB1',
-        error: error.message,
-        vessels: []
-      };
+      return null;
     }
   }
 
-  async close() {
-    if (this.browser) {
-      await this.browser.close();
-      console.error('🧹 Browser closed');
-    }
+  makeRequest(path, method = 'GET', postData = null) {
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'www.lcb1.com',
+        path: path,
+        method: method,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        }
+      };
+
+      if (method === 'POST' && postData) {
+        options.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        options.headers['Content-Length'] = Buffer.byteLength(postData);
+      }
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => { resolve(data); });
+      });
+
+      req.on('error', reject);
+
+      if (postData) {
+        req.write(postData);
+      }
+
+      req.end();
+    });
+  }
+
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
+// Main execution
 async function main() {
-  const scraper = new LCB1FullScheduleScraper();
+  const scraper = new LCB1CurlScraper();
 
   try {
-    await scraper.initialize();
     const result = await scraper.scrapeFullSchedule();
     console.log(JSON.stringify(result));
   } catch (error) {
-    console.error('Fatal error:', error);
-    console.log(JSON.stringify({
-      success: false,
-      error: error.message,
-      vessels: []
-    }));
-  } finally {
-    await scraper.close();
+    console.error('❌ Error:', error.message);
+    console.log(JSON.stringify({ success: false, error: error.message }));
+    process.exit(1);
   }
 }
 
-if (require.main === module) {
-  main();
-}
-
-module.exports = LCB1FullScheduleScraper;
+main();

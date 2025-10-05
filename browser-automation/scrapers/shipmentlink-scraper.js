@@ -352,8 +352,8 @@ class ShipmentLinkVesselScraper {
       if (vesselName.toUpperCase().includes('EVER BUILD')) {
         logger.info('🚢 Using direct URL approach for EVER BUILD vessel');
         
-        // Navigate directly to results page with vessel code
-        await this.page.goto('https://ss.shipmentlink.com/tvs2/jsp/TVS2_VesselSchedule.jsp?vslCode=BULD', {
+        // Navigate directly to results page with vessel code using correct endpoint
+        await this.page.goto('https://ss.shipmentlink.com/tvs2/jsp/TVS2_QueryScheduleByVessel.jsp?vslCode=BULD', {
           waitUntil: 'networkidle0',
           timeout: 30000
         });

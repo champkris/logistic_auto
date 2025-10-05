@@ -868,10 +868,10 @@ class ShipmentManager extends Component
 
             // Ports that are daily scraped - skip these since we already checked database
             // If vessel not in DB, it means it's definitely not at these ports
-            $dailyScrapedPorts = ['C1', 'C2', 'C3', 'D1', 'B3', 'B4', 'B5']; // C1,C2,C3,D1 from Hutchison, B3 from ESCO, B4 from TIPS, B5,C3 from LCIT
+            $dailyScrapedPorts = ['C1', 'C2', 'C3', 'D1', 'B3', 'B4', 'B5']; // All ports in daily scrape
 
             // Limit search to common ports first for speed (excluding daily scraped ones)
-            $priorityPorts = ['A0', 'B1', 'SIAM', 'KERRY', 'JWD'];
+            $priorityPorts = ['B2', 'A0', 'B1', 'A3', 'SIAM', 'KERRY', 'JWD'];
             $otherPorts = array_diff($availablePorts, array_merge($priorityPorts, $dailyScrapedPorts));
             $portsToSearch = array_merge(
                 array_intersect($priorityPorts, $availablePorts),
@@ -891,18 +891,20 @@ class ShipmentManager extends Component
                 $this->currentSearchPort = $portCode;
 
                 try {
-                    // Search by vessel name only (not including voyage in search string)
-                    // Voyage filtering happens in the result matching below
+                    // Build search string - include voyage if provided for more accurate results
+                    $searchString = $this->vessel_name;
                     if (!empty($this->voyage)) {
+                        $searchString .= ' ' . trim($this->voyage);
                         Log::info("Searching for vessel with user-provided voyage code", [
                             'vessel' => $this->vessel_name,
                             'voyage' => trim($this->voyage),
-                            'port' => $portCode
+                            'port' => $portCode,
+                            'search_string' => $searchString
                         ]);
                     }
 
                     // Check if vessel exists in this port
-                    $result = $vesselTrackingService->checkVesselETAByName($this->vessel_name, $portCode);
+                    $result = $vesselTrackingService->checkVesselETAByName($searchString, $portCode);
 
                     if ($result && $result['success'] && $result['vessel_found']) {
                         // If user provided voyage code, verify it matches
@@ -927,17 +929,13 @@ class ShipmentManager extends Component
                         if (isset($result['eta']) && $result['eta']) {
                             try {
                                 $etaDate = \Carbon\Carbon::parse($result['eta']);
-                                $now = now();
+                                $oneMonthAgo = now()->subMonth();
 
-                                // Check if ETA is in current year and not in the past (same month or future)
-                                if ($etaDate->year === $currentYear && $etaDate->isSameMonth($now) || $etaDate->isFuture()) {
+                                // Accept vessels with ETA within last month (consistent with database scope)
+                                if ($etaDate->gt($oneMonthAgo)) {
                                     $isValidEta = true;
                                 } else {
-                                    if ($etaDate->year !== $currentYear) {
-                                        Log::info("Skipping port {$portCode} - ETA year {$etaDate->year} does not match current year {$currentYear}");
-                                    } else {
-                                        Log::info("Skipping port {$portCode} - ETA date {$etaDate->format('Y-m-d')} is in the past");
-                                    }
+                                    Log::info("Skipping port {$portCode} - ETA date {$etaDate->format('Y-m-d')} is older than 1 month");
                                 }
                             } catch (\Exception $e) {
                                 // Could not parse ETA, skip this port

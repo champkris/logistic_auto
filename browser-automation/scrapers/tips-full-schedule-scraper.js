@@ -89,18 +89,21 @@ class TipsFullScheduleScraper {
             // [3] I/B Voyage (Inbound)
             // [4] O/B Voyage (Outbound)
             // [5] Gate open
-            // [6] Estimate (ETA)
-            // [7] Actual (ATA)
+            // [6] Estimate
+            // [7] Actual
             // [8] Closing Time
-            // [9] Service (Berth/Terminal)
+            // [9] Service
+            // [10] ETA
+            // [11] ETD
+            // [12] ATA
+            // [13] ATD
 
-            if (cells.length >= 10) {
+            if (cells.length >= 11) {
               const vesselName = cells[0]?.innerText?.trim();
               const voyageIn = cells[3]?.innerText?.trim();
-              const eta = cells[6]?.innerText?.trim();  // Estimate column
-              const ata = cells[7]?.innerText?.trim();  // Actual column
-              const etd = cells[9]?.innerText?.trim();  // Service/departure
-              const berth = cells[9]?.innerText?.trim(); // Service column might have berth
+              const eta = cells[10]?.innerText?.trim();  // ETA column [10]
+              const etd = cells[7]?.innerText?.trim();   // Actual column [7] (departure time)
+              const berth = cells[11]?.innerText?.trim(); // Service/Berth column [11]
 
               // Skip header rows and empty rows
               if (vesselName &&
@@ -111,7 +114,7 @@ class TipsFullScheduleScraper {
                 results.push({
                   vessel_name: vesselName,
                   voyage: voyageIn,
-                  eta: ata || eta,  // Use actual if available, otherwise estimate
+                  eta: eta,
                   etd: etd,
                   berth: berth || null
                 });

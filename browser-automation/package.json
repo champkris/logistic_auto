@@ -11,12 +11,19 @@
     "test": "node test-scrapers.js"
   },
   "dependencies": {
-    "puppeteer": "13.7.0",
     "axios": "^1.6.0",
     "cron": "^3.1.0",
-    "winston": "^3.11.0"
+    "node-html-parser": "^7.0.1",
+    "puppeteer": "13.7.0",
+    "winston": "^3.11.0",
+    "xmldom": "^0.6.0"
   },
-  "keywords": ["vessel", "tracking", "automation", "shipping"],
+  "keywords": [
+    "vessel",
+    "tracking",
+    "automation",
+    "shipping"
+  ],
   "author": "CS Shipping LCB",
   "license": "MIT"
 }

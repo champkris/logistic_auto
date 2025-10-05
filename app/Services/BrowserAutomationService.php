@@ -616,4 +616,62 @@ JS;
 
         return $result;
     }
+
+    /**
+     * Scrape full schedule from ShipmentLink B2 (LAEM CHABANG) terminal
+     */
+    public function scrapeShipmentlinkB2FullSchedule(): ?array
+    {
+        $nodePath = self::getNodePath();
+        $scriptPath = base_path('browser-automation/scrapers/shipmentlink-full-schedule-scraper.js');
+
+        if (!file_exists($scriptPath)) {
+            Log::error("ShipmentLink full schedule scraper not found", ['path' => $scriptPath]);
+            return null;
+        }
+
+        $command = sprintf(
+            '%s %s 2>/dev/null',
+            escapeshellarg($nodePath),
+            escapeshellarg($scriptPath)
+        );
+
+        $output = shell_exec($command);
+        $result = json_decode($output, true);
+
+        Log::info("ShipmentLink full schedule scraping complete", [
+            'vessel_count' => count($result['vessels'] ?? [])
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * Scrape full schedule from LCB1 (A0, B1, A3) terminals
+     */
+    public function scrapeLcb1FullSchedule(): ?array
+    {
+        $nodePath = self::getNodePath();
+        $scriptPath = base_path('browser-automation/scrapers/lcb1-full-schedule-scraper.js');
+
+        if (!file_exists($scriptPath)) {
+            Log::error("LCB1 full schedule scraper not found", ['path' => $scriptPath]);
+            return null;
+        }
+
+        $command = sprintf(
+            '%s %s 2>/dev/null',
+            escapeshellarg($nodePath),
+            escapeshellarg($scriptPath)
+        );
+
+        $output = shell_exec($command);
+        $result = json_decode($output, true);
+
+        Log::info("LCB1 full schedule scraping complete", [
+            'vessel_count' => count($result['vessels'] ?? [])
+        ]);
+
+        return $result;
+    }
 }
