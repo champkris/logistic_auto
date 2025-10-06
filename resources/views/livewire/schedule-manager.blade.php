@@ -48,7 +48,26 @@
         </div>
     @endif
 
-    <!-- Schedules Table -->
+    <!-- Tabs Navigation -->
+    <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+            <button wire:click="switchTab('schedules')"
+                    class="@if($activeTab === 'schedules') border-blue-500 text-blue-600 @else border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 @endif whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                ⏰ Schedules
+            </button>
+            <button wire:click="switchTab('scrape_reports')"
+                    class="@if($activeTab === 'scrape_reports') border-blue-500 text-blue-600 @else border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 @endif whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                📊 Daily Scrape Reports
+            </button>
+            <button wire:click="switchTab('eta_reports')"
+                    class="@if($activeTab === 'eta_reports') border-blue-500 text-blue-600 @else border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 @endif whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                🔍 ETA Check Reports
+            </button>
+        </nav>
+    </div>
+
+    <!-- Tab Content: Schedules Table -->
+    @if($activeTab === 'schedules')
     <div class="bg-white shadow overflow-hidden sm:rounded-lg">
         <div class="px-4 py-5 sm:p-6">
             @if($schedules->count() > 0)
@@ -209,6 +228,162 @@
             @endif
         </div>
     </div>
+    @endif
+
+    <!-- Tab Content: Daily Scrape Reports -->
+    @if($activeTab === 'scrape_reports')
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">📊 Daily Vessel Scrape Reports</h3>
+
+            @if($scrapeReports->count() > 0)
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Terminal</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ports</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Vessels</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Created</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Updated</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Duration</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach($scrapeReports as $report)
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        {{ $report->created_at->format('M d, Y H:i') }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                                        {{ strtoupper($report->terminal) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">
+                                        {{ implode(', ', $report->ports_scraped) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-center text-gray-900">
+                                        {{ number_format($report->vessels_found) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-center text-green-600">
+                                        {{ number_format($report->schedules_created) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-center text-blue-600">
+                                        {{ number_format($report->schedules_updated) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-center text-gray-600">
+                                        {{ $report->duration_seconds }}s
+                                    </td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full
+                                            @if($report->status === 'success') bg-green-100 text-green-800
+                                            @elseif($report->status === 'failed') bg-red-100 text-red-800
+                                            @else bg-yellow-100 text-yellow-800
+                                            @endif">
+                                            {{ ucfirst($report->status) }}
+                                        </span>
+                                        @if($report->error_message)
+                                            <div class="text-xs text-red-600 mt-1">{{ Str::limit($report->error_message, 50) }}</div>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4">
+                    {{ $scrapeReports->links() }}
+                </div>
+            @else
+                <div class="text-center py-12">
+                    <p class="text-gray-500">No scrape reports found yet.</p>
+                </div>
+            @endif
+        </div>
+    </div>
+    @endif
+
+    <!-- Tab Content: ETA Check Reports -->
+    @if($activeTab === 'eta_reports')
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">🔍 ETA Check Reports</h3>
+
+            @if($etaReports->count() > 0)
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shipment</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vessel</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Terminal</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Updated ETA</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">By</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach($etaReports as $report)
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        {{ $report->created_at->format('M d H:i') }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        @if($report->shipment)
+                                            <a href="/shipments" class="text-blue-600 hover:underline">
+                                                {{ $report->shipment->booking_number ?? 'ID: ' . $report->shipment_id }}
+                                            </a>
+                                        @else
+                                            ID: {{ $report->shipment_id }}
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        {{ $report->vessel_name }} {{ $report->voyage_code }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">
+                                        {{ $report->terminal }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-center">
+                                        @if($report->updated_eta)
+                                            <span class="text-green-600">{{ $report->updated_eta->format('M d H:i') }}</span>
+                                        @else
+                                            <span class="text-gray-400">-</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full
+                                            @if($report->tracking_status === 'on_track') bg-green-100 text-green-800
+                                            @elseif($report->tracking_status === 'delay') bg-red-100 text-red-800
+                                            @else bg-gray-100 text-gray-800
+                                            @endif">
+                                            {{ ucfirst(str_replace('_', ' ', $report->tracking_status)) }}
+                                        </span>
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            @if($report->vessel_found) ✓ Vessel @else ✗ Vessel @endif
+                                            @if($report->voyage_found) ✓ Voyage @else ✗ Voyage @endif
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">
+                                        {{ $report->initiatedBy->name ?? 'System' }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4">
+                    {{ $etaReports->links() }}
+                </div>
+            @else
+                <div class="text-center py-12">
+                    <p class="text-gray-500">No ETA check reports found yet.</p>
+                </div>
+            @endif
+        </div>
+    </div>
+    @endif
 
     <!-- Schedule Form Modal -->
     @if($showModal)

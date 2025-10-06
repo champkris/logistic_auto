@@ -91,39 +91,76 @@ class ScrapeVesselSchedules extends Command
      */
     protected function scrapeTerminal(string $scraper, array $terminals): int
     {
+        $startTime = now();
         $count = 0;
+        $status = 'success';
+        $errorMessage = null;
+        $createdCount = 0;
+        $updatedCount = 0;
 
-        switch ($scraper) {
-            case 'hutchison':
-                $count = $this->scrapeHutchison($terminals);
-                break;
+        // Store original counts for tracking
+        $beforeCount = \App\Models\VesselSchedule::count();
 
-            case 'shipmentlink':
-                $count = $this->scrapeShipmentlink($terminals);
-                break;
+        try {
+            switch ($scraper) {
+                case 'hutchison':
+                    $count = $this->scrapeHutchison($terminals);
+                    break;
 
-            case 'tips':
-                $count = $this->scrapeTips();
-                break;
+                case 'shipmentlink':
+                    $count = $this->scrapeShipmentlink($terminals);
+                    break;
 
-            case 'esco':
-                $count = $this->scrapeEsco();
-                break;
+                case 'tips':
+                    $count = $this->scrapeTips();
+                    break;
 
-            case 'lcit':
-                $count = $this->scrapeLcit();
-                break;
+                case 'esco':
+                    $count = $this->scrapeEsco();
+                    break;
 
-            case 'shipmentlink':
-                $count = $this->scrapeShipmentlinkB2();
-                break;
+                case 'lcit':
+                    $count = $this->scrapeLcit();
+                    break;
 
-            case 'lcb1':
-                $count = $this->scrapeLcb1();
-                break;
+                case 'shipmentlink':
+                    $count = $this->scrapeShipmentlinkB2();
+                    break;
 
-            default:
-                $this->warn("   Unknown scraper: {$scraper}");
+                case 'lcb1':
+                    $count = $this->scrapeLcb1();
+                    break;
+
+                default:
+                    $this->warn("   Unknown scraper: {$scraper}");
+                    $status = 'failed';
+                    $errorMessage = "Unknown scraper: {$scraper}";
+            }
+
+            // Calculate created vs updated (rough estimate)
+            $afterCount = \App\Models\VesselSchedule::count();
+            $totalChanged = $afterCount - $beforeCount;
+            $createdCount = max(0, $totalChanged);
+            $updatedCount = max(0, $count - $createdCount);
+
+        } catch (\Exception $e) {
+            $status = 'failed';
+            $errorMessage = $e->getMessage();
+            throw $e; // Re-throw to be caught by caller
+        } finally {
+            // Log the scrape execution
+            $duration = now()->diffInSeconds($startTime);
+
+            \App\Models\DailyScrapeLog::create([
+                'terminal' => $scraper,
+                'ports_scraped' => $terminals,
+                'vessels_found' => $count,
+                'schedules_created' => $createdCount,
+                'schedules_updated' => $updatedCount,
+                'status' => $status,
+                'error_message' => $errorMessage,
+                'duration_seconds' => $duration,
+            ]);
         }
 
         return $count;

@@ -24,6 +24,9 @@ class ScheduleManager extends Component
     public $showModal = false;
     public $editingSchedule = null;
 
+    // Tab state
+    public $activeTab = 'schedules'; // schedules, scrape_reports, eta_reports
+
     // Day options for checkboxes
     public $dayOptions = [
         1 => 'Monday',
@@ -189,6 +192,35 @@ class ScheduleManager extends Component
         $this->days_of_week = [];
     }
 
+    /**
+     * Switch tabs
+     */
+    public function switchTab($tab)
+    {
+        $this->activeTab = $tab;
+        $this->resetPage();
+    }
+
+    /**
+     * Get scrape reports
+     */
+    public function getScrapeReportsProperty()
+    {
+        return \App\Models\DailyScrapeLog::with([])
+            ->recent()
+            ->paginate(20, ['*'], 'scrape_page');
+    }
+
+    /**
+     * Get ETA check reports
+     */
+    public function getEtaReportsProperty()
+    {
+        return \App\Models\EtaCheckLog::with(['shipment', 'initiatedBy'])
+            ->recent()
+            ->paginate(20, ['*'], 'eta_page');
+    }
+
     public function render()
     {
         $schedules = EtaCheckSchedule::with('creator')
@@ -197,7 +229,9 @@ class ScheduleManager extends Component
             ->paginate(10);
 
         return view('livewire.schedule-manager', [
-            'schedules' => $schedules
+            'schedules' => $schedules,
+            'scrapeReports' => $this->scrapeReports,
+            'etaReports' => $this->etaReports,
         ])->layout('layouts.app', ['title' => 'ETA Check Schedules']);
     }
 }
