@@ -355,10 +355,18 @@
                                     <td class="px-4 py-3 text-center">
                                         <span class="px-2 py-1 text-xs font-semibold rounded-full
                                             @if($report->tracking_status === 'on_track') bg-green-100 text-green-800
+                                            @elseif($report->tracking_status === 'early') bg-blue-100 text-blue-800
                                             @elseif($report->tracking_status === 'delay') bg-red-100 text-red-800
+                                            @elseif($report->tracking_status === 'departed') bg-purple-100 text-purple-800
                                             @else bg-gray-100 text-gray-800
                                             @endif">
-                                            {{ ucfirst(str_replace('_', ' ', $report->tracking_status)) }}
+                                            @if($report->tracking_status === 'early')
+                                                ⏰ Early
+                                            @elseif($report->tracking_status === 'departed')
+                                                🚢 Departed
+                                            @else
+                                                {{ ucfirst(str_replace('_', ' ', $report->tracking_status)) }}
+                                            @endif
                                         </span>
                                         <div class="text-xs text-gray-500 mt-1">
                                             @if($report->vessel_found) ✓ Vessel @else ✗ Vessel @endif

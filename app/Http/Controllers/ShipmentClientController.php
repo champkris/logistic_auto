@@ -366,10 +366,17 @@ class ShipmentClientController extends Controller
                             $shipmentEta = $shipment->planned_delivery_date;
 
                             if ($shipmentEta) {
-                                // Compare dates: On Track if scraped ETA is before or equal to shipment ETA
-                                if ($scrapedEta->lte($shipmentEta)) {
+                                // Compare dates with tolerance of 1 day for "on_track"
+                                $daysDifference = $scrapedEta->diffInDays($shipmentEta, false);
+
+                                if ($scrapedEta->lt($shipmentEta)) {
+                                    // Scraped ETA is earlier than planned
+                                    $updateData['tracking_status'] = 'early';
+                                } elseif ($scrapedEta->equalTo($shipmentEta) || $daysDifference <= 1) {
+                                    // Same day or within 1 day tolerance
                                     $updateData['tracking_status'] = 'on_track';
                                 } else {
+                                    // Scraped ETA is later than planned
                                     $updateData['tracking_status'] = 'delay';
                                 }
                             } else {
@@ -397,7 +404,32 @@ class ShipmentClientController extends Controller
                     }
                 } else {
                     // Either vessel or voyage (or both) not found
-                    $updateData['tracking_status'] = 'not_found';
+                    // Check if vessel was previously found (departed detection)
+                    $lastSuccessfulCheck = EtaCheckLog::where('shipment_id', $shipment->id)
+                        ->where('vessel_found', true)
+                        ->where('voyage_found', true)
+                        ->whereNotNull('updated_eta')
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+
+                    if ($lastSuccessfulCheck) {
+                        // Vessel was found before but not now - likely departed
+                        $updateData['tracking_status'] = 'departed';
+
+                        // Keep the last known ETA and status
+                        if (!isset($updateData['bot_received_eta_date']) && $lastSuccessfulCheck->updated_eta) {
+                            $updateData['bot_received_eta_date'] = $lastSuccessfulCheck->updated_eta;
+                        }
+
+                        Log::info('Vessel departed - was found previously but not now', [
+                            'shipment_id' => $shipment->id,
+                            'last_found_at' => $lastSuccessfulCheck->created_at,
+                            'last_eta' => $lastSuccessfulCheck->updated_eta
+                        ]);
+                    } else {
+                        // Never found before
+                        $updateData['tracking_status'] = 'not_found';
+                    }
                 }
 
                 $shipment->update($updateData);

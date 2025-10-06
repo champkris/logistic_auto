@@ -453,17 +453,29 @@
                                             <span class="px-2 py-1 rounded-full text-xs font-medium
                                                 @if($shipment->tracking_status === 'on_track')
                                                     bg-green-100 text-green-800
+                                                @elseif($shipment->tracking_status === 'early')
+                                                    bg-blue-100 text-blue-800
+                                                @elseif($shipment->tracking_status === 'delay')
+                                                    bg-red-100 text-red-800
+                                                @elseif($shipment->tracking_status === 'departed')
+                                                    bg-purple-100 text-purple-800
                                                 @elseif($shipment->tracking_status === 'not_found')
                                                     bg-gray-100 text-gray-800
                                                 @else
-                                                    bg-red-100 text-red-800
+                                                    bg-yellow-100 text-yellow-800
                                                 @endif">
                                                 @if($shipment->tracking_status === 'on_track')
                                                     ✅ On Track
+                                                @elseif($shipment->tracking_status === 'early')
+                                                    ⏰ Early
+                                                @elseif($shipment->tracking_status === 'delay')
+                                                    ⚠️ Delay
+                                                @elseif($shipment->tracking_status === 'departed')
+                                                    🚢 Departed
                                                 @elseif($shipment->tracking_status === 'not_found')
                                                     ❓ Not Found
                                                 @else
-                                                    ⚠️ Delay
+                                                    {{ ucfirst(str_replace('_', ' ', $shipment->tracking_status)) }}
                                                 @endif
                                             </span>
                                         @else
