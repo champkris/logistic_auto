@@ -577,8 +577,8 @@
                                                                         <td class="px-2 py-1 text-xs text-center">{{ $log['vessel_name'] }}</td>
                                                                         <td class="px-2 py-1 text-xs text-center">{{ $log['voyage_code'] }}</td>
                                                                         <td class="px-2 py-1 text-xs text-center">
-                                                                            @if($log['scraped_eta'])
-                                                                                <span class="text-blue-600 font-medium">{{ $log['scraped_eta'] }}</span>
+                                                                            @if($log['updated_eta'])
+                                                                                <span class="text-blue-600 font-medium">{{ $log['updated_eta'] }}</span>
                                                                             @else
                                                                                 <span class="text-gray-400">-</span>
                                                                             @endif
