@@ -154,7 +154,19 @@ class VesselTrackingService
      */
     public function checkVesselETAByName($vesselFullName, $portCode = null)
     {
+        \Log::debug("VesselTrackingService parsing vessel name", [
+            'input' => $vesselFullName,
+            'length' => strlen($vesselFullName),
+            'bytes' => bin2hex($vesselFullName)
+        ]);
+
         $parsed = VesselNameParser::parse($vesselFullName);
+
+        \Log::debug("VesselNameParser result", [
+            'vessel_name' => $parsed['vessel_name'],
+            'voyage_code' => $parsed['voyage_code'],
+            'parsing_method' => $parsed['parsing_method']
+        ]);
 
         // If no port specified, try all unique terminals
         if (!$portCode) {
@@ -570,7 +582,7 @@ class VesselTrackingService
         try {
             // Use the LCIT scraper wrapper for cleaner output
             $command = sprintf(
-                'cd %s && timeout 120s node lcit-wrapper.js %s %s 2>/dev/null',
+                'cd %s && timeout 120s node lcit-wrapper.js %s %s',
                 escapeshellarg(base_path('browser-automation')),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')

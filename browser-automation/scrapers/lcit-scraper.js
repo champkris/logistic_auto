@@ -19,6 +19,11 @@ class LCITScraper {
             const page = await context.newPage();
             page.setDefaultTimeout(30000);
 
+            // Capture browser console output
+            page.on('console', msg => {
+                console.error(`[Browser Console] ${msg.type()}: ${msg.text()}`);
+            });
+
             // Construct URL with query parameters
             const searchUrl = `${this.baseUrl}?vsl=${encodeURIComponent(vesselName)}&voy=${encodeURIComponent(voyageCode || '')}`;
             console.error(`Navigating to: ${searchUrl}`);
@@ -46,12 +51,32 @@ class LCITScraper {
 
             console.error('Vessel found in page content');
 
+            // Wait for table to load with data (more than just header rows)
+            console.error('Waiting for table data to load...');
+            await page.waitForFunction(() => {
+                const table = document.querySelector('table');
+                if (!table) return false;
+                const rows = table.querySelectorAll('tr');
+                return rows.length > 2; // Wait for more than 2 header rows
+            }, { timeout: 15000 }).catch(() => {
+                console.error('Timeout waiting for table data, proceeding anyway');
+            });
+
+            // Give it a moment for rendering
+            await page.waitForTimeout(1000);
+
             // Extract table data
             const vesselData = await page.evaluate((targetVessel) => {
                 const table = document.querySelector('table');
-                if (!table) return null;
+                if (!table) {
+                    console.log('DEBUG: No table found');
+                    return null;
+                }
 
                 const rows = table.querySelectorAll('tr');
+                console.log(`DEBUG: Found ${rows.length} rows in table`);
+                console.log(`DEBUG: Looking for vessel: "${targetVessel}"`);
+
                 for (let i = 0; i < rows.length; i++) {
                     const cells = rows[i].querySelectorAll('td, th');
                     const rowData = [];
@@ -62,7 +87,14 @@ class LCITScraper {
 
                     // Look for vessel name in row
                     const rowText = rowData.join(' ').toUpperCase();
-                    if (rowText.includes(targetVessel.toUpperCase()) && rowData.length > 5) {
+                    const targetUpper = targetVessel.toUpperCase();
+                    const matchesVessel = rowText.includes(targetUpper);
+                    const hasEnoughColumns = rowData.length > 5;
+
+                    console.log(`DEBUG Row ${i}: cols=${rowData.length}, matches="${matchesVessel}", data=[${rowData.slice(0, 3).join(', ')}]`);
+
+                    if (matchesVessel && hasEnoughColumns) {
+                        console.log(`DEBUG: MATCH FOUND at row ${i}:`, rowData);
                         return {
                             berth: rowData[0] || null,
                             vessel: rowData[1] || null,
@@ -75,6 +107,7 @@ class LCITScraper {
                         };
                     }
                 }
+                console.log('DEBUG: No matching row found');
                 return null;
             }, vesselName);
 

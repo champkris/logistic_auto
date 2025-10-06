@@ -57,8 +57,24 @@ class Vessel extends Model
         if (!empty($this->full_vessel_name)) {
             return $this->full_vessel_name;
         }
-        
+
         return VesselNameParser::formatForDisplay($this->vessel_name, $this->voyage_number);
+    }
+
+    /**
+     * Accessor for 'name' to map to 'vessel_name' for backward compatibility
+     */
+    public function getNameAttribute()
+    {
+        return $this->vessel_name;
+    }
+
+    /**
+     * Mutator for 'name' to map to 'vessel_name' for backward compatibility
+     */
+    public function setNameAttribute($value)
+    {
+        $this->attributes['vessel_name'] = $value;
     }
 
     /**

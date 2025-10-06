@@ -335,16 +335,15 @@ class ShipmentManager extends Component
     {
         if (!empty($this->vessel_name)) {
             // Try to find existing vessel
-            $vessel = Vessel::where('name', $this->vessel_name)->first();
+            $vessel = Vessel::where('vessel_name', $this->vessel_name)->first();
 
             if (!$vessel) {
                 // Create new vessel if it doesn't exist
                 $vessel = Vessel::create([
-                    'name' => $this->vessel_name,
-                    'vessel_code' => strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $this->vessel_name), 0, 10)),
-                    'imo_number' => null,
-                    'call_sign' => null,
-                    'flag' => null
+                    'vessel_name' => $this->vessel_name,
+                    'port' => 'Unknown', // Required field
+                    'status' => 'scheduled', // Required field
+                    'imo_number' => null
                 ]);
             }
 
@@ -574,7 +573,7 @@ class ShipmentManager extends Component
             $this->quantity_number = $this->editingShipment->quantity_number;            $this->quantity_unit = $this->editingShipment->quantity_unit;
             $this->customer_id = $this->editingShipment->customer_id;
             $this->vessel_id = $this->editingShipment->vessel_id;
-            $this->vessel_name = $this->editingShipment->vessel ? $this->editingShipment->vessel->name : '';
+            $this->vessel_name = $this->editingShipment->vessel ? $this->editingShipment->vessel->vessel_name : '';
             $this->vessel_exists = !empty($this->vessel_name);
             $this->joint_pickup = $this->editingShipment->joint_pickup;
             $this->customs_clearance_status = $this->editingShipment->customs_clearance_status ?? 'pending';

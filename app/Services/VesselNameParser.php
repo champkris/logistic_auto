@@ -34,20 +34,23 @@ class VesselNameParser
         $patterns = [
             // Pattern 1: Space + V.xxxxx (e.g., "SRI SUREE V.25080S")
             '/^(.+?)\s+(V\.\d+[A-Z\d]*)$/i',
-            
+
             // Pattern 2: Space + Vxxxxx (e.g., "EVER GIVEN V2024S")
             '/^(.+?)\s+(V\d+[A-Z\d]*)$/i',
-            
-            // Pattern 3: Space + single letter + numbers (e.g., "WAN HAI 517 S093")
+
+            // Pattern 3: Space + single letter + numbers (e.g., "WAN HAI 517 S093", "SAMAL OQILRS1NC")
             '/^(.+?)\s+([A-Z]\d+[A-Z\d]*)$/i',
-            
-            // Pattern 4: Space + numbers only (e.g., "MSC PARIS 2024")
+
+            // Pattern 4: Space + digit + alphanumeric mix (e.g., "SAMAL 0QILRS1NC")
+            '/^(.+?)\s+(\d[A-Z\d]{5,})$/i',
+
+            // Pattern 5: Space + numbers only (e.g., "MSC PARIS 2024")
             '/^(.+?)\s+(\d{3,})$/i',
-            
-            // Pattern 5: Space + combination with dot and spaces (e.g., "CUL NANSHA V. 2528S")
+
+            // Pattern 6: Space + combination with dot and spaces (e.g., "CUL NANSHA V. 2528S")
             '/^(.+?)\s+(V\.\s*\d+[A-Z\d]*)$/i',
-            
-            // Pattern 6: Complex voyage codes (e.g., "EVER BUILD V.0794-074S")
+
+            // Pattern 7: Complex voyage codes (e.g., "EVER BUILD V.0794-074S")
             '/^(.+?)\s+(V\.\d+-\d+[A-Z]*)$/i',
         ];
 
@@ -97,7 +100,8 @@ class VesselNameParser
         $voyagePatterns = [
             '/^V\.\d+[A-Z\d]*$/i',  // V.2508S, V.25080S
             '/^V\d+[A-Z\d]*$/i',    // V2024S
-            '/^[A-Z]\d+[A-Z\d]*$/i', // S093, N123A
+            '/^[A-Z]\d+[A-Z\d]*$/i', // S093, N123A, OQILRS1NC
+            '/^\d[A-Z\d]{5,}$/i',   // 0QILRS1NC (starts with digit, has letters)
             '/^\d{3,}[A-Z]*$/i',    // 2024, 2024S
             '/^V\.\d+-\d+[A-Z]*$/i', // V.0794-074S
         ];
