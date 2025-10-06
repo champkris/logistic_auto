@@ -17,39 +17,40 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withSchedule(function ($schedule) {
-        // Daily scraping of vessel schedules from all terminals (3 AM)
-        $schedule->command('vessel:scrape-schedules')
-            ->dailyAt('03:00')
-            ->name('daily-vessel-scrape')
-            ->onSuccess(function () {
-                \Illuminate\Support\Facades\Log::info('Daily vessel schedule scraping completed successfully');
-            })
-            ->onFailure(function () {
-                \Illuminate\Support\Facades\Log::error('Daily vessel schedule scraping failed');
-            });
-
-        // Check for due ETA schedules every minute
+        // Check for all due schedules every minute (both vessel scrape and ETA checks)
         $schedule->call(function () {
             $schedules = \App\Models\EtaCheckSchedule::dueForExecution()->get();
 
-            foreach ($schedules as $schedule) {
-                if ($schedule->shouldRunNow()) {
-                    \Illuminate\Support\Facades\Artisan::call('shipments:check-eta', [
-                        '--schedule-id' => $schedule->id,
-                        '--limit' => 50,
-                        '--delay' => 30
-                    ]);
+            foreach ($schedules as $scheduleItem) {
+                if ($scheduleItem->shouldRunNow()) {
+                    if ($scheduleItem->schedule_type === 'vessel_scrape') {
+                        // Run vessel scraping
+                        \Illuminate\Support\Facades\Artisan::call('vessel:scrape-schedules');
 
-                    $schedule->markAsExecuted();
+                        \Illuminate\Support\Facades\Log::info("Executed scheduled vessel scraping", [
+                            'schedule_id' => $scheduleItem->id,
+                            'schedule_name' => $scheduleItem->name,
+                            'executed_at' => now()->format('Y-m-d H:i:s')
+                        ]);
+                    } else {
+                        // Run ETA check
+                        \Illuminate\Support\Facades\Artisan::call('shipments:check-eta', [
+                            '--schedule-id' => $scheduleItem->id,
+                            '--limit' => 50,
+                            '--delay' => 30
+                        ]);
 
-                    \Illuminate\Support\Facades\Log::info("Executed scheduled ETA check", [
-                        'schedule_id' => $schedule->id,
-                        'schedule_name' => $schedule->name,
-                        'executed_at' => now()->format('Y-m-d H:i:s')
-                    ]);
+                        \Illuminate\Support\Facades\Log::info("Executed scheduled ETA check", [
+                            'schedule_id' => $scheduleItem->id,
+                            'schedule_name' => $scheduleItem->name,
+                            'executed_at' => now()->format('Y-m-d H:i:s')
+                        ]);
+                    }
+
+                    $scheduleItem->markAsExecuted();
                 }
             }
-        })->everyMinute()->name('check-eta-schedules');
+        })->everyMinute()->name('check-all-schedules');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

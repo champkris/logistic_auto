@@ -57,6 +57,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -76,6 +77,22 @@
                                                 <div class="text-sm text-gray-500">{{ $schedule->description }}</div>
                                             @endif
                                         </div>
+                                    </td>
+
+                                    <!-- Type -->
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full
+                                            @if($schedule->schedule_type === 'vessel_scrape')
+                                                bg-purple-100 text-purple-800
+                                            @else
+                                                bg-teal-100 text-teal-800
+                                            @endif">
+                                            @if($schedule->schedule_type === 'vessel_scrape')
+                                                🚢 Vessel Scrape
+                                            @else
+                                                📊 ETA Check
+                                            @endif
+                                        </span>
                                     </td>
 
                                     <!-- Time -->
@@ -267,6 +284,35 @@
                     <div class="flex-1 overflow-y-auto pr-2 -mr-2">
                         <!-- Form -->
                         <form wire:submit.prevent="save" class="mt-8 space-y-6" id="schedule-form">
+                        <!-- Schedule Type -->
+                        <div class="space-y-2">
+                            <label class="block text-base font-semibold text-gray-900 flex items-center">
+                                🎯 Schedule Type
+                                <span class="ml-2 text-sm font-normal text-red-500">*</span>
+                            </label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="flex items-center p-4 bg-white border-2 rounded-xl cursor-pointer transition-all duration-200 hover:border-purple-300
+                                    {{ $schedule_type === 'vessel_scrape' ? 'border-purple-500 bg-purple-50' : 'border-gray-200' }}">
+                                    <input type="radio" wire:model="schedule_type" value="vessel_scrape"
+                                           class="text-purple-600 focus:ring-purple-500">
+                                    <div class="ml-3">
+                                        <div class="font-medium text-gray-900">🚢 Vessel Scrape</div>
+                                        <div class="text-xs text-gray-500">Daily terminal scraping</div>
+                                    </div>
+                                </label>
+                                <label class="flex items-center p-4 bg-white border-2 rounded-xl cursor-pointer transition-all duration-200 hover:border-teal-300
+                                    {{ $schedule_type === 'eta_check' ? 'border-teal-500 bg-teal-50' : 'border-gray-200' }}">
+                                    <input type="radio" wire:model="schedule_type" value="eta_check"
+                                           class="text-teal-600 focus:ring-teal-500">
+                                    <div class="ml-3">
+                                        <div class="font-medium text-gray-900">📊 ETA Check</div>
+                                        <div class="text-xs text-gray-500">Check shipment ETAs</div>
+                                    </div>
+                                </label>
+                            </div>
+                            @error('schedule_type') <span class="text-red-500 text-sm mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+
                         <!-- Schedule Name -->
                         <div class="space-y-2">
                             <label class="block text-base font-semibold text-gray-900 flex items-center">

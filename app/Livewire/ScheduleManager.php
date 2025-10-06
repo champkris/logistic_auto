@@ -14,6 +14,7 @@ class ScheduleManager extends Component
 
     // Form properties
     public $name = '';
+    public $schedule_type = 'eta_check';
     public $check_time = '';
     public $description = '';
     public $is_active = true;
@@ -36,6 +37,7 @@ class ScheduleManager extends Component
 
     protected $rules = [
         'name' => 'required|string|max:255',
+        'schedule_type' => 'required|in:vessel_scrape,eta_check',
         'check_time' => 'required|date_format:H:i',
         'description' => 'nullable|string|max:500',
         'is_active' => 'boolean',
@@ -69,6 +71,7 @@ class ScheduleManager extends Component
 
         $this->editingSchedule = $schedule;
         $this->name = $schedule->name;
+        $this->schedule_type = $schedule->schedule_type;
         $this->check_time = $schedule->check_time->format('H:i');
         $this->description = $schedule->description;
         $this->is_active = $schedule->is_active;
@@ -83,6 +86,7 @@ class ScheduleManager extends Component
 
         $data = [
             'name' => $this->name,
+            'schedule_type' => $this->schedule_type,
             'check_time' => $this->check_time,
             'description' => $this->description,
             'is_active' => $this->is_active,
@@ -126,16 +130,23 @@ class ScheduleManager extends Component
     {
         $schedule = EtaCheckSchedule::findOrFail($scheduleId);
 
-        // Dispatch the ETA check command
-        \Illuminate\Support\Facades\Artisan::call('shipments:check-eta', [
-            '--schedule-id' => $schedule->id,
-            '--limit' => 50,
-            '--delay' => 5 // Shorter delay for manual execution
-        ]);
+        if ($schedule->schedule_type === 'vessel_scrape') {
+            // Run vessel scraping command
+            \Illuminate\Support\Facades\Artisan::call('vessel:scrape-schedules');
+            $message = 'Vessel scraping initiated! This may take a few minutes.';
+        } else {
+            // Run ETA check command
+            \Illuminate\Support\Facades\Artisan::call('shipments:check-eta', [
+                '--schedule-id' => $schedule->id,
+                '--limit' => 50,
+                '--delay' => 5 // Shorter delay for manual execution
+            ]);
+            $message = 'ETA check initiated! Results will appear in the shipment history.';
+        }
 
         $schedule->markAsExecuted();
 
-        $this->dispatch('success', message: 'ETA check initiated! Results will appear in the shipment history.');
+        $this->dispatch('success', message: $message);
     }
 
     public function runAllEtaCheck()
@@ -171,6 +182,7 @@ class ScheduleManager extends Component
     private function resetForm()
     {
         $this->name = '';
+        $this->schedule_type = 'eta_check';
         $this->check_time = '08:00';
         $this->description = '';
         $this->is_active = true;

@@ -12,6 +12,7 @@ class EtaCheckSchedule extends Model
 
     protected $fillable = [
         'name',
+        'schedule_type',
         'check_time',
         'is_active',
         'days_of_week',
@@ -43,6 +44,22 @@ class EtaCheckSchedule extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope to get vessel scrape schedules.
+     */
+    public function scopeVesselScrape($query)
+    {
+        return $query->where('schedule_type', 'vessel_scrape');
+    }
+
+    /**
+     * Scope to get ETA check schedules.
+     */
+    public function scopeEtaCheck($query)
+    {
+        return $query->where('schedule_type', 'eta_check');
     }
 
     /**
