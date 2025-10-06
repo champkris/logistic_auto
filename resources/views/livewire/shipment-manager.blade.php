@@ -1248,6 +1248,19 @@
                 body: JSON.stringify({ shipment_id: shipmentId })
             });
 
+            // Check if response is OK
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+            }
+
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                throw new Error(`Expected JSON response but got: ${text.substring(0, 100)}`);
+            }
+
             const result = await response.json();
 
             if (result.success) {
