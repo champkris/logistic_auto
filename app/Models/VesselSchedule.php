@@ -76,9 +76,9 @@ class VesselSchedule extends Model
     }
 
     /**
-     * Find vessel schedule by name and optional port
+     * Find vessel schedule by name and optional port and voyage
      */
-    public static function findVessel(string $vesselName, ?string $portTerminal = null)
+    public static function findVessel(string $vesselName, ?string $portTerminal = null, ?string $voyageCode = null)
     {
         $query = static::query()
             ->fresh()
@@ -89,6 +89,10 @@ class VesselSchedule extends Model
 
         if ($portTerminal) {
             $query->forPort($portTerminal);
+        }
+
+        if ($voyageCode) {
+            $query->where('voyage_code', $voyageCode);
         }
 
         return $query->first();

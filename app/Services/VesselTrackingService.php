@@ -182,20 +182,26 @@ class VesselTrackingService
     protected function checkVesselETAWithParsedName($parsedVessel, $portCode)
     {
         // OPTIMIZATION: Check local database first (from daily scrapes)
-        $dbSchedule = VesselSchedule::findVessel($parsedVessel['vessel_name'], $portCode);
+        $dbSchedule = VesselSchedule::findVessel($parsedVessel['vessel_name'], $portCode, $parsedVessel['voyage_code']);
 
         if ($dbSchedule) {
             Log::info('Vessel schedule found in database (instant lookup)', [
                 'vessel' => $parsedVessel['vessel_name'],
+                'voyage' => $parsedVessel['voyage_code'],
                 'port' => $portCode,
                 'eta' => $dbSchedule->eta,
                 'source' => $dbSchedule->source,
                 'age_hours' => $dbSchedule->scraped_at->diffInHours(now())
             ]);
 
+            // Check if voyage code matches (if voyage code was provided)
+            $voyageMatches = !$parsedVessel['voyage_code'] ||
+                             strcasecmp($dbSchedule->voyage_code, $parsedVessel['voyage_code']) === 0;
+
             return [
                 'success' => true,
                 'vessel_found' => true,
+                'voyage_found' => $voyageMatches,
                 'vessel_name' => $dbSchedule->vessel_name,
                 'voyage_code' => $dbSchedule->voyage_code,
                 'port_terminal' => $dbSchedule->port_terminal,
