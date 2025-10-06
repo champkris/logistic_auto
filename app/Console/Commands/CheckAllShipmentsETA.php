@@ -324,8 +324,12 @@ class CheckAllShipmentsETA extends Command
                             } else {
                                 $updateData['tracking_status'] = 'on_track';
                             }
+
+                            // Clear departed flag when vessel is found again
+                            $updateData['is_departed'] = false;
                         } else {
                             $updateData['tracking_status'] = 'on_track';
+                            $updateData['is_departed'] = false;
                         }
                     } catch (\Exception $e) {
                         $updateData['tracking_status'] = 'on_track';
@@ -342,7 +346,17 @@ class CheckAllShipmentsETA extends Command
 
                     if ($lastSuccessfulCheck) {
                         // Vessel was found before but not now - likely departed
-                        $updateData['tracking_status'] = 'departed';
+                        // Keep the last tracking status (early/on_track/delay) but mark as departed
+                        $lastStatus = $lastSuccessfulCheck->tracking_status;
+
+                        // If last status was one of the trackable statuses, keep it and add departed flag
+                        if (in_array($lastStatus, ['early', 'on_track', 'delay'])) {
+                            $updateData['tracking_status'] = $lastStatus;
+                            $updateData['is_departed'] = true;
+                        } else {
+                            // Fallback to departed if last status was not trackable
+                            $updateData['tracking_status'] = 'departed';
+                        }
 
                         // Keep the last known ETA
                         if (!isset($updateData['bot_received_eta_date']) && $lastSuccessfulCheck->updated_eta) {

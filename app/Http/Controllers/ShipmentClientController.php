@@ -384,6 +384,9 @@ class ShipmentClientController extends Controller
                                 $updateData['tracking_status'] = 'on_track';
                             }
 
+                            // Clear departed flag when vessel is found again
+                            $updateData['is_departed'] = false;
+
                             Log::info('ETA comparison completed', [
                                 'shipment_id' => $shipment->id,
                                 'scraped_eta' => $scrapedEta->format('Y-m-d H:i:s'),
@@ -414,15 +417,26 @@ class ShipmentClientController extends Controller
 
                     if ($lastSuccessfulCheck) {
                         // Vessel was found before but not now - likely departed
-                        $updateData['tracking_status'] = 'departed';
+                        // Keep the last tracking status (early/on_track/delay) but mark as departed
+                        $lastStatus = $lastSuccessfulCheck->tracking_status;
 
-                        // Keep the last known ETA and status
+                        // If last status was one of the trackable statuses, keep it and add departed flag
+                        if (in_array($lastStatus, ['early', 'on_track', 'delay'])) {
+                            $updateData['tracking_status'] = $lastStatus;
+                            $updateData['is_departed'] = true;
+                        } else {
+                            // Fallback to departed if last status was not trackable
+                            $updateData['tracking_status'] = 'departed';
+                        }
+
+                        // Keep the last known ETA
                         if (!isset($updateData['bot_received_eta_date']) && $lastSuccessfulCheck->updated_eta) {
                             $updateData['bot_received_eta_date'] = $lastSuccessfulCheck->updated_eta;
                         }
 
                         Log::info('Vessel departed - was found previously but not now', [
                             'shipment_id' => $shipment->id,
+                            'last_status' => $lastStatus,
                             'last_found_at' => $lastSuccessfulCheck->created_at,
                             'last_eta' => $lastSuccessfulCheck->updated_eta
                         ]);

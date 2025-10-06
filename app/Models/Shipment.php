@@ -39,6 +39,7 @@ class Shipment extends Model
         'notes',
         'cargo_details',
         'pickup_location',
+        'is_departed',
     ];
 
     protected $casts = [
@@ -53,6 +54,7 @@ class Shipment extends Model
         'weight_kgm' => 'decimal:2',
         'quantity_number' => 'decimal:2',
         'quantity_days' => 'integer',
+        'is_departed' => 'boolean',
     ];
 
     /**

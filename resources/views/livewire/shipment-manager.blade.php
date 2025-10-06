@@ -465,11 +465,11 @@
                                                     bg-yellow-100 text-yellow-800
                                                 @endif">
                                                 @if($shipment->tracking_status === 'on_track')
-                                                    ✅ On Track
+                                                    ✅ On Track{{ $shipment->is_departed ? ' (Departed)' : '' }}
                                                 @elseif($shipment->tracking_status === 'early')
-                                                    ⏰ Early
+                                                    ⏰ Early{{ $shipment->is_departed ? ' (Departed)' : '' }}
                                                 @elseif($shipment->tracking_status === 'delay')
-                                                    ⚠️ Delay
+                                                    ⚠️ Delay{{ $shipment->is_departed ? ' (Departed)' : '' }}
                                                 @elseif($shipment->tracking_status === 'departed')
                                                     🚢 Departed
                                                 @elseif($shipment->tracking_status === 'not_found')
