@@ -14,7 +14,7 @@ class EtaCheckLog extends Model
         'terminal',
         'vessel_name',
         'voyage_code',
-        'scraped_eta',
+        'updated_eta',
         'shipment_eta_at_time',
         'tracking_status',
         'vessel_found',
@@ -25,7 +25,7 @@ class EtaCheckLog extends Model
     ];
 
     protected $casts = [
-        'scraped_eta' => 'datetime',
+        'updated_eta' => 'datetime',
         'shipment_eta_at_time' => 'datetime',
         'vessel_found' => 'boolean',
         'voyage_found' => 'boolean',

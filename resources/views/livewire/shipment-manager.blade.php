@@ -259,10 +259,10 @@
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ท่าเรือ</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">ชิ้ปปิ้ง</th>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">CS</th>
-                                <!-- Scraped ETA - sortable -->
+                                <!-- Updated ETA - sortable -->
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">
                                     <button wire:click="sortBy('bot_received_eta_date')" class="flex items-center justify-center w-full hover:text-blue-600">
-                                        Scraped ETA
+                                        Updated ETA
                                         @if($sortField === 'bot_received_eta_date')
                                             @if($sortDirection === 'asc')
                                                 <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
@@ -436,10 +436,10 @@
                                     <!-- CS Reference -->
                                     <td class="px-1 py-1 text-xs text-center">{{ $shipment->cs_reference ?? '-' }}</td>
 
-                                    <!-- Scraped ETA -->
+                                    <!-- Updated ETA -->
                                     <td class="px-1 py-1 text-xs text-center">
                                         @if($shipment->bot_received_eta_date)
-                                            <div class="text-green-600" title="Scraped ETA from terminal">
+                                            <div class="text-green-600" title="Updated ETA from terminal">
                                                 📅 {{ $shipment->bot_received_eta_date->format('d/m H:i') }}
                                             </div>
                                         @else
@@ -562,7 +562,7 @@
                                                                     <th class="px-2 py-1 text-center font-medium text-gray-700">Terminal</th>
                                                                     <th class="px-2 py-1 text-center font-medium text-gray-700">Vessel</th>
                                                                     <th class="px-2 py-1 text-center font-medium text-gray-700">Voyage</th>
-                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Scraped ETA</th>
+                                                                    <th class="px-2 py-1 text-center font-medium text-gray-700">Updated ETA</th>
                                                                     <th class="px-2 py-1 text-center font-medium text-gray-700">Shipment ETA</th>
                                                                     <th class="px-2 py-1 text-center font-medium text-gray-700">Status</th>
                                                                     <th class="px-2 py-1 text-center font-medium text-gray-700">Found</th>

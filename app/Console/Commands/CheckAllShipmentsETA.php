@@ -332,7 +332,7 @@ class CheckAllShipmentsETA extends Command
 
                 // Log the check
                 $logData = array_merge($logData, [
-                    'scraped_eta' => isset($updateData['bot_received_eta_date']) ? $updateData['bot_received_eta_date'] : null,
+                    'updated_eta' => isset($updateData['bot_received_eta_date']) ? $updateData['bot_received_eta_date'] : null,
                     'tracking_status' => $updateData['tracking_status'],
                     'vessel_found' => $vesselFound,
                     'voyage_found' => $result['voyage_found'] ?? false,

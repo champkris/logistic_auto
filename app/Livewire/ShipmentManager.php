@@ -731,7 +731,7 @@ class ShipmentManager extends Component
                 'terminal' => $log->terminal,
                 'vessel_name' => $log->vessel_name,
                 'voyage_code' => $log->voyage_code,
-                'scraped_eta' => $log->scraped_eta ? $log->scraped_eta->format('Y-m-d H:i:s') : null,
+                'updated_eta' => $log->updated_eta ? $log->updated_eta->format('Y-m-d H:i:s') : null,
                 'shipment_eta' => $log->shipment_eta_at_time ? $log->shipment_eta_at_time->format('Y-m-d H:i:s') : null,
                 'tracking_status' => $log->tracking_status,
                 'status_text' => $log->status_text,
