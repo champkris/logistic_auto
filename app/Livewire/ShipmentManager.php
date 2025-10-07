@@ -145,7 +145,7 @@ class ShipmentManager extends Component
         'cargo_volume' => 'nullable|numeric|min:0',
         'last_eta_check_date' => 'nullable|date',
         'bot_received_eta_date' => 'nullable|date',
-        'tracking_status' => 'nullable|in:on_track,delay,not_found',
+        'tracking_status' => 'nullable|in:on_track,early,delay,departed,not_found',
         'status' => 'required|in:in-progress,completed',
         ];
     }
