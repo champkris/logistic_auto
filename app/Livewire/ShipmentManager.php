@@ -477,17 +477,27 @@ class ShipmentManager extends Component
                 if ($previousDate === null || $currentDate !== $previousDate) {
                     // We're starting a new date group - need to find where we left off
                     // Count all filtered shipments with this date that come BEFORE this one
-                    // based on the SAME sort order (client_requested_delivery_date, then created_at)
+                    // based on the SAME sort order (DESC: later datetimes come first)
                     $precedingCount = $this->buildShipmentQuery()
                         ->whereDate('client_requested_delivery_date', $currentDate)
                         ->where(function ($q) use ($shipment) {
-                            // Shipments with earlier datetime on the same date
-                            $q->where('client_requested_delivery_date', '<', $shipment->client_requested_delivery_date)
-                              // OR same datetime but earlier created_at
-                              ->orWhere(function ($q2) use ($shipment) {
-                                  $q2->where('client_requested_delivery_date', '=', $shipment->client_requested_delivery_date)
-                                     ->where('created_at', '<', $shipment->created_at);
-                              });
+                            if ($this->sortDirection === 'desc') {
+                                // DESC: count shipments with LATER datetime (they appear before in sort order)
+                                $q->where('client_requested_delivery_date', '>', $shipment->client_requested_delivery_date)
+                                  // OR same datetime but created earlier (with ASC secondary sort)
+                                  ->orWhere(function ($q2) use ($shipment) {
+                                      $q2->where('client_requested_delivery_date', '=', $shipment->client_requested_delivery_date)
+                                         ->where('created_at', '<', $shipment->created_at);
+                                  });
+                            } else {
+                                // ASC: count shipments with EARLIER datetime (they appear before in sort order)
+                                $q->where('client_requested_delivery_date', '<', $shipment->client_requested_delivery_date)
+                                  // OR same datetime but created earlier
+                                  ->orWhere(function ($q2) use ($shipment) {
+                                      $q2->where('client_requested_delivery_date', '=', $shipment->client_requested_delivery_date)
+                                         ->where('created_at', '<', $shipment->created_at);
+                                  });
+                            }
                         })
                         ->count();
 
