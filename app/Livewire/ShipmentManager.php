@@ -68,7 +68,7 @@ class ShipmentManager extends Component
 
     // Sorting properties
     public $sortField = 'client_requested_delivery_date';
-    public $sortDirection = 'asc';
+    public $sortDirection = 'desc';
 
     // Expandable rows for ETA history
     public $expandedRows = [];
