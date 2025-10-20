@@ -48,7 +48,7 @@
                 </div>
 
                 <!-- Reset Filters Button -->
-                @if($search || $filterCustomer || $filterVessel || $filterPortTerminal || $filterShippingTeam || $filterCsReference || $statusFilter)
+                @if($search || $filterCustomer || $filterVessel || $filterPortTerminal || $filterShippingTeam || $filterCsReference || $filterDateFrom || $filterDateTo || $statusFilter)
                 <button wire:click="resetFilters"
                         class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <svg class="h-4 w-4 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,7 +60,25 @@
             </div>
 
             <!-- Filter Dropdowns -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-8 gap-3">
+                <!-- Date Range From -->
+                <div>
+                    <label for="filterDateFrom" class="block text-xs font-medium text-gray-700 mb-1">Date From</label>
+                    <input wire:model.live="filterDateFrom"
+                           type="date"
+                           id="filterDateFrom"
+                           class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <!-- Date Range To -->
+                <div>
+                    <label for="filterDateTo" class="block text-xs font-medium text-gray-700 mb-1">Date To</label>
+                    <input wire:model.live="filterDateTo"
+                           type="date"
+                           id="filterDateTo"
+                           class="block w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
                 <!-- Customer Filter -->
                 <div>
                     <label for="filterCustomer" class="block text-xs font-medium text-gray-700 mb-1">Customer</label>
@@ -181,6 +199,8 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">📋</th>
+                                <!-- Daily Count Column -->
+                                <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase" title="Running number per client request date">#</th>
                                 <!-- Client Request Date - sortable -->
                                 <th class="px-1 py-2 text-center text-xs font-medium text-gray-700 uppercase">
                                     <button wire:click="sortBy('client_requested_delivery_date')" class="flex items-center justify-center w-full hover:text-blue-600">
@@ -207,6 +227,8 @@
                                         @endif
                                     </button>
                                 </th>
+                                <!-- Notes -->
+                                <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase" style="min-width: 150px; max-width: 250px;">NOTES</th>
                                 <!-- Invoice Number - sortable -->
                                 <th class="px-1 py-2 text-left text-xs font-medium text-gray-700 uppercase">
                                     <button wire:click="sortBy('invoice_number')" class="flex items-center hover:text-blue-600">
@@ -311,6 +333,15 @@
                                         </button>
                                     </td>
 
+                                    <!-- Daily Count -->
+                                    <td class="px-1 py-1 text-xs text-center font-semibold text-gray-700">
+                                        @if($shipment->daily_count === '-')
+                                            <span class="text-gray-400">-</span>
+                                        @else
+                                            {{ $shipment->daily_count }}
+                                        @endif
+                                    </td>
+
                                     <!-- Client Requested Delivery Date -->
                                     <td class="px-1 py-1 text-xs text-center">
                                         @if($shipment->client_requested_delivery_date)
@@ -322,6 +353,17 @@
 
                                     <!-- Customer -->
                                     <td class="px-1 py-1 text-xs">{{ $shipment->customer->company ?? 'N/A' }}</td>
+
+                                    <!-- Notes -->
+                                    <td class="px-1 py-1 text-xs align-top" style="min-width: 150px; max-width: 250px; white-space: normal; word-wrap: break-word;">
+                                        @if($shipment->notes)
+                                            <div class="leading-tight">
+                                                {{ $shipment->notes }}
+                                            </div>
+                                        @else
+                                            <span class="text-gray-400">-</span>
+                                        @endif
+                                    </td>
 
                                     <!-- Invoice -->
                                     <td class="px-1 py-1 text-xs">{{ $shipment->invoice_number ?? '-' }}</td>
@@ -557,7 +599,7 @@
                                 <!-- Expandable ETA History Row -->
                                 @if($this->isRowExpanded($shipment->id))
                                     <tr class="bg-gray-50">
-                                        <td colspan="24" class="px-4 py-3">
+                                        <td colspan="26" class="px-4 py-3">
                                             <div class="bg-white rounded-lg border p-4">
                                                 <h4 class="text-sm font-semibold text-gray-900 mb-3">📊 ETA Check History</h4>
 

@@ -63,10 +63,12 @@ class ShipmentManager extends Component
     public $filterPortTerminal = '';
     public $filterShippingTeam = '';
     public $filterCsReference = '';
+    public $filterDateFrom = '';
+    public $filterDateTo = '';
 
     // Sorting properties
     public $sortField = 'client_requested_delivery_date';
-    public $sortDirection = 'desc';
+    public $sortDirection = 'asc';
 
     // Expandable rows for ETA history
     public $expandedRows = [];
@@ -371,7 +373,11 @@ class ShipmentManager extends Component
         $this->resetPage();
     }
 
-    public function render()
+    /**
+     * Build the base shipment query with all filters applied
+     * This is used both for rendering and for counting running numbers
+     */
+    private function buildShipmentQuery()
     {
         $query = Shipment::with(['customer', 'vessel', 'shipmentClients']);
 
@@ -422,6 +428,22 @@ class ShipmentManager extends Component
             $query->where('cs_reference', $this->filterCsReference);
         }
 
+        // Apply date range filter (on client_requested_delivery_date)
+        if ($this->filterDateFrom) {
+            $query->whereDate('client_requested_delivery_date', '>=', $this->filterDateFrom);
+        }
+
+        if ($this->filterDateTo) {
+            $query->whereDate('client_requested_delivery_date', '<=', $this->filterDateTo);
+        }
+
+        return $query;
+    }
+
+    public function render()
+    {
+        $query = $this->buildShipmentQuery();
+
         // Apply sorting
         if ($this->sortField === 'customer_name') {
             // Sort by customer name (relationship)
@@ -434,11 +456,55 @@ class ShipmentManager extends Component
                   ->orderBy('vessels.name', $this->sortDirection)
                   ->select('shipments.*');
         } else {
-            // Sort by direct shipment fields
-            $query->orderBy($this->sortField, $this->sortDirection);
+            // Sort by direct shipment fields (includes full datetime for client_requested_delivery_date)
+            // then by created_at for consistent ordering when datetime is the same
+            $query->orderBy($this->sortField, $this->sortDirection)
+                  ->orderBy('created_at', 'asc');
         }
 
         $shipments = $query->paginate(10);
+
+        // Calculate running numbers based on the actual filtered results (not all database records)
+        // We need to get the running number from the start of the current date group
+        $previousDate = null;
+        $runningNumber = 0;
+
+        foreach ($shipments as $index => $shipment) {
+            if ($shipment->client_requested_delivery_date) {
+                $currentDate = $shipment->client_requested_delivery_date->format('Y-m-d');
+
+                // If we're on the first item or switching to a new date
+                if ($previousDate === null || $currentDate !== $previousDate) {
+                    // We're starting a new date group - need to find where we left off
+                    // Count all filtered shipments with this date that come BEFORE this one
+                    // based on the SAME sort order (client_requested_delivery_date, then created_at)
+                    $precedingCount = $this->buildShipmentQuery()
+                        ->whereDate('client_requested_delivery_date', $currentDate)
+                        ->where(function ($q) use ($shipment) {
+                            // Shipments with earlier datetime on the same date
+                            $q->where('client_requested_delivery_date', '<', $shipment->client_requested_delivery_date)
+                              // OR same datetime but earlier created_at
+                              ->orWhere(function ($q2) use ($shipment) {
+                                  $q2->where('client_requested_delivery_date', '=', $shipment->client_requested_delivery_date)
+                                     ->where('created_at', '<', $shipment->created_at);
+                              });
+                        })
+                        ->count();
+
+                    $runningNumber = $precedingCount + 1;
+                } else {
+                    // Same date as previous, increment
+                    $runningNumber++;
+                }
+
+                $shipment->daily_count = $runningNumber;
+                $previousDate = $currentDate;
+            } else {
+                // If no client_requested_delivery_date, show dash
+                $shipment->daily_count = '-';
+                $previousDate = null; // Reset tracking
+            }
+        }
 
         return view('livewire.shipment-manager', compact('shipments'))->layout('layouts.app', ['title' => 'Shipment Management']);
     }
@@ -671,6 +737,16 @@ class ShipmentManager extends Component
         $this->resetPage();
     }
 
+    public function updatingFilterDateFrom()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterDateTo()
+    {
+        $this->resetPage();
+    }
+
     /**
      * Clear auto-filled highlighting when user manually edits these fields
      */
@@ -696,6 +772,8 @@ class ShipmentManager extends Component
         $this->filterPortTerminal = '';
         $this->filterShippingTeam = '';
         $this->filterCsReference = '';
+        $this->filterDateFrom = '';
+        $this->filterDateTo = '';
         $this->statusFilter = '';
         $this->search = '';
         $this->resetPage();
