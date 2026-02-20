@@ -52,4 +52,13 @@ return [
         'channel_secret' => env('LINE_BOT_CHANNEL_SECRET'),
     ],
 
+    'siamgps' => [
+        'base_url' => env('SIAMGPS_BASE_URL', 'https://services.siamgpstrack.com'),
+        'token' => env('SIAMGPS_BEARER_TOKEN'),
+    ],
+
+    'google_sheets' => [
+        'transport_sheet_url' => env('TRANSPORT_SHEET_URL', 'https://docs.google.com/spreadsheets/d/1I9wCnhaUbWAUYyQLtV3kKNrQJyKDkr4opqPnK1QIkqU/export?format=csv&gid=1647990817'),
+    ],
+
 ];

@@ -55,6 +55,11 @@ new class extends Component
                        wire:navigate>
                         ⚙️ Settings
                     </a>
+                    <a href="{{ route('transport-assignment') }}"
+                       class="{{ request()->routeIs('transport-assignment') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                       wire:navigate>
+                        🚛 Transport
+                    </a>
                 </div>
             </div>
 
@@ -135,6 +140,9 @@ new class extends Component
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('settings')" :active="request()->routeIs('settings')" wire:navigate>
                 ⚙️ Settings
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('transport-assignment')" :active="request()->routeIs('transport-assignment')" wire:navigate>
+                🚛 Transport
             </x-responsive-nav-link>
         </div>
 

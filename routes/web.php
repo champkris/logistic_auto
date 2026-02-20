@@ -96,6 +96,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/settings', App\Livewire\Settings::class)->name('settings');
     Route::get('/schedules', App\Livewire\ScheduleManager::class)->name('schedules');
     Route::get('/eta-check-report', App\Livewire\EtaCheckReport::class)->name('eta-check-report');
+    Route::get('/transport-assignment', App\Livewire\TransportAssignment::class)->name('transport-assignment');
 
     // LINE Login Routes (require user to be authenticated first)
     Route::get('/line/connect', [App\Http\Controllers\LineLoginController::class, 'redirectToLine'])->name('line.connect');
