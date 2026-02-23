@@ -121,8 +121,18 @@ class ShipmentManager extends Component
         return [
         'client_requested_delivery_date' => 'nullable|date',
         'customer_id' => 'required|exists:customers,id',
-        'hbl_number' => 'nullable|string|max:255',
-        'mbl_number' => 'nullable|string|max:255',
+        'hbl_number' => [
+            'nullable', 'string', 'max:255',
+            $this->editingShipment
+                ? 'unique:shipments,hbl_number,' . $this->editingShipment->id
+                : 'unique:shipments,hbl_number',
+        ],
+        'mbl_number' => [
+            'nullable', 'string', 'max:255',
+            $this->editingShipment
+                ? 'unique:shipments,mbl_number,' . $this->editingShipment->id
+                : 'unique:shipments,mbl_number',
+        ],
         'invoice_number' => 'nullable|string|max:255',
         'quantity_days' => 'nullable|integer|min:0',
         'weight_kgm' => 'nullable|numeric|min:0',
@@ -156,6 +166,8 @@ class ShipmentManager extends Component
         'customer_id.required' => 'Please select a customer.',
         'customer_id.exists' => 'Selected customer does not exist.',
         'planned_delivery_date.after_or_equal' => 'Delivery date cannot be in the past.',
+        'hbl_number.unique' => 'This HBL number already exists. Please edit or delete the existing shipment first.',
+        'mbl_number.unique' => 'This MBL number already exists. Please edit or delete the existing shipment first.',
     ];
 
     public function mount()

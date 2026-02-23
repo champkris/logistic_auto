@@ -174,11 +174,10 @@ class SiamgpsService
             return [];
         }
 
-        if (count($plates) >= 3) {
-            return $this->resolveViaBulk($plates);
-        }
-
-        return $this->resolveViaIndividual($plates);
+        // Always use bulk approach — it searches through live /realtime/list
+        // data directly, which is more reliable than the two-step individual
+        // lookup (cached /vehicles list → /realtime/listByVehicleId).
+        return $this->resolveViaBulk($plates);
     }
 
     /**

@@ -2,7 +2,9 @@
 
 namespace App\Livewire;
 
+use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithPagination;
 use App\Services\GoogleSheetService;
 use App\Services\SiamgpsService;
 use App\Models\Shipment;
@@ -11,8 +13,16 @@ use Illuminate\Support\Facades\Log;
 
 class TransportAssignment extends Component
 {
+    use WithPagination;
+
     // Search mode: 'customer' or 'bl'
     public string $searchMode = 'customer';
+
+    // Shipment list properties
+    public string $shipmentSearch = '';
+    public string $shipmentStatusFilter = 'in-progress';
+    public string $sortField = 'client_requested_delivery_date';
+    public string $sortDirection = 'desc';
 
     // Customer search
     public string $customerSearch = '';
@@ -35,16 +45,19 @@ class TransportAssignment extends Component
 
     // Container data
     public array $containerRows = [];
-    public array $selectedRows = [];
-    public bool $selectAll = false;
+
+    // Plate => GPS status map (populated on container row load)
+    public array $plateStatuses = [];
 
     // GPS / Map
     public array $vehicleLocations = [];
     public bool $showMap = false;
+    public int $mapVersion = 0;
 
     // Loading states
     public bool $loadingLocations = false;
     public bool $loadingSheet = false;
+    public bool $loadingGps = false;
 
     // Errors
     public string $sheetError = '';
@@ -53,6 +66,17 @@ class TransportAssignment extends Component
     public function mount()
     {
         $this->selectedDate = Carbon::today()->format('d/m/Y');
+
+        // Support URL query param: ?plate=XX&driver=YY&container=ZZ&bl=AA
+        $plate = request()->query('plate');
+        if ($plate) {
+            $this->trackPlateFromUrl(
+                $plate,
+                request()->query('driver', ''),
+                request()->query('container', ''),
+                request()->query('bl', '')
+            );
+        }
     }
 
     /**
@@ -66,11 +90,12 @@ class TransportAssignment extends Component
         $this->selectedCustomer = '';
         $this->blSearch = '';
         $this->containerRows = [];
+        $this->plateStatuses = [];
         $this->availableDates = [];
         $this->sheetError = '';
         $this->matchingShipments = [];
         $this->containerAssignments = [];
-        $this->resetSelection();
+        $this->resetMapState();
     }
 
     /**
@@ -85,8 +110,7 @@ class TransportAssignment extends Component
         $this->loadingSheet = true;
         $this->sheetError = '';
         $this->containerRows = [];
-        $this->selectedRows = [];
-        $this->selectAll = false;
+        $this->plateStatuses = [];
         $this->selectedCustomer = '';
         $this->availableDates = [];
         $this->matchingShipments = [];
@@ -108,6 +132,13 @@ class TransportAssignment extends Component
         }
 
         $this->loadingSheet = false;
+
+        // Defer GPS status loading — fires after this response renders
+        // Set loadingGps now so spinners show in the initial response
+        if (!empty($this->containerRows)) {
+            $this->loadingGps = true;
+            $this->dispatch('load-plate-statuses');
+        }
     }
 
     /**
@@ -309,7 +340,7 @@ class TransportAssignment extends Component
         $this->customerSearch = $name;
         $this->customerSuggestions = [];
         $this->selectedDate = Carbon::today()->format('d/m/Y');
-        $this->resetSelection();
+        $this->resetMapState();
         $this->loadAvailableDates();
         $this->loadContainerRows();
     }
@@ -340,8 +371,7 @@ class TransportAssignment extends Component
         $this->loadingSheet = true;
         $this->sheetError = '';
         $this->containerRows = [];
-        $this->selectedRows = [];
-        $this->selectAll = false;
+        $this->plateStatuses = [];
 
         try {
             $service = app(GoogleSheetService::class);
@@ -356,6 +386,13 @@ class TransportAssignment extends Component
         }
 
         $this->loadingSheet = false;
+
+        // Defer GPS status loading — fires after this response renders
+        // Set loadingGps now so spinners show in the initial response
+        if (!empty($this->containerRows)) {
+            $this->loadingGps = true;
+            $this->dispatch('load-plate-statuses');
+        }
     }
 
     /**
@@ -391,60 +428,104 @@ class TransportAssignment extends Component
     }
 
     /**
-     * Toggle select-all checkbox.
+     * Track a single vehicle from a container row's driver slot (1, 2, or 3).
      */
-    public function updatedSelectAll($value)
+    public function trackVehicle(int $rowIndex, int $slot)
     {
-        if ($value) {
-            $this->selectedRows = array_keys($this->containerRows);
-        } else {
-            $this->selectedRows = [];
-        }
+        $row = $this->containerRows[$rowIndex] ?? null;
+        if (!$row) return;
+
+        $plateCol = match($slot) {
+            1 => '1ST LICENSE',
+            2 => '2nd LICENSE',
+            3 => '3 rd LICENSE',
+            default => null,
+        };
+        $driverCol = match($slot) {
+            1 => '1ST DRIVER NAME',
+            2 => '2nd DRIVER NAME',
+            3 => '3rd DRIVER NAME',
+            default => null,
+        };
+        $tripCol = match($slot) {
+            1 => '1st Trip',
+            2 => '2nd Trip',
+            3 => '3rd Trip',
+            default => null,
+        };
+
+        if (!$plateCol) return;
+
+        $plate = trim($row[$plateCol] ?? '');
+        $driver = trim($row[$driverCol] ?? '');
+
+        if (empty($plate)) return;
+
+        $context = [
+            'driver' => $driver,
+            'trip' => trim($row[$tripCol] ?? ''),
+            'container' => trim($row['CONTAINER NO'] ?? ''),
+            'booking' => trim($row['BL'] ?? ''),
+            'deliveryType' => trim($row['TYPE  CONTAINER'] ?? ''),
+            'containerStatus' => trim($row['STATUS'] ?? ''),
+            'area' => trim($row['AREA'] ?? ''),
+        ];
+
+        $this->fetchSinglePlateGps($plate, $context);
     }
 
     /**
-     * Fetch GPS locations for all license plates in selected rows.
+     * Track a vehicle from URL query parameters.
      */
-    public function fetchGpsLocations()
+    public function trackPlateFromUrl(string $plate, string $driver = '', string $container = '', string $bl = '')
+    {
+        $plate = trim($plate);
+        if (empty($plate)) return;
+
+        $context = [
+            'driver' => $driver,
+            'trip' => '',
+            'container' => $container,
+            'booking' => $bl,
+            'deliveryType' => '',
+            'containerStatus' => '',
+            'area' => '',
+        ];
+
+        $this->fetchSinglePlateGps($plate, $context);
+    }
+
+    /**
+     * Fetch GPS for a single plate and enrich with context.
+     */
+    protected function fetchSinglePlateGps(string $plate, array $context): void
     {
         $this->loadingLocations = true;
         $this->locationError = '';
         $this->vehicleLocations = [];
         $this->showMap = false;
 
-        // Collect all license plates from selected rows (1st, 2nd, 3rd)
-        $plates = [];
-        foreach ($this->selectedRows as $index) {
-            $row = $this->containerRows[$index] ?? null;
-            if (!$row) continue;
-
-            foreach (['1ST LICENSE', '2nd LICENSE', '3 rd LICENSE'] as $col) {
-                $plate = trim($row[$col] ?? '');
-                if (!empty($plate)) {
-                    $plates[] = $plate;
-                }
-            }
-        }
-
-        $plates = array_unique($plates);
-
-        if (empty($plates)) {
-            $this->locationError = 'No license plates found in selected rows.';
-            $this->loadingLocations = false;
-            return;
-        }
-
         try {
             $service = app(SiamgpsService::class);
-            $results = $service->resolveMultiplePlates($plates);
+            $results = $service->resolveMultiplePlates([$plate]);
 
-            // Enrich results with row context (driver, container info)
-            $this->vehicleLocations = $this->enrichLocations($results);
+            foreach ($results as &$result) {
+                $result['driver'] = $context['driver'] ?? '';
+                $result['trip'] = $context['trip'] ?? '';
+                $result['container'] = $context['container'] ?? '';
+                $result['booking'] = $context['booking'] ?? '';
+                $result['deliveryType'] = $context['deliveryType'] ?? '';
+                $result['containerStatus'] = $context['containerStatus'] ?? '';
+                $result['area'] = $context['area'] ?? '';
+            }
+
+            $this->vehicleLocations = $results;
             $this->showMap = true;
+            $this->mapVersion++;
 
-            $foundCount = collect($this->vehicleLocations)->where('found', true)->count();
+            $foundCount = collect($results)->where('found', true)->count();
             if ($foundCount === 0) {
-                $this->locationError = 'No GPS data found for the selected license plates.';
+                $this->locationError = "No GPS data found for plate \"{$plate}\".";
                 $this->showMap = false;
             }
         } catch (\Exception $e) {
@@ -456,50 +537,53 @@ class TransportAssignment extends Component
     }
 
     /**
-     * Enrich GPS results with driver/container info from selected rows.
+     * Bulk-fetch GPS status for all license plates in containerRows.
+     * Populates $plateStatuses as plate => { vehicleStatus, speed, geoLocation }.
+     * Deferred via event dispatch so sheet data renders first.
      */
-    protected function enrichLocations(array $gpsResults): array
+    #[On('load-plate-statuses')]
+    public function loadPlateStatuses(): void
     {
-        $plateToRowInfo = [];
+        $this->plateStatuses = [];
 
-        foreach ($this->selectedRows as $index) {
-            $row = $this->containerRows[$index] ?? null;
-            if (!$row) continue;
+        if (empty($this->containerRows)) {
+            $this->loadingGps = false;
+            return;
+        }
 
-            $driverMappings = [
-                '1ST LICENSE' => ['driver' => '1ST DRIVER NAME', 'trip' => '1st Trip'],
-                '2nd LICENSE' => ['driver' => '2nd DRIVER NAME', 'trip' => '2nd Trip'],
-                '3 rd LICENSE' => ['driver' => '3rd DRIVER NAME', 'trip' => '3rd Trip'],
-            ];
-
-            foreach ($driverMappings as $plateCol => $info) {
-                $plate = trim($row[$plateCol] ?? '');
+        $plates = [];
+        foreach ($this->containerRows as $row) {
+            foreach (['1ST LICENSE', '2nd LICENSE', '3 rd LICENSE'] as $col) {
+                $plate = trim($row[$col] ?? '');
                 if (!empty($plate)) {
-                    $plateToRowInfo[$plate] = [
-                        'driver' => trim($row[$info['driver']] ?? ''),
-                        'trip' => trim($row[$info['trip']] ?? ''),
-                        'container' => trim($row['CONTAINER NO'] ?? ''),
-                        'booking' => trim($row['BL'] ?? ''),
-                        'deliveryType' => trim($row['TYPE  CONTAINER'] ?? ''),
-                        'status' => trim($row['STATUS'] ?? ''),
-                        'area' => trim($row['AREA'] ?? ''),
-                    ];
+                    $plates[] = $plate;
                 }
             }
         }
 
-        foreach ($gpsResults as &$result) {
-            $info = $plateToRowInfo[$result['plate']] ?? [];
-            $result['driver'] = $info['driver'] ?? '';
-            $result['trip'] = $info['trip'] ?? '';
-            $result['container'] = $info['container'] ?? '';
-            $result['booking'] = $info['booking'] ?? '';
-            $result['deliveryType'] = $info['deliveryType'] ?? '';
-            $result['containerStatus'] = $info['status'] ?? '';
-            $result['area'] = $info['area'] ?? '';
+        $plates = array_values(array_unique($plates));
+        if (empty($plates)) {
+            $this->loadingGps = false;
+            return;
         }
 
-        return $gpsResults;
+        try {
+            $service = app(SiamgpsService::class);
+            $results = $service->resolveMultiplePlates($plates);
+
+            foreach ($results as $result) {
+                $this->plateStatuses[$result['plate']] = [
+                    'found' => $result['found'],
+                    'vehicleStatus' => $result['vehicleStatus'] ?? 'NOT_FOUND',
+                    'speed' => $result['speed'] ?? 0,
+                    'geoLocation' => $result['geoLocation'] ?? '',
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::warning('TransportAssignment: Failed to load plate statuses', ['error' => $e->getMessage()]);
+        }
+
+        $this->loadingGps = false;
     }
 
     /**
@@ -518,16 +602,6 @@ class TransportAssignment extends Component
     }
 
     /**
-     * Reset row selection and map state.
-     */
-    public function resetSelection()
-    {
-        $this->selectedRows = [];
-        $this->selectAll = false;
-        $this->resetMapState();
-    }
-
-    /**
      * Reset map-related state.
      */
     protected function resetMapState()
@@ -535,13 +609,112 @@ class TransportAssignment extends Component
         $this->vehicleLocations = [];
         $this->showMap = false;
         $this->locationError = '';
-        $this->selectedRows = [];
-        $this->selectAll = false;
+    }
+
+    /**
+     * Sort shipment list by column.
+     */
+    public function sortBy(string $field)
+    {
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'asc';
+        }
+
+        $this->resetPage();
+    }
+
+    /**
+     * Reset pagination when shipment search changes.
+     */
+    public function updatedShipmentSearch()
+    {
+        $this->resetPage();
+    }
+
+    /**
+     * Reset pagination when shipment status filter changes.
+     */
+    public function updatedShipmentStatusFilter()
+    {
+        $this->resetPage();
+    }
+
+    /**
+     * Switch to BL search tab and auto-search a shipment's MBL.
+     */
+    public function viewShipmentBl(int $shipmentId)
+    {
+        $shipment = Shipment::find($shipmentId);
+        if (!$shipment || empty($shipment->mbl_number)) {
+            $this->sheetError = 'Shipment or MBL not found.';
+            return;
+        }
+
+        $this->searchMode = 'bl';
+        $this->blSearch = $shipment->mbl_number;
+        $this->searchByBl();
     }
 
     public function render()
     {
-        return view('livewire.transport-assignment')
-            ->layout('layouts.app', ['header' => null]);
+        // Build shipment list query
+        $query = Shipment::with(['customer', 'vessel']);
+
+        if ($this->shipmentStatusFilter && $this->shipmentStatusFilter !== 'all') {
+            $query->where('status', $this->shipmentStatusFilter);
+        }
+
+        if ($this->shipmentSearch) {
+            $search = $this->shipmentSearch;
+            $query->where(function ($q) use ($search) {
+                $q->where('mbl_number', 'like', "%{$search}%")
+                  ->orWhere('hbl_number', 'like', "%{$search}%")
+                  ->orWhere('voyage', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function ($q) use ($search) {
+                      $q->where('company', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('vessel', function ($q) use ($search) {
+                      $q->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($this->sortField === 'customer_name') {
+            $query->leftJoin('customers', 'shipments.customer_id', '=', 'customers.id')
+                  ->orderBy('customers.name', $this->sortDirection)
+                  ->select('shipments.*');
+        } elseif ($this->sortField === 'vessel_name') {
+            $query->leftJoin('vessels', 'shipments.vessel_id', '=', 'vessels.id')
+                  ->orderBy('vessels.name', $this->sortDirection)
+                  ->select('shipments.*');
+        } else {
+            $query->orderBy($this->sortField, $this->sortDirection);
+        }
+
+        $shipments = $query->paginate(15);
+
+        // Compute transport assignment stats
+        $assignedCount = 0;
+        $unassignedCount = 0;
+        foreach ($shipments as $shipment) {
+            $transportContainers = $shipment->cargo_details['transport_containers'] ?? [];
+            $shipment->has_transport = !empty($transportContainers);
+            $shipment->transport_container_count = count($transportContainers);
+            if ($shipment->has_transport) {
+                $assignedCount++;
+            } else {
+                $unassignedCount++;
+            }
+        }
+
+        return view('livewire.transport-assignment', [
+            'shipments' => $shipments,
+            'assignedCount' => $assignedCount,
+            'unassignedCount' => $unassignedCount,
+        ])->layout('layouts.app', ['header' => null]);
     }
 }
