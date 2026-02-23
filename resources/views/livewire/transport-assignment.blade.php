@@ -1,8 +1,10 @@
-<div class="p-6 space-y-6">
+<div class="p-6 space-y-6" x-data="{ blLoading: false, activeBlId: null }"
+     @bl-search-done.window="blLoading = false">
     @push('styles')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         #transport-map { height: 500px; width: 100%; border-radius: 0.5rem; }
+        [x-cloak] { display: none !important; }
     </style>
     @endpush
 
@@ -133,7 +135,7 @@
                     @php
                         $rowClass = $shipment->has_transport ? 'bg-green-50' : '';
                     @endphp
-                    <tr class="{{ $rowClass }} hover:bg-gray-100">
+                    <tr :class="activeBlId === {{ $shipment->id }} ? 'ring-2 ring-inset ring-blue-400 bg-blue-50' : '{{ $rowClass }} hover:bg-gray-100'">
                         <td class="px-2 py-1.5 text-center text-gray-500">{{ $shipments->firstItem() + $index }}</td>
                         <td class="px-2 py-1.5 whitespace-nowrap text-gray-700">
                             @if($shipment->client_requested_delivery_date)
@@ -181,15 +183,17 @@
                         <td class="px-2 py-1.5 text-center">
                             @if($shipment->mbl_number)
                             <button wire:click="viewShipmentBl({{ $shipment->id }})"
-                                    wire:loading.attr="disabled"
-                                    wire:target="viewShipmentBl({{ $shipment->id }})"
+                                    @click="blLoading = true; activeBlId = {{ $shipment->id }}"
+                                    :disabled="blLoading"
                                     class="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 disabled:opacity-50">
-                                <svg wire:loading wire:target="viewShipmentBl({{ $shipment->id }})" class="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                </svg>
-                                <span wire:loading.remove wire:target="viewShipmentBl({{ $shipment->id }})">View BL</span>
-                                <span wire:loading wire:target="viewShipmentBl({{ $shipment->id }})">Loading...</span>
+                                <template x-if="blLoading">
+                                    <svg class="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                </template>
+                                <span x-show="!blLoading">View BL</span>
+                                <span x-show="blLoading">Loading...</span>
                             </button>
                             @endif
                         </td>
@@ -209,7 +213,18 @@
     </div>
 
     <!-- Section 1: Container Search (BL / Customer) -->
-    <div class="bg-white rounded-lg shadow p-4">
+    <div class="bg-white rounded-lg shadow p-4 relative">
+        <!-- Alpine-driven overlay: shows instantly on View BL click -->
+        <div x-show="blLoading" x-cloak
+             class="absolute inset-0 z-30 bg-white/80 rounded-lg flex items-center justify-center">
+            <div class="flex items-center gap-2 text-blue-600">
+                <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span class="text-sm font-medium">Loading BL data...</span>
+            </div>
+        </div>
         <!-- Search mode tabs -->
         <div class="flex gap-2 mb-3">
             <button wire:click="switchSearchMode('customer')"
@@ -295,8 +310,19 @@
     </div>
 
     <!-- Section 2: Container Table with Date Navigator -->
-    @if($selectedCustomer || ($searchMode === 'bl' && count($containerRows) > 0) || ($searchMode === 'bl' && $sheetError))
-    <div class="bg-white rounded-lg shadow">
+    @if($selectedCustomer || ($searchMode === 'bl' && count($containerRows) > 0) || ($searchMode === 'bl' && $sheetError) || $loadingSheet)
+    <div class="bg-white rounded-lg shadow relative">
+        <!-- Alpine-driven overlay: shows instantly on View BL click -->
+        <div x-show="blLoading" x-cloak
+             class="absolute inset-0 z-30 bg-white/80 rounded-lg flex items-center justify-center">
+            <div class="flex items-center gap-2 text-blue-600">
+                <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span class="text-sm font-medium">Loading BL data...</span>
+            </div>
+        </div>
         <!-- Top bar -->
         <div class="px-4 py-3 border-b border-gray-200">
             <div class="flex items-center justify-between flex-wrap gap-3">

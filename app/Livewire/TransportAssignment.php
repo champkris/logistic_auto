@@ -104,6 +104,7 @@ class TransportAssignment extends Component
     public function searchByBl()
     {
         if (strlen(trim($this->blSearch)) < 2) {
+            $this->dispatch('bl-search-done');
             return;
         }
 
@@ -132,6 +133,9 @@ class TransportAssignment extends Component
         }
 
         $this->loadingSheet = false;
+
+        // Signal Alpine to clear the loading overlay
+        $this->dispatch('bl-search-done');
 
         // Defer GPS status loading — fires after this response renders
         // Set loadingGps now so spinners show in the initial response
@@ -644,12 +648,14 @@ class TransportAssignment extends Component
 
     /**
      * Switch to BL search tab and auto-search a shipment's MBL.
+     * The wire:loading overlay on the UI covers stale data instantly (client-side).
      */
     public function viewShipmentBl(int $shipmentId)
     {
         $shipment = Shipment::find($shipmentId);
         if (!$shipment || empty($shipment->mbl_number)) {
             $this->sheetError = 'Shipment or MBL not found.';
+            $this->dispatch('bl-search-done');
             return;
         }
 
