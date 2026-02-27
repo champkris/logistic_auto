@@ -1,193 +1,193 @@
-const { chromium } = require('playwright');
+const https = require('https');
+const { DOMParser } = require('xmldom');
 
 class LCITScraper {
     constructor() {
-        this.baseUrl = 'https://www.lcit.com/vessel';
+        this.apiUrl = 'https://www.lcit.com/Lcit.asmx/GetFullVessel';
     }
 
     async scrapeVesselSchedule(vesselName, voyageCode = null) {
-        console.error(`Starting LCIT scraper for vessel: ${vesselName}, voyage: ${voyageCode || 'any'}`);
-        let browser = null;
-        let context = null;
+        console.error(`Starting LCIT API scraper for vessel: ${vesselName}, voyage: ${voyageCode || 'any'}`);
 
         try {
-            browser = await chromium.launch({
-                headless: true
-            });
+            // Query LCIT API with the vessel name
+            const url = `${this.apiUrl}?vessel=${encodeURIComponent(vesselName)}&voy=${encodeURIComponent(voyageCode || '')}`;
+            console.error(`Requesting: ${url}`);
 
-            context = await browser.newContext();
-            const page = await context.newPage();
-            page.setDefaultTimeout(30000);
+            const xmlData = await this.makeRequest(url);
+            console.error('API response received, parsing XML...');
 
-            // Capture browser console output
-            page.on('console', msg => {
-                console.error(`[Browser Console] ${msg.type()}: ${msg.text()}`);
-            });
+            const vessels = this.parseXML(xmlData);
+            console.error(`Found ${vessels.length} matching vessel(s)`);
 
-            // Construct URL with query parameters
-            const searchUrl = `${this.baseUrl}?vsl=${encodeURIComponent(vesselName)}&voy=${encodeURIComponent(voyageCode || '')}`;
-            console.error(`Navigating to: ${searchUrl}`);
-
-            await page.goto(searchUrl, {
-                waitUntil: 'networkidle',
-                timeout: 30000
-            });
-
-            console.error('Navigation successful');
-
-            // Check if vessel is found
-            const pageText = await page.textContent('body');
-
-            if (!pageText.includes(vesselName.toUpperCase()) && !pageText.includes(vesselName)) {
-                console.error('Vessel not found in page content');
+            if (vessels.length === 0) {
                 return {
                     success: false,
                     vessel_name: vesselName,
                     voyage_code: voyageCode,
                     message: 'Vessel not found in schedule',
-                    details: 'The terminal was accessible, but the specified vessel was not found in the current schedule.'
+                    details: 'The terminal API was accessible, but the specified vessel was not found in the current schedule.'
                 };
             }
 
-            console.error('Vessel found in page content');
-
-            // Wait for table to load with data (more than just header rows)
-            console.error('Waiting for table data to load...');
-            await page.waitForFunction(() => {
-                const table = document.querySelector('table');
-                if (!table) return false;
-                const rows = table.querySelectorAll('tr');
-                return rows.length > 2; // Wait for more than 2 header rows
-            }, { timeout: 15000 }).catch(() => {
-                console.error('Timeout waiting for table data, proceeding anyway');
-            });
-
-            // Give it a moment for rendering
-            await page.waitForTimeout(1000);
-
-            // Extract table data
-            const vesselData = await page.evaluate((targetVessel) => {
-                const table = document.querySelector('table');
-                if (!table) {
-                    console.log('DEBUG: No table found');
-                    return null;
+            // Find best match: prefer exact voyage match, otherwise take first result
+            let match = vessels[0];
+            if (voyageCode) {
+                const voyageUpper = voyageCode.toUpperCase();
+                const exactMatch = vessels.find(v => {
+                    const voy = (v.voyage || '').toUpperCase();
+                    return voy === voyageUpper || voy.includes(voyageUpper) || voyageUpper.includes(voy);
+                });
+                if (exactMatch) {
+                    match = exactMatch;
+                    console.error(`Exact voyage match found: ${match.voyage}`);
+                } else {
+                    console.error(`No exact voyage match for "${voyageCode}", using first result: ${match.voyage}`);
                 }
-
-                const rows = table.querySelectorAll('tr');
-                console.log(`DEBUG: Found ${rows.length} rows in table`);
-                console.log(`DEBUG: Looking for vessel: "${targetVessel}"`);
-
-                for (let i = 0; i < rows.length; i++) {
-                    const cells = rows[i].querySelectorAll('td, th');
-                    const rowData = [];
-
-                    for (let cell of cells) {
-                        rowData.push(cell.innerText.trim());
-                    }
-
-                    // Look for vessel name in row
-                    const rowText = rowData.join(' ').toUpperCase();
-                    const targetUpper = targetVessel.toUpperCase();
-                    const matchesVessel = rowText.includes(targetUpper);
-                    const hasEnoughColumns = rowData.length > 5;
-
-                    console.log(`DEBUG Row ${i}: cols=${rowData.length}, matches="${matchesVessel}", data=[${rowData.slice(0, 3).join(', ')}]`);
-
-                    if (matchesVessel && hasEnoughColumns) {
-                        console.log(`DEBUG: MATCH FOUND at row ${i}:`, rowData);
-                        return {
-                            berth: rowData[0] || null,
-                            vessel: rowData[1] || null,
-                            voyage: rowData[2] || null,
-                            cutoff: rowData[4] || null,
-                            opengate: rowData[5] || null,
-                            estimate_berthing: rowData[6] || null,
-                            estimate_unberthing: rowData[7] || null,
-                            raw_row: rowData
-                        };
-                    }
-                }
-                console.log('DEBUG: No matching row found');
-                return null;
-            }, vesselName);
-
-            if (!vesselData) {
-                return {
-                    success: false,
-                    vessel_name: vesselName,
-                    voyage_code: voyageCode,
-                    message: 'Vessel found on page but could not extract schedule data',
-                    details: 'Vessel appears on the page but table parsing failed.'
-                };
             }
 
-            console.error('Extracted vessel data:', vesselData);
-
-            // Helper function to convert month abbreviation to number
-            const getMonthNumber = (monthAbbr) => {
-                const months = {
-                    'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
-                    'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
-                    'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
-                };
-                return months[monthAbbr.toUpperCase()] || '01';
-            };
-
-            // Parse dates from the extracted data
-            const parseDate = (dateStr) => {
-                if (!dateStr || dateStr === '') return null;
-
-                // Convert LCIT format "11 OCT 25/23:00" to standard format
-                const dateString = dateStr.trim();
-
-                // Match the pattern: "DD MMM YY/HH:MM"
-                const match = dateString.match(/(\d{1,2})\s+(OCT|NOV|DEC|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP)\s+(\d{2})\/(\d{2}):(\d{2})/i);
-
-                if (match) {
-                    const [, day, month, year, hour, minute] = match;
-
-                    // Convert 2-digit year to 4-digit (assuming 20xx)
-                    const fullYear = `20${year}`;
-
-                    // Return in ISO format that Carbon can parse
-                    return `${fullYear}-${getMonthNumber(month)}-${day.padStart(2, '0')}T${hour}:${minute}:00`;
-                }
-
-                return dateString; // Return original if parsing fails
-            };
+            console.error('Matched vessel data:', JSON.stringify(match));
 
             return {
                 success: true,
-                vessel_name: vesselData.vessel || vesselName,
-                voyage_code: vesselData.voyage || voyageCode,
-                berth: vesselData.berth,
-                eta: parseDate(vesselData.estimate_berthing),
-                etd: parseDate(vesselData.estimate_unberthing),
-                cutoff: parseDate(vesselData.cutoff),
-                opengate: parseDate(vesselData.opengate),
+                vessel_name: match.vessel_name || vesselName,
+                voyage_code: match.voyage || voyageCode,
+                berth: match.berth,
+                eta: this.parseDate(match.eta),
+                etd: this.parseDate(match.etd),
+                cutoff: this.parseDate(match.cutoff),
+                opengate: this.parseDate(match.opengate),
                 raw_data: {
-                    table_row: vesselData.raw_row
+                    table_row: [match.berth, match.vessel_name, match.voyage, null, match.cutoff, match.opengate, match.eta, match.etd],
+                    status: match.status
                 }
             };
 
         } catch (error) {
-            console.error('LCIT scraper error:', error.message);
+            console.error('LCIT API scraper error:', error.message);
 
             return {
                 success: false,
                 error: error.message,
                 vessel_name: vesselName,
                 voyage_code: voyageCode,
-                details: 'Scraper encountered an error while processing the page'
+                details: 'Scraper encountered an error while querying LCIT API'
             };
-        } finally {
-            if (context) {
-                await context.close();
-            }
-            if (browser) {
-                await browser.close();
+        }
+    }
+
+    makeRequest(url) {
+        return new Promise((resolve, reject) => {
+            const options = {
+                headers: {
+                    'Referer': 'https://www.lcit.com/vessel',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'application/xml, text/xml, */*; q=0.01'
+                },
+                timeout: 30000
+            };
+
+            const req = https.get(url, options, (res) => {
+                if (res.statusCode !== 200) {
+                    reject(new Error(`HTTP ${res.statusCode} from LCIT API`));
+                    return;
+                }
+
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => { resolve(data); });
+            });
+
+            req.on('error', (err) => { reject(err); });
+            req.on('timeout', () => {
+                req.destroy();
+                reject(new Error('Request timeout connecting to LCIT API'));
+            });
+        });
+    }
+
+    parseXML(xmlText) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const results = [];
+
+        const schedules = xmlDoc.getElementsByTagName('AllVesselSchedule');
+
+        for (let i = 0; i < schedules.length; i++) {
+            const schedule = schedules[i];
+
+            try {
+                const vesselNameVal = this.getElementText(schedule, 'VISIT_VSL_NAME_AN');
+                const vscBerth = this.getElementText(schedule, 'VSC_BERTH');
+                const berth = vscBerth ? vscBerth.substring(0, 2) : 'B5';
+                const voyageIn = this.getElementText(schedule, 'EXT_IN_VOY_C');
+                const voyageOut = this.getElementText(schedule, 'EXT_VOY_C');
+                const cutoff = this.getElementText(schedule, 'CUTOFF_TM');
+                const openGate = this.getElementText(schedule, 'RECEIVE_TM');
+                const estimateArrival = this.getElementText(schedule, 'INIT_ETB_TM');
+                const estimateDeparture = this.getElementText(schedule, 'INIT_ETD_TM');
+                const visitStateCode = this.getElementText(schedule, 'VISIT_STATE_CODE');
+
+                // Use actual dates if vessel has already berthed/departed
+                let actualBerthing = '';
+                let actualUnberthing = '';
+
+                if (visitStateCode === 'DP') {
+                    actualBerthing = this.getElementText(schedule, 'VSL_BERTH_D');
+                    actualUnberthing = this.getElementText(schedule, 'EST_DPTR_D');
+                } else if (visitStateCode === 'OD') {
+                    actualBerthing = this.getElementText(schedule, 'VSL_BERTH_D');
+                }
+
+                if (vesselNameVal && vesselNameVal.length > 2) {
+                    results.push({
+                        vessel_name: vesselNameVal,
+                        voyage: voyageIn || voyageOut,
+                        eta: actualBerthing || estimateArrival,
+                        etd: actualUnberthing || estimateDeparture,
+                        cutoff: cutoff,
+                        opengate: openGate,
+                        berth: berth,
+                        status: visitStateCode
+                    });
+                }
+            } catch (e) {
+                // Skip invalid entries
             }
         }
+
+        return results;
+    }
+
+    getElementText(parent, tagName) {
+        const elements = parent.getElementsByTagName(tagName);
+        if (elements && elements.length > 0 && elements[0].firstChild) {
+            return elements[0].firstChild.nodeValue?.trim() || '';
+        }
+        return '';
+    }
+
+    parseDate(dateStr) {
+        if (!dateStr || dateStr === '') return null;
+
+        const dateString = dateStr.trim();
+
+        // Match LCIT format: "DD MMM YY/HH:MM"
+        const match = dateString.match(/(\d{1,2})\s+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(\d{2})\/(\d{2}):(\d{2})/i);
+
+        if (match) {
+            const [, day, month, year, hour, minute] = match;
+            const months = {
+                'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
+                'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
+                'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
+            };
+            const fullYear = `20${year}`;
+            return `${fullYear}-${months[month.toUpperCase()]}-${day.padStart(2, '0')}T${hour}:${minute}:00`;
+        }
+
+        return dateString;
     }
 }
 
