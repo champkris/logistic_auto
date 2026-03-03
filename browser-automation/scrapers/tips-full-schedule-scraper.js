@@ -82,28 +82,19 @@ class TipsFullScheduleScraper {
           try {
             const cells = row.querySelectorAll('td');
 
-            // TIPS table structure:
-            // [0] Vessel Name
-            // [1] Id
-            // [2] Radio Call Sign
-            // [3] I/B Voyage (Inbound)
-            // [4] O/B Voyage (Outbound)
-            // [5] Gate open
-            // [6] Estimate
-            // [7] Actual
-            // [8] Closing Time
-            // [9] Service
-            // [10] ETA
-            // [11] ETD
-            // [12] ATA
-            // [13] ATD
+            // TIPS table: <thead> has 13 <th> but <tbody> rows have only 11 <td> (colspan grouping)
+            // Actual data cell mapping (verified against live site):
+            // [0] Vessel Name     [5] Gate Open (estimate)   [9]  ETA
+            // [1] Id              [6] Gate Open (actual)     [10] Service Code (CVT1, TID2, etc.)
+            // [2] Radio Call Sign [7] Closing Time (estimate)
+            // [3] I/B Voyage      [8] Closing Time (actual)
+            // [4] O/B Voyage
 
             if (cells.length >= 11) {
               const vesselName = cells[0]?.innerText?.trim();
               const voyageIn = cells[3]?.innerText?.trim();
-              const eta = cells[10]?.innerText?.trim();  // ETA column [10]
-              const etd = cells[7]?.innerText?.trim();   // Actual column [7] (departure time)
-              const berth = cells[11]?.innerText?.trim(); // Service/Berth column [11]
+              const eta = cells[9]?.innerText?.trim();     // ETA date
+              const service = cells[10]?.innerText?.trim(); // Service code
 
               // Skip header rows and empty rows
               if (vesselName &&
@@ -115,8 +106,7 @@ class TipsFullScheduleScraper {
                   vessel_name: vesselName,
                   voyage: voyageIn,
                   eta: eta,
-                  etd: etd,
-                  berth: berth || null
+                  service: service || null
                 });
               }
             }

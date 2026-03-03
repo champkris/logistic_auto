@@ -193,6 +193,10 @@ class VesselTrackingService
      */
     protected function checkVesselETAWithParsedName($parsedVessel, $portCode)
     {
+        // Normalize vessel name and voyage before any lookup
+        $parsedVessel['vessel_name'] = trim($parsedVessel['vessel_name']);
+        $parsedVessel['voyage_code'] = trim(preg_replace('/^V\.?\s*/i', '', $parsedVessel['voyage_code'] ?? ''));
+
         // OPTIMIZATION: Check local database first (from daily scrapes)
         $dbSchedule = VesselSchedule::findVessel($parsedVessel['vessel_name'], $portCode, $parsedVessel['voyage_code']);
 
@@ -478,7 +482,7 @@ class VesselTrackingService
 
             // Use proc_open to call the TIPS wrapper with vessel name and voyage
             $command = sprintf(
-                "cd %s && timeout 120 node tips-wrapper.js %s %s 2>/dev/null",
+                "cd %s && timeout 120 node tips-wrapper.js %s %s",
                 escapeshellarg($browserAutomationPath),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
@@ -884,7 +888,7 @@ class VesselTrackingService
 
             // Use the new HTTPS-based scraper (much faster than Puppeteer)
             $command = sprintf(
-                "cd %s && timeout 30 node scrapers/shipmentlink-https-scraper.js %s 2>/dev/null",
+                "cd %s && timeout 30 node scrapers/shipmentlink-https-scraper.js %s",
                 escapeshellarg($browserAutomationPath),
                 escapeshellarg($searchString)
             );

@@ -410,7 +410,7 @@ JS;
         }
 
         $command = sprintf(
-            '%s %s %s 2>/dev/null',
+            '%s %s %s',
             escapeshellarg($nodePath),
             escapeshellarg($scriptPath),
             escapeshellarg($terminal)
@@ -458,7 +458,7 @@ JS;
         }
 
         $command = sprintf(
-            '%s %s %s 2>/dev/null',
+            '%s %s %s',
             escapeshellarg($nodePath),
             escapeshellarg($scriptPath),
             escapeshellarg($terminal)
@@ -505,7 +505,7 @@ JS;
         }
 
         $command = sprintf(
-            '%s %s 2>/dev/null',
+            '%s %s',
             escapeshellarg($nodePath),
             escapeshellarg($scriptPath)
         );
@@ -547,7 +547,7 @@ JS;
         }
 
         $command = sprintf(
-            '%s %s 2>/dev/null',
+            '%s %s',
             escapeshellarg($nodePath),
             escapeshellarg($scriptPath)
         );
@@ -589,7 +589,7 @@ JS;
         }
 
         $command = sprintf(
-            '%s %s 2>/dev/null',
+            '%s %s',
             escapeshellarg($nodePath),
             escapeshellarg($scriptPath)
         );
@@ -631,7 +631,7 @@ JS;
         }
 
         $command = sprintf(
-            '%s %s 2>/dev/null',
+            '%s %s',
             escapeshellarg($nodePath),
             escapeshellarg($scriptPath)
         );
@@ -660,7 +660,7 @@ JS;
         }
 
         $command = sprintf(
-            '%s %s 2>/dev/null',
+            '%s %s',
             escapeshellarg($nodePath),
             escapeshellarg($scriptPath)
         );
