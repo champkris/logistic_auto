@@ -27,6 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
                         // Run vessel scraping
                         \Illuminate\Support\Facades\Artisan::call('vessel:scrape-schedules');
 
+                        // Also dispatch Kerry jobs (queue-based, returns immediately)
+                        \Illuminate\Support\Facades\Artisan::call('vessel:scrape-kerry');
+
                         \Illuminate\Support\Facades\Log::info("Executed scheduled vessel scraping", [
                             'schedule_id' => $scheduleItem->id,
                             'schedule_name' => $scheduleItem->name,

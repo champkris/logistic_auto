@@ -136,6 +136,8 @@ class ScheduleManager extends Component
         if ($schedule->schedule_type === 'vessel_scrape') {
             // Run vessel scraping command
             \Illuminate\Support\Facades\Artisan::call('vessel:scrape-schedules');
+            // Also dispatch Kerry jobs (queue-based, returns immediately)
+            \Illuminate\Support\Facades\Artisan::call('vessel:scrape-kerry');
             $message = 'Vessel scraping initiated! This may take a few minutes.';
         } else {
             // Run ETA check command

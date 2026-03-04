@@ -49,6 +49,7 @@ class VesselTrackingService
 
         // Kerry Logistics
         'KERRY' => 'kerry',
+        'KLN' => 'kerry',
 
         // JWD Terminal
         'JWD' => 'jwd',
@@ -123,7 +124,7 @@ class VesselTrackingService
             'voyage_code' => '230N',
             'search_url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit/List',
             'method' => 'kerry_http_request',
-            'ports' => ['KERRY']
+            'ports' => ['KERRY', 'KLN']
         ],
         'jwd' => [
             'name' => 'JWD Terminal',
