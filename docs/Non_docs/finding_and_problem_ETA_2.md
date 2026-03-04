@@ -363,6 +363,170 @@ Multiple shipments use KLN. ETA check will always fail because the port can't be
 
 ---
 
+## Finding 7: Duplicated Scraper Codebase — Single vs Cron Scrapers Are Separate Code
+
+### How I Found This
+
+While investigating Findings 1-6, noticed each terminal has **two separate scraper implementations** that do largely the same thing:
+- A **single/live scraper** (called per-shipment, returns one vessel)
+- A **cron/full-schedule scraper** (runs daily, returns all vessels)
+
+These share no code, have inconsistent normalization (Finding 2), and bugs fixed in one aren't reflected in the other (Finding 1).
+
+### Current Scraper Inventory
+
+| Terminal | Single Scraper | Cron Scraper | Technology |
+|----------|---------------|--------------|------------|
+| **LCIT** | `lcit-scraper.js` via `lcit-wrapper.js` | `lcit-full-schedule-scraper.js` | HTTPS API (no Puppeteer) |
+| **ESCO** | None (PHP calls full-schedule and filters) | `esco-full-schedule-scraper.js` | Puppeteer |
+| **TIPS** | `tips-scraper.js` via `tips-wrapper.js` | `tips-full-schedule-scraper.js` | Puppeteer |
+| **Hutchison** | `hutchison-scraper.js` via `hutchison-wrapper.js` | `hutchison-full-schedule-scraper.js` | Puppeteer |
+| **LCB1** | `lcb1-scraper.js` via `lcb1-wrapper.js` | `lcb1-full-schedule-scraper.js` | Puppeteer (single) / HTTPS (cron) |
+| **ShipmentLink** | `shipmentlink-wrapper.js` (450 lines) | `shipmentlink-full-schedule-scraper.js` | Puppeteer (single) / HTTPS (cron) |
+| **JWD** | `jwd-scraper.js` | None | Puppeteer |
+| **Kerry** | `kerry_http_request()` in PHP | Queue-based `ScrapeKerryVessel` job | PHP HTTP (no Node.js) |
+
+### The Problem
+
+1. **Code duplication** — Same terminal logic written twice with different approaches
+2. **Bug divergence** — TIPS column mapping was wrong in cron scraper but not tested in single scraper; voyage normalization exists in some single scrapers but not cron scrapers
+3. **Maintenance burden** — Fixing a terminal's website change requires updating two files
+4. **Inconsistent calling patterns** — PHP calls wrappers via `proc_open`/`shell_exec`, each with different argument formats
+
+### Fix Approach: Merge Single & Cron Into One Scraper Per Terminal
+
+**Strategy:** Add optional `--vessel` and `--voyage` CLI args to each full-schedule scraper:
+- **No args** → full schedule mode (cron) — scrape everything, return array
+- **With args** → single vessel mode — scrape and filter, return flat object, early-exit when found
+
+```bash
+# Cron mode (unchanged):
+node scrapers/tips-full-schedule-scraper.js
+
+# Single vessel mode (replaces wrapper + single scraper):
+node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050N"
+```
+
+### Merge Phases (in order)
+
+#### Phase 1: LCIT (easiest — same API, just different params)
+
+**Why easiest:** Both scrapers already call the same HTTPS API. Single scraper passes `?vessel=SAMAL&voy=2606S`, cron passes `?vessel=%&voy=` (wildcard). No Puppeteer involved.
+
+**Steps:**
+1. Add `--vessel`/`--voyage` args to `lcit-full-schedule-scraper.js`
+2. In filter mode: pass actual vessel/voyage to API (not wildcard) — avoids fetching 700+ results
+3. Return flat object format in filter mode
+4. Update `VesselTrackingService.php::lcit_api()` to call `lcit-full-schedule-scraper.js --vessel X --voyage Y`
+5. Test both modes
+
+**Files affected:**
+- `browser-automation/scrapers/lcit-full-schedule-scraper.js` — add filter mode
+- `app/Services/VesselTrackingService.php` — update `lcit_api()` method
+- `browser-automation/lcit-wrapper.js` — becomes unused
+- `browser-automation/scrapers/lcit-scraper.js` — becomes unused
+
+#### Phase 2: ESCO (already has only full-schedule, just needs single filter)
+
+**Why easy:** No dedicated single scraper exists — PHP already calls full-schedule and filters. Just need to add `--vessel`/`--voyage` args so filtering happens in Node.js with flat object return.
+
+**Steps:**
+1. Add `--vessel`/`--voyage` args to `esco-full-schedule-scraper.js`
+2. In filter mode: scrape full schedule (~32 vessels, small table) then filter and return flat object
+3. Update PHP to call with filter args
+
+**Files affected:**
+- `browser-automation/scrapers/esco-full-schedule-scraper.js` — add filter mode
+- `app/Services/VesselTrackingService.php` — update ESCO method
+
+#### Phase 3: TIPS (Puppeteer, good merge candidate)
+
+**Why now:** Column mapping bug (Finding 1) is now fixed in cron scraper. The cron scraper's DataTables approach is more reliable than the single scraper's heuristic date extraction.
+
+**Steps:**
+1. Add `--vessel`/`--voyage` args to `tips-full-schedule-scraper.js`
+2. In filter mode: still scrape full table (uses DataTables page size=100), then filter by vessel name + voyage
+3. Port `generateVoyageVariations()` from `tips-scraper.js` for fuzzy voyage matching
+4. Return flat object format in filter mode
+5. Update `VesselTrackingService.php::tips_browser()` to call full-schedule scraper
+
+**Files affected:**
+- `browser-automation/scrapers/tips-full-schedule-scraper.js` — add filter mode + voyage matching
+- `app/Services/VesselTrackingService.php` — update `tips_browser()` method
+- `browser-automation/tips-wrapper.js` — becomes unused
+- `browser-automation/scrapers/tips-scraper.js` — becomes unused
+
+#### Phase 4: Hutchison (Puppeteer, pagination)
+
+**Steps:**
+1. Add `--vessel`/`--voyage` args to `hutchison-full-schedule-scraper.js`
+2. In filter mode: scrape pages and check each one, early-exit when vessel found
+3. Return flat object format in filter mode
+4. Update `VesselTrackingService.php::hutchison_browser()`
+
+**Files affected:**
+- `browser-automation/scrapers/hutchison-full-schedule-scraper.js` — add filter mode
+- `app/Services/VesselTrackingService.php` — update `hutchison_browser()` method
+- `browser-automation/hutchison-wrapper.js` — becomes unused
+- `browser-automation/scrapers/hutchison-scraper.js` — becomes unused
+
+#### Phase 5: LCB1 (technology choice)
+
+**Decision:** Use the HTTPS approach (cron scraper) for single lookups too.
+- Pro: No Puppeteer needed (lighter, faster startup)
+- Con: The HTTPS approach POSTs per vessel — for single lookup, just POST once for the target vessel (fast)
+
+**Steps:**
+1. Add `--vessel`/`--voyage` args to `lcb1-full-schedule-scraper.js`
+2. In filter mode: skip vessel list fetch, directly POST for the target vessel
+3. Update PHP
+
+**Files affected:**
+- `browser-automation/scrapers/lcb1-full-schedule-scraper.js` — add filter mode
+- `app/Services/VesselTrackingService.php` — update `lcb1_browser()` method
+- `browser-automation/lcb1-wrapper.js` — becomes unused
+- `browser-automation/scrapers/lcb1-scraper.js` — becomes unused
+
+#### Phase 6: ShipmentLink (HTTPS approach)
+
+**Steps:**
+1. Add `--vessel`/`--voyage` args to `shipmentlink-full-schedule-scraper.js`
+2. In filter mode: search vessel code by name first, then query only that vessel's schedule
+3. Update PHP
+
+**Files affected:**
+- `browser-automation/scrapers/shipmentlink-full-schedule-scraper.js` — add filter mode
+- `app/Services/VesselTrackingService.php` — update `shipmentlink_browser()` method
+- `browser-automation/shipmentlink-wrapper.js` — becomes unused (450 lines)
+
+#### Phase 7: JWD (needs full-schedule scraper or stays as exception)
+
+**Current state:** Only has single scraper (`jwd-scraper.js`), no cron scraper. JWD website (`dg-net.org/th/service-shipping`) has a simple table that could be scraped.
+
+**Decision needed:** Create a full-schedule scraper for JWD, or keep single-only? Depends on JWD shipment volume.
+
+### After All Phases — Cleanup
+
+- Remove unused single scraper files and wrapper files
+- Optional: Consolidate `VesselTrackingService` terminal methods into one generic method with single calling pattern: `runScraper($terminal, $vessel, $voyage)`
+
+### Testing Strategy (per phase)
+
+1. Run scraper in **cron mode** (no args) — verify full schedule output unchanged
+2. Run scraper in **single mode** (`--vessel X --voyage Y`) — verify correct vessel returned
+3. Test with **dirty voyage** (e.g., `V.1060S`) — normalization happens in PHP before calling scraper
+4. Test through **PHP artisan tinker** — call the VesselTrackingService method directly
+5. Test through **UI** — trigger ETA check from transport screen
+
+### Key Considerations
+
+1. **Fix P1 bugs before merge** — Voyage normalization (Finding 2) should be done in PHP centrally before calling any scraper, so scrapers receive clean input
+2. **LCIT filter mode should use API params, not scrape-all-then-filter** — LCIT API supports native filtering, much faster than fetching 700+ vessels
+3. **Output format** — In filter mode, return flat `{ success, vessel_name, voyage_code, eta, ... }`. In cron mode, return `{ success, vessels: [...] }`. PHP code already expects these formats
+4. **Kerry is excluded** — Kerry uses PHP HTTP + Laravel queue (session 4), not Node.js scrapers. No merge needed.
+
+---
+
 ## Production Database Analysis — Not_Found Patterns
 
 All shipments with `tracking_status = 'not_found'` from production:
@@ -382,30 +546,51 @@ All shipments with `tracking_status = 'not_found'` from production:
 
 ---
 
-## Fix Priority List (for next session)
+## Fix Priority List
 
-| Priority | Issue | Files to Change | Effort |
-|----------|-------|----------------|--------|
-| **P0** | Remove `2>/dev/null` from all scraper commands | `BrowserAutomationService.php` (7 places), `VesselTrackingService.php` (2 places) | 10 min |
-| **P1** | Fix TIPS column mapping (cells[10] → cells[9]) | `tips-full-schedule-scraper.js` line 104-106 | 5 min |
-| **P1** | Add central voyage normalization (strip "V.", trim spaces) | `VesselTrackingService.php` in `checkVesselETAWithParsedName()` | 15 min |
-| **P1** | Add vessel name trimming | Same location | 5 min |
-| **P2** | Add KLN to port mapping | `VesselTrackingService.php` line 18-55 | 5 min (needs Kerry password) |
-| **P2** | Add port_terminal validation in shipment form | Blade/controller files | 15 min |
-| **P3** | Production: install Chromium system libs | Server admin task | Needs sudo |
-| **P3** | Production: deploy latest code | `git pull` on server | Needs access |
+| Priority | Issue | Finding | Files to Change | Status |
+|----------|-------|---------|----------------|--------|
+| ~~**P0**~~ | ~~Remove `2>/dev/null` from all scraper commands~~ | F3 | ~~`BrowserAutomationService.php` (7), `VesselTrackingService.php` (2)~~ | **DONE** (session 3) |
+| ~~**P1**~~ | ~~Fix TIPS column mapping (cells[10] → cells[9])~~ | F1 | ~~`tips-full-schedule-scraper.js` line 104-106~~ | **DONE** (session 3) |
+| ~~**P1**~~ | ~~Voyage & vessel name normalization (on save + ETA lookup)~~ | F2/F5 | ~~`ShipmentManager.php`, `VesselTrackingService.php`~~ | **DONE** (session 5) — details in `session5_voyage_and_vessel_normalization.md` |
+| ~~**P2**~~ | ~~Add KLN to port mapping + Kerry queue scraper~~ | F6 | ~~`VesselTrackingService.php`, new job/command files~~ | **DONE** (session 4) |
+| **P2** | Add port_terminal validation in shipment form | F5 | Blade/controller files | TODO |
+| **P3** | Production: install Chromium system libs | F3 | Server admin task | TODO |
+| **P3** | Production: deploy latest code | — | `git pull` on server | TODO |
+| **P4** | Merge single & cron scrapers (7 phases) | F7 | All scraper files + `VesselTrackingService.php` | TODO |
+| **P5** | Fix data entry errors: vessel name in voyage field (#1073 `VIRA BHUM 140S`, #1059 `LITTLE DOLPHIN  V. 2518S`), vessel typo `KMTC JAKATA` vs `KMTC JAKARTA` | F2/F5 | Manual DB correction or form validation | TODO (low priority — all completed shipments) |
 
 ---
 
 ## Files Reference (additions to Session 1)
 
-| File | Purpose |
-|------|---------|
-| `browser-automation/scrapers/tips-full-schedule-scraper.js` | TIPS cron scraper — has column mapping bug |
-| `browser-automation/scrapers/tips-scraper.js` | TIPS single scraper — uses heuristic date extraction |
-| `browser-automation/tips-wrapper.js` | TIPS wrapper for PHP → Node.js bridge |
-| `browser-automation/hutchison-wrapper.js` | Hutchison wrapper — only takes vessel name (no voyage) |
-| `app/Services/BrowserAutomationService.php` | PHP service calling Node.js scrapers — has `2>/dev/null` everywhere |
+| File | Purpose | Finding |
+|------|---------|---------|
+| `app/Services/BrowserAutomationService.php` | PHP service calling Node.js scrapers — had `2>/dev/null` everywhere (F3, now fixed) | F3, F7 |
+| `app/Services/VesselTrackingService.php` | PHP terminal routing + scraper dispatch — needs voyage normalization (F2), KLN mapping added (F6) | F2, F5, F6, F7 |
+| **TIPS scrapers** | | |
+| `browser-automation/scrapers/tips-full-schedule-scraper.js` | TIPS cron scraper — column mapping fixed (F1), merge target (F7) | F1, F7 |
+| `browser-automation/scrapers/tips-scraper.js` | TIPS single scraper — has `generateVoyageVariations()`, will be replaced by merge (F7) | F2, F7 |
+| `browser-automation/tips-wrapper.js` | TIPS wrapper for PHP → Node.js bridge — becomes unused after merge (F7) | F7 |
+| **Hutchison scrapers** | | |
+| `browser-automation/scrapers/hutchison-full-schedule-scraper.js` | Hutchison cron scraper — merge target (F7) | F7 |
+| `browser-automation/scrapers/hutchison-scraper.js` | Hutchison single scraper — becomes unused after merge (F7) | F4, F7 |
+| `browser-automation/hutchison-wrapper.js` | Hutchison wrapper — only takes vessel name, no voyage (F4) | F4, F7 |
+| **LCIT scrapers** | | |
+| `browser-automation/scrapers/lcit-full-schedule-scraper.js` | LCIT cron scraper — HTTPS API, merge target (F7) | F7 |
+| `browser-automation/scrapers/lcit-scraper.js` | LCIT single scraper — becomes unused after merge (F7) | F7 |
+| `browser-automation/lcit-wrapper.js` | LCIT wrapper — becomes unused after merge (F7) | F7 |
+| **ESCO scraper** | | |
+| `browser-automation/scrapers/esco-full-schedule-scraper.js` | ESCO cron scraper — no single scraper exists, merge target (F7) | F7 |
+| **LCB1 scrapers** | | |
+| `browser-automation/scrapers/lcb1-full-schedule-scraper.js` | LCB1 cron scraper — HTTPS approach, merge target (F7) | F7 |
+| `browser-automation/scrapers/lcb1-scraper.js` | LCB1 single scraper — Puppeteer, becomes unused after merge (F7) | F7 |
+| `browser-automation/lcb1-wrapper.js` | LCB1 wrapper — becomes unused after merge (F7) | F7 |
+| **ShipmentLink scrapers** | | |
+| `browser-automation/scrapers/shipmentlink-full-schedule-scraper.js` | ShipmentLink cron scraper — HTTPS, merge target (F7) | F7 |
+| `browser-automation/shipmentlink-wrapper.js` | ShipmentLink wrapper — 450 lines, becomes unused after merge (F7) | F7 |
+| **JWD scraper** | | |
+| `browser-automation/scrapers/jwd-scraper.js` | JWD single scraper — no cron scraper exists, needs decision (F7) | F7 |
 
 ---
 

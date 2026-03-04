@@ -195,8 +195,8 @@ class VesselTrackingService
     protected function checkVesselETAWithParsedName($parsedVessel, $portCode)
     {
         // Normalize vessel name and voyage before any lookup
-        $parsedVessel['vessel_name'] = trim($parsedVessel['vessel_name']);
-        $parsedVessel['voyage_code'] = trim(preg_replace('/^V\.?\s*/i', '', $parsedVessel['voyage_code'] ?? ''));
+        $parsedVessel['vessel_name'] = preg_replace('/\s+/', ' ', trim($parsedVessel['vessel_name']));
+        $parsedVessel['voyage_code'] = trim(preg_replace('/^V\.?\s*/i', '', trim($parsedVessel['voyage_code'] ?? '')));
 
         // OPTIMIZATION: Check local database first (from daily scrapes)
         $dbSchedule = VesselSchedule::findVessel($parsedVessel['vessel_name'], $portCode, $parsedVessel['voyage_code']);
