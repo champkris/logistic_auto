@@ -902,112 +902,120 @@ class VesselTrackingService
 
     protected function lcb1($config)
     {
-        // LCB1 - Use Browser Automation (required for dynamic content)
+        $vesselName = $config['vessel_name'] ?? '';
+        $voyageCode = $config['voyage_code'] ?? '';
+
+        \Log::info("LCB1 check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
         try {
-            $vesselName = $config['vessel_name'] ?? 'MARSA PRIDE';
-            $voyageCode = $config['voyage_code'] ?? '';
+            $command = sprintf(
+                'cd %s && timeout 30s node scrapers/lcb1-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
+            );
 
-            // Use the new BrowserAutomationService
-            $browserAutomationPath = base_path('browser-automation');
-            $scriptPath = $browserAutomationPath . '/laravel-wrapper.js';
+            $descriptors = [
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
+            ];
 
-            // Pass vessel name and voyage code to scraper
-            $args = [$vesselName];
-            if (!empty($voyageCode)) {
-                $args[] = $voyageCode;
-            }
+            $process = proc_open($command, $descriptors, $pipes);
 
-            $result = BrowserAutomationService::runNodeScript($scriptPath, $args, 60);
+            if (is_resource($process)) {
+                fclose($pipes[0]);
 
-            $jsonOutput = $result['stdout'];
-            $logOutput = $result['stderr'];
-            $returnCode = $result['return_code'];
-                
-            // Log the browser automation logs for debugging
-            if (!empty($logOutput)) {
-                \Log::info("Browser automation logs:", ['logs' => $logOutput]);
-            }
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
 
-            if (!$jsonOutput) {
-                throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
-            }
+                fclose($pipes[1]);
+                fclose($pipes[2]);
 
-            $output = $jsonOutput;
-            
-            if (!$output) {
-                throw new \Exception("Browser automation failed: no output");
-            }
-            
-            // Parse the JSON result
-            $result = json_decode(trim($output), true);
-            
-            if (!$result) {
-                throw new \Exception("Invalid JSON from browser automation: " . substr($output, 0, 200));
-            }
-            
-            // Log the parsed result for debugging
-            \Log::info("LCB1 Browser Automation Result:", ['result' => $result]);
+                $returnCode = proc_close($process);
 
-            // Check if this is a "no data found" scenario vs actual error
-            if (!$result['success']) {
-                $errorMessage = $result['error'] ?? $result['message'] ?? 'Unknown error';
+                if (!empty($logOutput)) {
+                    \Log::info("LCB1 scraper logs:", ['logs' => $logOutput]);
+                }
 
-                // Handle "no data found" as a valid result, not an error
-                if (str_contains($errorMessage, 'No current schedule data') ||
-                    str_contains($errorMessage, 'no schedule data available') ||
-                    str_contains($errorMessage, 'no schedule data') ||
-                    isset($result['details']) && str_contains($result['details'], 'no schedule data')) {
-
-                    \Log::info("Terminal {$config['name']}: No schedule data found for {$vesselName} - this is expected for vessels without current schedules");
+                if (!$jsonOutput) {
+                    \Log::warning("LCB1 scraper failed: no JSON output (exit code: {$returnCode})");
 
                     return [
                         'success' => true,
                         'terminal' => $config['name'],
-                        'vessel_found' => true,
+                        'vessel_found' => false,
                         'voyage_found' => false,
-                        'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                        'voyage_code' => null,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
                         'eta' => null,
                         'etd' => null,
-                        'search_method' => 'browser_automation',
-                        'message' => $errorMessage,
-                        'no_data_reason' => 'Vessel exists but no current schedule available',
-                        'raw_data' => $result,
+                        'search_method' => 'lcb1_timeout_fallback',
+                        'message' => 'LCB1 terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
                         'checked_at' => now()
                     ];
                 }
-
-                // This is an actual automation error
-                throw new \Exception("Browser automation error: " . $errorMessage);
+            } else {
+                throw new \Exception("Failed to start LCB1 scraper process");
             }
 
-            // Convert to Laravel expected format
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from LCB1 scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("LCB1 scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("LCB1 terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'lcb1_not_found',
+                    'message' => 'Vessel not in current LCB1 schedule',
+                    'no_data_reason' => 'The terminal was accessible, but the specified vessel was not found in the current schedule.',
+                    'checked_at' => now()
+                ];
+            }
+
+            // Vessel found
             return [
                 'success' => true,
                 'terminal' => $config['name'],
-                'port_terminal' => $result['port_terminal'] ?? null,  // Specific terminal (A0, B1, etc.)
                 'vessel_found' => true,
-                'voyage_found' => !empty($result['voyage_code']),
+                'voyage_found' => true,
                 'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                'voyage_code' => $result['voyage_code'],
-                'eta' => $result['eta'],
-                'etd' => $result['etd'],
-                'search_method' => 'browser_automation',
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'] ?? null,
+                'etd' => $result['etd'] ?? null,
+                'berth' => $result['berth'] ?? null,
+                'search_method' => 'lcb1_scraper',
                 'raw_data' => $result['raw_data'] ?? null,
                 'checked_at' => now()
             ];
-            
+
         } catch (\Exception $e) {
-            \Log::error("LCB1 Browser Automation Error: " . $e->getMessage());
-            
+            \Log::error("LCB1 scraper error: " . $e->getMessage());
+
             return [
                 'success' => false,
                 'terminal' => $config['name'],
-                'vessel_found' => false,
-                'voyage_found' => false,
-                'eta' => null,
-                'error' => 'Browser automation failed: ' . $e->getMessage(),
-                'search_method' => 'browser_automation_failed',
+                'error' => $e->getMessage(),
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'search_method' => 'lcb1_error',
                 'checked_at' => now()
             ];
         }

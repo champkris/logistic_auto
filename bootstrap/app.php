@@ -33,6 +33,9 @@ return Application::configure(basePath: dirname(__DIR__))
                         // Scrape JWD schedule (single HTTP GET, returns immediately)
                         \Illuminate\Support\Facades\Artisan::call('vessel:scrape-jwd');
 
+                        // Dispatch LCB1 queue jobs (returns immediately)
+                        \Illuminate\Support\Facades\Artisan::call('vessel:scrape-lcb1');
+
                         \Illuminate\Support\Facades\Log::info("Executed scheduled vessel scraping", [
                             'schedule_id' => $scheduleItem->id,
                             'schedule_name' => $scheduleItem->name,

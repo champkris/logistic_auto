@@ -1,7 +1,7 @@
 # Plan: Merge Single & Cron Scrapers into One Codebase
 
-Date: 2026-03-06 (updated from 2026-03-03)
-Session: 7
+Date: 2026-03-07 (updated from 2026-03-06)
+Session: 7 (last updated: session 14)
 
 ---
 
@@ -28,7 +28,7 @@ This means **duplicate JS scripts**, **duplicate PHP methods**, and **different 
 | **TIPS** | `tips-full-schedule-scraper.js` | `tips-wrapper.js` + `tips-scraper.js` | `BAS::scrapeTipsFullSchedule()` | `VTS::tips_browser()` | Puppeteer |
 | **ESCO** | `esco-full-schedule-scraper.js` | _(none — PHP calls full-schedule + filters)_ | `BAS::scrapeEscoFullSchedule()` | `VTS::esco()` | Puppeteer |
 | **LCIT** | `lcit-full-schedule-scraper.js` | `lcit-wrapper.js` + `lcit-scraper.js` | `BAS::scrapeLcitFullSchedule()` | `VTS::lcit()` | HTTPS/XML |
-| **LCB1** | `lcb1-full-schedule-scraper.js` | `lcb1-wrapper.js` + `lcb1-scraper.js` | `BAS::scrapeLcb1FullSchedule()` | `VTS::lcb1()` | HTTPS |
+| **LCB1** | _(queue-based: `ScrapeLCB1Vessel.php` → JS scraper)_ | ~~`lcb1-wrapper.js` + `lcb1-scraper.js`~~ → `lcb1-full-schedule-scraper.js --vessel` | `ScrapeLCB1Vessels.php` | `VTS::lcb1()` | HTTPS + queue |
 | **ShipmentLink** | `shipmentlink-full-schedule-scraper.js` | `shipmentlink-wrapper.js` + `shipmentlink-https-scraper.js` | `BAS::scrapeShipmentlinkFullSchedule()` | `VTS::shipmentlink_browser()` | HTTPS |
 | **JWD** | _(none — to be created as PHP command)_ | `jwd-scraper.js` | _(none)_ | `VTS::jwd_browser()` + `VTS::jwd_http_request()` | HTTP GET (returns all vessels in one request) |
 | **Kerry** | _(queue-based: `ScrapeKerryVessel.php`)_ | _(PHP HTTP: `VTS::kerry_http_request()`)_ | `ScrapeKerryVessels.php` | `VTS::kerry_http_request()` | PHP HTTP |
@@ -94,7 +94,7 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 | `browser-automation/scrapers/debug-tips-structure.js` | Same |
 | `browser-automation/scrapers/debug-shipmentlink-structure.js` | Same |
 
-### Files that REMAIN (6 JS scrapers + 1 data file)
+### Files that REMAIN (6 JS scrapers + 2 data files)
 
 | File | Role |
 |------|------|
@@ -102,8 +102,9 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 | `browser-automation/scrapers/tips-full-schedule-scraper.js` | Unified TIPS scraper (cron + single) |
 | `browser-automation/scrapers/esco-full-schedule-scraper.js` | Unified ESCO scraper (cron + single) |
 | `browser-automation/scrapers/lcit-full-schedule-scraper.js` | Unified LCIT scraper (cron + single) |
-| `browser-automation/scrapers/lcb1-full-schedule-scraper.js` | Unified LCB1 scraper (cron + single) |
+| `browser-automation/scrapers/lcb1-full-schedule-scraper.js` | Unified LCB1 scraper (single only — cron uses queue jobs) |
 | `browser-automation/scrapers/shipmentlink-full-schedule-scraper.js` | Unified ShipmentLink scraper (cron + single) |
+| `browser-automation/scrapers/lcb1-vessel-codes.json` | Cached LCB1 vessel name → code mapping (371 entries) |
 | `browser-automation/scrapers/shipmentlink-vessel-codes.json` | Data file for ShipmentLink vessel codes |
 
 ### New files to CREATE
@@ -111,6 +112,9 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 | File | Role |
 |------|------|
 | `app/Console/Commands/ScrapeJwdSchedule.php` | JWD cron command — HTTP GET, parse all vessels, store to DB |
+| `app/Jobs/ScrapeLCB1Vessel.php` | LCB1 queue job — calls JS scraper per vessel, stores to DB |
+| `app/Console/Commands/ScrapeLCB1Vessels.php` | LCB1 cron dispatcher — queries shipments, dispatches queue jobs |
+| `browser-automation/scrapers/lcb1-vessel-codes.json` | Cached vessel name → code mapping (auto-refreshed on miss) |
 
 ### Files that REMAIN UNCHANGED (not merged)
 
@@ -118,6 +122,8 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 |------|--------|
 | `app/Jobs/ScrapeKerryVessel.php` | Kerry uses PHP HTTP + queue — not a JS scraper |
 | `app/Console/Commands/ScrapeKerryVessels.php` | Kerry queue dispatcher — separate system |
+| `app/Jobs/ScrapeLCB1Vessel.php` | LCB1 queue job — NEW in Phase 5 |
+| `app/Console/Commands/ScrapeLCB1Vessels.php` | LCB1 queue dispatcher — NEW in Phase 5 |
 
 ### PHP methods to CONSOLIDATE
 
@@ -332,18 +338,190 @@ No login required. Session is created on GET, used for pagination POSTs, then di
 
 ---
 
-### Phase 5: LCB1 (HTTPS, skip full vessel list in single mode)
+### Phase 5: LCB1 (Puppeteer → HTTPS + queue-based cron + vessel code cache) — DONE (session 14)
 
-**Decision:** Use HTTPS approach for both modes. In single mode, skip fetching all 392 vessel names — directly POST for the target vessel.
+**Key discovery: LCB1 API uses vessel CODES, not names.** The `<select>` dropdown on `/BerthSchedule` has `<option value="KXM">KMTC XIAMEN</option>`. The POST to `/BerthSchedule/Detail` requires `vesselName=KXM` (the code), not `vesselName=KMTC+XIAMEN` (the display name). Sending the full name always returns "No data found". This was the critical bug in all previous LCB1 scraper attempts.
 
-**JS changes to `lcb1-full-schedule-scraper.js`:**
-1. Parse `--vessel`/`--voyage` args
-2. If args provided: skip vessel list fetch, directly POST to `/BerthSchedule/Detail` for target vessel
-3. Return flat object in filter mode
+**LCB1 API structure:**
+```
+GET  https://www.lcb1.com/BerthSchedule
+  Returns: HTML page with <select id="txtVesselName"> dropdown (~396 options)
+  No auth, no cookies, no session
 
-**PHP changes:** Update `lcb1()` method.
+POST https://www.lcb1.com/BerthSchedule/Detail
+  Content-Type: application/x-www-form-urlencoded
+  Body: vesselName=KXM&voyageIn=&voyageOut=&pageSize=100&page=1
+  Returns: HTML table fragment
 
-**Files retired:** `lcb1-wrapper.js`, `lcb1-scraper.js`, `lcb1-full-schedule-scraper-puppeteer.js`
+  Table columns (7):
+    [0] No.  [1] Vessel Name  [2] Voyage In  [3] Voyage Out
+    [4] Berthing Time (DD/MM/YYYY - HH:MM)  [5] Departure Time  [6] Terminal (A0, B1)
+```
+
+No rate limiting detected (tested 50 rapid requests). Response time ~750ms sequential, ~2.8s parallel (10 concurrent). Behind Imperva Incapsula CDN (`visid_incap_`, `incap_ses_` cookies) but WAF doesn't block scraping.
+
+**Why queue-based cron (like Kerry), not batch scrape:** LCB1's API only supports querying one vessel at a time (POST with `vesselName=CODE`). Unlike Hutchison/TIPS/ESCO which return all vessels in one page, LCB1 would require ~400 sequential POSTs for a full schedule. A queue-based approach dispatches one job per active shipment's vessel, rate-limited to 40/min. Queue concurrency: 1 worker (parallel requests slow down 3-4x). Expected cycle: ~15 vessels x ~2s = ~30 seconds.
+
+**Vessel code mapping — why 371 not 395:**
+The LCB1 dropdown has **396 `<option>` tags**:
+- 1 is the empty placeholder: `<option value="">Select</option>` → filtered out (empty code)
+- 24 are **duplicate vessel names** with different codes (same name listed 2-3 times, e.g. `MAERSK NARVIK` has codes `ER0` and `SE1`). When stored as `{ "NAME": "CODE" }` JSON, the last code wins
+- Result: **395 valid entries - 24 dupes = 371 unique vessel name → code mappings**
+
+Example duplicates from LCB1:
+| Vessel Name | Code 1 (old) | Code 2 (new, stored) |
+|-------------|-------------|---------------------|
+| MAERSK NARVIK | ER0 | SE1 |
+| PANCON CHAMPION | GI6 → KPCP | PCHM |
+| ALS VENUS | AE6 | H4B |
+| SEOUL GLOW | 4CO | EP9 |
+
+The last code is stored in cache because the dropdown lists them in order and the `mapping[name] = code` assignment overwrites previous entries. This matches what the dropdown shows as the active option.
+
+**Vessel code cache file: `browser-automation/scrapers/lcb1-vessel-codes.json`**
+- Same format as `shipmentlink-vessel-codes.json`: `{ "VESSEL NAME": "CODE", ... }`
+- 371 entries, ~12KB
+- Three-tier lookup strategy:
+  1. **Cache hit** → use cached code, no HTTP request
+  2. **Cache miss** → live GET to `/BerthSchedule`, parse dropdown, refresh entire cache file, retry lookup
+  3. **Stale code detection** → if POST with cached code returns no data, force-refresh cache and retry with new code. Handles the edge case where a vessel name stays the same but its code changes on LCB1's side
+
+| Old behavior | New behavior |
+|-------------|-------------|
+| `lcb1-scraper.js`: 684-line Puppeteer, Select2 widget interaction, screenshot debugging | `lcb1-full-schedule-scraper.js`: ~340 lines, pure HTTPS (`node:https` + `node-html-parser`), no Puppeteer |
+| `lcb1-wrapper.js` → `laravel-wrapper.js` → Puppeteer → 60s timeout | Direct `node scrapers/lcb1-full-schedule-scraper.js --vessel X --voyage Y` → 30s timeout |
+| Every call fetched vessel list from LCB1 website | JSON cache file, live refresh only on miss or stale code |
+| No cron scraper (commented out — too slow with Puppeteer, 392 sequential lookups) | Queue-based cron: `vessel:scrape-lcb1` → dispatches `ScrapeLCB1Vessel` jobs, rate-limited 40/min |
+| `BrowserAutomationService::runNodeScript()` | `proc_open` in both `VesselTrackingService::lcb1()` and `ScrapeLCB1Vessel::callScraper()` |
+
+**Actual code changes made (session 14):**
+
+1. **REWRITTEN: `browser-automation/scrapers/lcb1-full-schedule-scraper.js`**
+   - Was: 187-line cron-only scraper looping through all ~400 vessels
+   - Now: Single-vessel scraper with `--vessel`/`--voyage` CLI args (used by both live ETA checks and queue jobs)
+   - Key methods:
+     - `loadCache()` / `saveCache()` — read/write `lcb1-vessel-codes.json`
+     - `fetchLiveVesselMapping()` — GET `/BerthSchedule`, parse `<select id="txtVesselName">` dropdown into `{ NAME: CODE }` mapping
+     - `lookupInCache(vesselName)` — exact match first, then partial (contains) match
+     - `findVesselCode(vesselName, forceRefresh)` — cache-first lookup with live fallback
+     - `scrapeSingleVessel(vesselName, voyageCode)` — POST with vessel CODE, parse HTML table, stale-code retry
+     - `findVesselMatch(schedules, voyageCode)` — exact → partial → fallback to first (P4.5 deferred)
+     - `parseScheduleHTML(html, vesselName)` — 7-column table: [#, Vessel, Voyage In, Voyage Out, Berthing Time, Departure Time, Terminal]
+     - `formatDate(dateStr)` — `"DD/MM/YYYY - HH:MM"` → `"YYYY-MM-DDThh:mm:00"`
+     - `makeRequest(path, method, postData, retries)` — HTTPS with 30s timeout, auto-retry up to 2 times on network failures
+   - Technology: `node:https` + `node:fs` + `node-html-parser` (no Puppeteer, no axios)
+
+2. **NEW: `browser-automation/scrapers/lcb1-vessel-codes.json`**
+   - 371 vessel name → code mappings cached from LCB1 dropdown
+   - Auto-refreshed when vessel not found in cache or when cached code returns no data
+
+3. **REWRITTEN: `app/Services/VesselTrackingService.php`** (`lcb1()` method ~line 903)
+   - Was: Called `laravel-wrapper.js` via `BrowserAutomationService::runNodeScript` (60s timeout, Puppeteer)
+   - Now: Calls `node scrapers/lcb1-full-schedule-scraper.js --vessel X --voyage Y` via `proc_open` (30s timeout, HTTP)
+   - Response handling: `vessel_found: false` → `lcb1_not_found`, timeout → `lcb1_timeout_fallback`, success → `lcb1_scraper`, error → `lcb1_error`
+
+4. **NEW: `app/Jobs/ScrapeLCB1Vessel.php`** (queue job)
+   - `implements ShouldQueue`, `$tries = 2`, `$backoff = 30`
+   - `middleware()`: `RateLimited('lcb1-api')`
+   - `handle()`: calls JS scraper via `proc_open`, parses JSON, `VesselSchedule::updateOrCreate()` with match keys `vessel_name + port_terminal + voyage_code`
+   - `logScrape()`: writes to `DailyScrapeLog` (terminal: 'lcb1')
+   - Skips ETAs more than 1 month old, sets 48h expiry
+
+5. **NEW: `app/Console/Commands/ScrapeLCB1Vessels.php`** (cron dispatcher)
+   - Signature: `vessel:scrape-lcb1 {--dry-run}`
+   - Queries: `Shipment::where('status', 'in-progress')->whereIn('port_terminal', ['A0', 'B1'])->whereNotNull('vessel_id')->whereBetween('client_requested_delivery_date', [now()->subMonth(), now()->addMonth()])`
+   - Deduplicates by `vessel_name + voyage` (avoids redundant API calls for multiple containers on same ship)
+   - Dispatches `ScrapeLCB1Vessel` jobs to `lcb1-scraper` queue
+
+6. **MODIFIED: `app/Providers/AppServiceProvider.php`**
+   - Added: `RateLimiter::for('lcb1-api', fn($job) => Limit::perMinute((int) env('LCB1_RATE_LIMIT', 40)));`
+
+7. **MODIFIED: `bootstrap/app.php`** (line 36-37)
+   - Added after JWD: `\Illuminate\Support\Facades\Artisan::call('vessel:scrape-lcb1');`
+
+8. **MODIFIED: `app/Livewire/ScheduleManager.php`** (line 143-144)
+   - Added after JWD in `runNow()`: `\Illuminate\Support\Facades\Artisan::call('vessel:scrape-lcb1');`
+
+9. **DELETED 12 files:**
+
+   | File | Reason |
+   |------|--------|
+   | `browser-automation/lcb1-wrapper.js` | Replaced by `--vessel` mode |
+   | `browser-automation/enhanced-lcb1-debug.js` | Debug script |
+   | `browser-automation/laravel-wrapper.js` | Generic wrapper, replaced by direct calls |
+   | `browser-automation/scrapers/lcb1-scraper.js` | 684-line Puppeteer scraper replaced by ~340-line HTTPS |
+   | `browser-automation/scrapers/lcb1-full-schedule-scraper-puppeteer.js` | Old Puppeteer cron version |
+   | `browser-automation/scrapers/debug-lcb1-structure.js` | One-time debug script |
+   | `browser-automation/lcb1-debug-screenshot.png` | Debug screenshot |
+   | `browser-automation/lcb1-enhanced-debug.png` | Debug screenshot |
+   | `browser-automation/lcb1-enhanced-error.png` | Debug screenshot |
+   | `browser-automation/lcb1-ajax-debug.png` | Debug screenshot |
+   | `browser-automation/lcb1-error-1753203340851.png` | Debug screenshot |
+   | `browser-automation/lcb1-error-1753205964695.png` | Debug screenshot |
+
+**Data flow after LCB1 merge:**
+```
+Cron fires vessel_scrape schedule
+  → vessel:scrape-schedules (Hutchison, TIPS, ESCO, LCIT — batch scrapers, unchanged)
+  → vessel:scrape-kerry (queue-based per-vessel, PHP HTTP)
+  → vessel:scrape-jwd (single HTTP GET, all vessels at once)
+  → vessel:scrape-lcb1 (dispatches queue jobs, returns instantly)
+      → Queue worker processes ScrapeLCB1Vessel jobs (rate limited 40/min)
+      → Each job: JS scraper → cache lookup → POST to LCB1 → parse → vessel_schedules DB
+
+Live ETA check for A0/B1 shipment:
+  → checkVesselETAWithParsedName() resolves A0 → 'lcb1'
+  → Checks vessel_schedules DB first (instant if cron pre-cached)
+  → Falls back to live JS scraper if not cached
+```
+
+**Production setup:**
+- Deploy code + `php artisan migrate` (ensure jobs/failed_jobs tables exist)
+- Start queue worker: `php artisan queue:work --queue=lcb1-scraper --tries=2 --backoff=30 --sleep=3 --timeout=60`
+- Optional env: `LCB1_RATE_LIMIT=40` (default)
+- No new crontab entry — existing `schedule:run` triggers `vessel:scrape-lcb1` via `bootstrap/app.php`
+- Only 1 worker needed — with ~15 unique vessels deduped from ~26 shipments, all jobs complete in under 30 seconds
+
+**Test results (2026-03-06):**
+
+| Test | Result |
+|------|--------|
+| JS scraper cache hit (`--vessel "KMTC XIAMEN" --voyage "2602S"`) | Works — `Cache hit: KMTC XIAMEN → KXM`, ETA=`2026-02-28T07:00:00` |
+| JS scraper cache miss (removed entry, re-ran) | Works — `Cache miss`, fetched live, saved 371 vessels, found code |
+| JS scraper second vessel (`--vessel "SAWASDEE DENEB" --voyage "2602S"`) | Works — ETA=`2026-03-01T04:00:00` |
+| Cron dry-run (`vessel:scrape-lcb1 --dry-run`) | Works — 26 shipments, 15 unique vessels |
+| PHP live ETA (artisan tinker, `checkVesselETAByName`) | Works — `source: lcb1_db_cached`, ETA correct from DB |
+| Vessel code cache file | 371 entries in `lcb1-vessel-codes.json` |
+
+**Test vessels (confirmed working 2026-03-06):**
+
+| Vessel | Voyage | ETA | Port | Notes |
+|--------|--------|-----|------|-------|
+| KMTC XIAMEN | 2602S | 28/02 07:00 | A0 | Standard test case |
+| SAWASDEE DENEB | 2602S | 01/03 04:00 | A0 | Second vessel test |
+| SM JAKARTA | 2602W | — | A0 | "Not Found" — vessel departed |
+| SAWASDEE SUNRISE | 2602S | 17/03 16:00 | A0 | **P4.5 bug** — returns 2603S ETA for 2602S request (voyage fallback) |
+
+**Testing/verification commands:**
+```bash
+# JS scraper tests
+cd /home/dragonnon2/projects/logistic_auto/browser-automation
+node scrapers/lcb1-full-schedule-scraper.js --vessel "KMTC XIAMEN" --voyage "2602S"
+node scrapers/lcb1-full-schedule-scraper.js --vessel "NONEXISTENT" --voyage "999X"
+
+# PHP cron
+php artisan vessel:scrape-lcb1 --dry-run
+php artisan vessel:scrape-lcb1
+php artisan queue:work --queue=lcb1-scraper --once
+
+# PHP live ETA
+php artisan tinker
+# (new App\Services\VesselTrackingService)->checkVesselETAByName('KMTC XIAMEN 2602S', 'A0')
+
+# Verify DB
+# SELECT * FROM vessel_schedules WHERE source = 'lcb1' ORDER BY updated_at DESC LIMIT 10;
+# SELECT * FROM daily_scrape_logs WHERE terminal = 'lcb1' ORDER BY id DESC LIMIT 5;
+```
 
 ---
 
@@ -530,9 +708,12 @@ schedule:run
     → BrowserAutomationService → node scrapers/X-full-schedule-scraper.js (NO args)
     → Returns { vessels: [...] }
     → storeVesselSchedule() → vessel_schedules DB
-    → Terminals: Hutchison, TIPS, ESCO, LCIT (Node.js scrapers)
-  → vessel:scrape-kerry (queue-based, per-vessel HTTP — Kerry API requires vessel param)
+    → Terminals: Hutchison, TIPS, ESCO, LCIT (Node.js batch scrapers)
+  → vessel:scrape-kerry (queue-based, per-vessel PHP HTTP — Kerry API requires vessel param)
   → vessel:scrape-jwd (single HTTP GET → parse all ~75 rows → store to DB)
+  → vessel:scrape-lcb1 (queue-based, per-vessel JS scraper — LCB1 API requires vessel code)
+    → Dispatches ScrapeLCB1Vessel jobs to lcb1-scraper queue
+    → Queue worker: JS scraper → cache lookup → POST → parse → vessel_schedules DB
 
 === LIVE (Single Vessel Check) — simplified flow ===
 User clicks "Check ETA"
@@ -591,7 +772,8 @@ browser-automation/
     ├── tips-full-schedule-scraper.js         (cron + single mode)
     ├── esco-full-schedule-scraper.js         (cron + single mode)
     ├── lcit-full-schedule-scraper.js         (cron + single mode)
-    ├── lcb1-full-schedule-scraper.js         (cron + single mode)
+    ├── lcb1-full-schedule-scraper.js         (single mode only — cron uses queue)
+    ├── lcb1-vessel-codes.json               (vessel name → code cache, 371 entries)
     ├── shipmentlink-full-schedule-scraper.js (cron + single mode)
     ├── shipmentlink-vessel-codes.json
     └── UPDATE-VESSEL-CODES.md
@@ -599,11 +781,17 @@ browser-automation/
 app/Console/Commands/
     ├── ScrapeVesselSchedules.php             (existing — Hutchison, TIPS, ESCO, LCIT cron)
     ├── ScrapeKerryVessels.php                (existing — Kerry queue cron)
-    └── ScrapeJwdSchedule.php                 (NEW — JWD PHP HTTP cron)
+    ├── ScrapeJwdSchedule.php                 (NEW — JWD PHP HTTP cron)
+    └── ScrapeLCB1Vessels.php                 (NEW — LCB1 queue dispatcher cron)
+
+app/Jobs/
+    ├── ScrapeKerryVessel.php                (existing — Kerry queue job)
+    └── ScrapeLCB1Vessel.php                 (NEW — LCB1 queue job)
 ```
 
-**Result:** ~24 JS files → 8 files (6 scrapers + 1 data file + 1 doc) + 1 new PHP command
+**Result:** ~24 JS files → 9 files (6 scrapers + 2 data files + 1 doc) + 2 new PHP commands + 1 new PHP job
 **JWD moved from JS to PHP** — no more Node.js dependency for JWD
+**LCB1 moved from Puppeteer to HTTPS** — queue-based cron like Kerry
 
 ---
 
@@ -632,8 +820,9 @@ ORDER BY s.port_terminal;
 3. **Voyage normalization happens in PHP** — scrapers receive clean input (no "V." prefix, no leading spaces)
 4. **Kerry is excluded from JS merge** — uses PHP HTTP + Laravel queue, already has its own cron system
 5. **JWD uses PHP HTTP (no queue)** — one GET returns all ~75 vessels, so no need for per-vessel queue jobs like Kerry
-6. **Three cron patterns after merge:**
-   - **Node.js scrapers** (Hutchison, TIPS, ESCO, LCIT, LCB1, ShipmentLink) — called via `vessel:scrape-schedules`
+6. **Four cron patterns after merge:**
+   - **Node.js batch scrapers** (Hutchison, TIPS, ESCO, LCIT) — called via `vessel:scrape-schedules`, scrape full schedule in one go
+   - **Node.js queue** (LCB1) — called via `vessel:scrape-lcb1`, dispatches per-vessel queue jobs (API only supports one vessel per POST)
    - **PHP queue** (Kerry) — called via `vessel:scrape-kerry`, dispatches per-vessel jobs
    - **PHP direct HTTP** (JWD) — called via `vessel:scrape-jwd`, single GET + parse + store
 7. **Output format contract (JS scrapers):**
