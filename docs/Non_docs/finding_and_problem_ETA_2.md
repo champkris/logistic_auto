@@ -557,7 +557,7 @@ All shipments with `tracking_status = 'not_found'` from production:
 | **P2** | Add port_terminal validation in shipment form | F5 | Blade/controller files | **SKIP** — will fix in next big update |
 | ~~**P3**~~ | ~~Production: install Chromium system libs~~ | F3 | ~~Server admin task~~ | **DONE** (session 6) — guide in `session6_How_to_install_Chromium.md` |
 | **P3** | Production: deploy latest code | — | `git pull` on server | TODO |
-| **P4** | Merge single & cron scrapers (8 phases) | F7 | All scraper files + `VesselTrackingService.php` | **IN PROGRESS** — Phase 7 (JWD cron) DONE (session 7), phases 1-6,8 TODO |
+| **P4** | Merge single & cron scrapers (8 phases) | F7 | All scraper files + `VesselTrackingService.php` | **IN PROGRESS** — Phase 7 (JWD cron) DONE (session 7), Phase 8 (Everbuild cleanup) DONE (session 9), phases 1-6 TODO |
 | ~~**P4.1**~~ | ~~Kerry scraper: filter by ±1 month `client_requested_delivery_date`~~ | F6 | ~~`ScrapeKerryVessels.php`~~ | **DONE** (session 8) — see details below |
 | **P5** | Fix data entry errors: vessel name in voyage field (#1073 `VIRA BHUM 140S`, #1059 `LITTLE DOLPHIN  V. 2518S`), vessel typo `KMTC JAKATA` vs `KMTC JAKARTA` | F2/F5 | Manual DB correction or form validation | TODO (low priority — all completed shipments) |
 

@@ -354,9 +354,18 @@ vessel_schedules: vessel=INCHEON VOYAGER, voyage=2602S, eta=2026-03-06 05:00, et
 
 ---
 
-### Phase 8: Everbuild + Siam (cleanup only)
+### Phase 8: Everbuild + Siam (cleanup only) — DONE (session 9)
 
-**Everbuild:** Remove `everbuild_browser()` from PHP and `everbuild-wrapper.js`/`everbuild-scraper.js` from JS. Dead code — no port mapping routes to it.
+**Everbuild:** Removed all Everbuild code. It was a Puppeteer-based scraper targeting `ss.shipmentlink.com` (same site as ShipmentLink B2) but was never wired into port routing — zero DB records, no port mapping. A worse duplicate of the ShipmentLink HTTPS scraper.
+
+**Removed files (28 total):**
+- `everbuild-wrapper.js`, `scrapers/everbuild-scraper.js`, `scrapers/everbuild-scraper-improved.js` (core)
+- `everbuild-*.png` (4 debug screenshots)
+- 21 debug/fix scripts in `browser-automation/` (`debug-*.js`, `compare-*.js`, `fix-*.js`, `quick-debug.js`, `vessel-scraper.js`) — all one-off throwaway scripts from development
+- `everbuild_browser()` method (118 lines) from `VesselTrackingService.php`
+- Stale `package.json` entries (`"main"`, `"start"`, `"test"`, `"everbuild"` script)
+
+**Verified:** ShipmentLink (B2) scraper tested and works correctly after removal — completely independent code paths.
 
 **Siam:** Keep `siam_n8n_line()` placeholder as-is. Different integration pattern (n8n/LINE).
 
