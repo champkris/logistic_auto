@@ -763,18 +763,126 @@ class VesselTrackingService
 
     protected function esco($config)
     {
-        // ESCO - Berth Schedule
-        $response = Http::timeout(30)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            ])
-            ->get($config['url']);
+        $vesselName = $config['vessel_name'] ?? '';
+        $voyageCode = $config['voyage_code'] ?? '';
 
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
+        \Log::info("ESCO check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
+        try {
+            // Use the unified ESCO full-schedule scraper in single mode
+            $command = sprintf(
+                'cd %s && timeout 30s node scrapers/esco-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
+            );
+
+            $descriptors = [
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
+            ];
+
+            $process = proc_open($command, $descriptors, $pipes);
+
+            if (is_resource($process)) {
+                fclose($pipes[0]);
+
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
+
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+
+                $returnCode = proc_close($process);
+
+                if (!empty($logOutput)) {
+                    \Log::info("ESCO scraper logs:", ['logs' => $logOutput]);
+                }
+
+                if (!$jsonOutput) {
+                    \Log::warning("ESCO scraper failed: no JSON output (exit code: {$returnCode})");
+
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'esco_timeout_fallback',
+                        'message' => 'ESCO terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
+                        'checked_at' => now()
+                    ];
+                }
+            } else {
+                throw new \Exception("Failed to start ESCO scraper process");
+            }
+
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from ESCO scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("ESCO scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("ESCO terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'esco_not_found',
+                    'message' => 'Vessel not found in ESCO schedule',
+                    'no_data_reason' => 'Vessel not in current terminal schedule',
+                    'checked_at' => now()
+                ];
+            }
+
+            // Success - vessel found
+            \Log::info("ESCO successful check for {$vesselName}", ['result' => $result]);
+
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => !empty($result['voyage_code']) && $result['voyage_code'] !== 'Unknown',
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'],
+                'etd' => $result['etd'],
+                'berth' => $result['berth'],
+                'search_method' => 'esco_scraper',
+                'raw_data' => $result['raw_data'] ?? null,
+                'checked_at' => now()
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error("ESCO terminal error: " . $e->getMessage());
+
+            return [
+                'success' => false,
+                'terminal' => $config['name'],
+                'error' => $e->getMessage(),
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'search_method' => 'esco_error',
+                'checked_at' => now()
+            ];
         }
-
-        return $this->parseVesselData($response->body(), $config);
     }
 
     protected function lcb1($config)

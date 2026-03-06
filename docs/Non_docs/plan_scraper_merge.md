@@ -132,8 +132,8 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 | `everbuild_browser()` | `VesselTrackingService.php` | No port mapping routes to it — dead code |
 | `jwd_browser()` | `VesselTrackingService.php` | Replaced by `jwd_http_request()` (no Puppeteer needed) |
 | `tips()` | `VesselTrackingService.php` | Old HTTP-based TIPS method, replaced by `tips_browser()` |
-| `esco()` (HTTP version) | `VesselTrackingService.php` | Will be replaced by unified call |
-| `parseVesselData()` | `VesselTrackingService.php` | Generic HTML parser only used by dead `tips()`/`esco()` methods |
+| ~~`esco()` (HTTP version)~~ | ~~`VesselTrackingService.php`~~ | ~~DONE (session 11) — rewritten to call unified JS scraper~~ |
+| `parseVesselData()` | `VesselTrackingService.php` | Generic HTML parser only used by dead `tips()` method + `generic_scrape()` |
 | `extractETAFromHTML()` | `VesselTrackingService.php` | Only used by `parseVesselData()` |
 | `extractETAFromTable()` | `VesselTrackingService.php` | Only used by `parseVesselData()` |
 
@@ -177,18 +177,46 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 
 ---
 
-### Phase 2: ESCO (already semi-merged — just add filter args)
+### Phase 2: ESCO (Puppeteer → HTTP + add single mode) — DONE (session 11)
 
-**Why easy:** ESCO only has a full-schedule scraper. The PHP `esco()` method already calls full-schedule and filters result. We just move the filtering to JS for consistency.
+**Discovery:** ESCO serves static HTML — no JavaScript rendering needed. Neither old approach used direct HTTP properly:
 
-**JS changes to `esco-full-schedule-scraper.js`:**
-1. Parse `--vessel`/`--voyage` args
-2. If args provided: scrape full table (~32 vessels), filter, return flat object
-3. If no args: behave as before
+| Path | Old behavior | Problem |
+|------|-------------|---------|
+| **Daily cron** | `node esco-full-schedule-scraper.js` → Puppeteer (launches Chromium) | Overkill — page is static HTML, no JS rendering needed. Wastes ~150MB RAM + 5-8 seconds per scrape |
+| **Manual single scraper** | PHP `esco()` → `Http::get()` → `parseVesselData()` | Right transport (HTTP) but wrong parsing — `str_contains()` string matching on raw HTML, fragile regex ETA extraction |
 
-**PHP changes:** Update ESCO method to pass args and handle flat object response.
+**Fix:** Rewrote JS scraper to use `axios` + `node-html-parser` (both already in package.json). Now both cron and single mode use correct transport (HTTP) AND correct parsing (structured table columns).
 
-**Files retired:** None (no separate single scraper exists)
+**Actual code changes made (session 11):**
+
+1. **REWRITTEN: `browser-automation/scrapers/esco-full-schedule-scraper.js`**
+   - Replaced Puppeteer with `axios` + `node-html-parser` — no browser launch needed
+   - Added `parseArgs()` function, `scrapeSingleVessel()` method, `formatDate()` method
+   - ESCO date format: `"DD/MM/YYYY HH:MM"` → ISO `"YYYY-MM-DDThh:mm:00"`
+   - Cron mode output unchanged: `{ success, terminal, vessels: [...] }`
+   - Single mode output: `{ success, vessel_found, vessel_name, voyage_code, berth, eta, etd, cutoff, opengate, raw_data }`
+
+2. **REWRITTEN: `app/Services/VesselTrackingService.php`** (`esco()` method ~line 764)
+   - Was: `Http::get()` → `parseVesselData()` (fragile string-search on raw HTML)
+   - Now: calls `node scrapers/esco-full-schedule-scraper.js --vessel X --voyage Y` via `proc_open`
+   - Handles `vessel_found: false`, timeout, and error responses (same pattern as `lcit()`)
+
+**Performance improvement:** ~5-8 seconds (Puppeteer) → ~1-2 seconds (HTTP GET). No Chromium process needed.
+
+**`parseVesselData()` status:** Still used by `tips()` and `generic_scrape()` — will be cleaned up in Phase 3 (TIPS).
+
+**Test results (2026-03-06):**
+
+| Test | Result |
+|------|--------|
+| Cron mode (no args) | Works — 28 vessels, output format unchanged |
+| Single mode (`--vessel "WAN HAI 173"`) | Works — `vessel_found: true`, ETA=`2026-03-07T05:00:00`, berth=B3 |
+| Not-found (`--vessel "NONEXISTENT"`) | Works — `vessel_found: false` |
+| PHP live (artisan tinker, cache cleared) | Works — `vessel_found: true`, `search_method: esco_scraper` |
+| PHP not-found (artisan tinker) | Works — graceful `vessel_found: false`, `search_method: esco_not_found` |
+
+**Files retired:** None (no separate single scraper existed)
 
 ---
 
