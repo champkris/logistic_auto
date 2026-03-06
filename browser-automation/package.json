@@ -2,13 +2,9 @@
   "name": "cs-shipping-browser-automation",
   "version": "1.0.0",
   "description": "Browser automation for CS Shipping LCB vessel tracking",
-  "main": "vessel-scraper.js",
   "scripts": {
-    "start": "node vessel-scraper.js",
     "lcb1": "node scrapers/lcb1-scraper.js",
-    "everbuild": "node scrapers/everbuild-scraper.js",
-    "shipmentlink": "node scrapers/shipmentlink-scraper.js",
-    "test": "node test-scrapers.js"
+    "shipmentlink": "node scrapers/shipmentlink-scraper.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
