@@ -554,8 +554,8 @@ All shipments with `tracking_status = 'not_found'` from production:
 | ~~**P1**~~ | ~~Fix TIPS column mapping (cells[10] → cells[9])~~ | F1 | ~~`tips-full-schedule-scraper.js` line 104-106~~ | **DONE** (session 3) |
 | ~~**P1**~~ | ~~Voyage & vessel name normalization (on save + ETA lookup)~~ | F2/F5 | ~~`ShipmentManager.php`, `VesselTrackingService.php`~~ | **DONE** (session 5) — details in `session5_voyage_and_vessel_normalization.md` |
 | ~~**P2**~~ | ~~Add KLN to port mapping + Kerry queue scraper~~ | F6 | ~~`VesselTrackingService.php`, new job/command files~~ | **DONE** (session 4) |
-| **P2** | Add port_terminal validation in shipment form | F5 | Blade/controller files | TODO |
-| **P3** | Production: install Chromium system libs | F3 | Server admin task | TODO |
+| **P2** | Add port_terminal validation in shipment form | F5 | Blade/controller files | **SKIP** — will fix in next big update |
+| ~~**P3**~~ | ~~Production: install Chromium system libs~~ | F3 | ~~Server admin task~~ | **DONE** (session 6) — guide in `session6_How_to_install_Chromium.md` |
 | **P3** | Production: deploy latest code | — | `git pull` on server | TODO |
 | **P4** | Merge single & cron scrapers (7 phases) | F7 | All scraper files + `VesselTrackingService.php` | TODO |
 | **P5** | Fix data entry errors: vessel name in voyage field (#1073 `VIRA BHUM 140S`, #1059 `LITTLE DOLPHIN  V. 2518S`), vessel typo `KMTC JAKATA` vs `KMTC JAKARTA` | F2/F5 | Manual DB correction or form validation | TODO (low priority — all completed shipments) |
