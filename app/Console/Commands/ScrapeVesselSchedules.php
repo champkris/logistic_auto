@@ -30,7 +30,7 @@ class ScrapeVesselSchedules extends Command
      * Terminals that support full schedule scraping (no vessel name required)
      */
     protected $scrapableTerminals = [
-        'hutchison' => ['C1', 'C2', 'C3', 'D1'],
+        'hutchison' => ['C1C2'], // One call returns all berths (C1C2, D1, D2, A2, A3)
         'tips' => ['TIPS'],
         'esco' => ['B3'], // ESCO is separate website from LCIT
         'lcit' => ['B5', 'C3'], // LCIT API covers both B5 and C3

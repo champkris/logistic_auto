@@ -269,16 +269,66 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 
 ---
 
-### Phase 4: Hutchison (Puppeteer, pagination with early exit)
+### Phase 4: Hutchison (Puppeteer -> HTTP + add single mode) -- DONE (session 13)
 
-**JS changes to `hutchison-full-schedule-scraper.js`:**
-1. Parse `--vessel`/`--voyage` args
-2. If args provided: scrape pages but **early-exit** when vessel found (don't scrape all pages)
-3. Return flat object in filter mode
+**Discovery:** Hutchison's website (`online.hutchisonports.co.th`) is built on **Oracle APEX** (Application Express) -- Oracle's low-code web framework for building database-driven apps. Think of it as Oracle's equivalent of Laravel/Django admin panels. Key characteristics:
 
-**PHP changes:** Update `hutchison_browser()` to call full-schedule scraper with args.
+- **Server-side rendered HTML** -- APEX generates static HTML tables from database queries. No client-side JS framework (no React/Vue). The vessel data is already in the HTML on page load.
+- **Session management** -- Each page load creates a new `p_instance` (session ID) stored in a hidden `<input>` field. Cookies (`HPTDP_COOKIE`, `ORA_WWV_RAC_INSTANCE`) must accompany all requests. Unlike Kerry (which accepts any fake cookie value), APEX validates the real session -- fake sessions return `"Your session has ended."`.
+- **Pagination via AJAX widget** -- APEX renders 15 rows per page. The pagination `<select>` dropdown calls `apex.widget.report.paginate()` in JavaScript, which internally calls `apex.server.plugin()` -- this makes a POST to `wwv_flow.show` on the server. The server returns an HTML fragment (just the table rows), not a full page. This is the key insight that allows HTTP-only pagination.
+- **CSRF-like token** -- Each pagination call requires a `p_request=PLUGIN=<token>` parameter. The token is embedded in the pagination `<select>`'s `onchange` handler and is tied to the session. It changes every page load.
 
-**Files retired:** `hutchison-wrapper.js`, `hutchison-scraper.js`
+**HTTP pagination flow (replaces Puppeteer):**
+1. GET page -> static HTML with first 15 vessels + APEX session ID + token + cookies
+2. POST `wwv_flow.show` with `p_request=PLUGIN=<token>` + cookies -> returns next 15 as HTML fragment
+3. Repeat for each page (page count discovered dynamically from `<select>` options)
+
+No login required. Session is created on GET, used for pagination POSTs, then discarded. The entire scrape takes ~900ms (4 HTTP requests for ~60 vessels).
+
+| Path | Old behavior | Problem |
+|------|-------------|---------|
+| **Daily cron** | `node hutchison-full-schedule-scraper.js C1` -> Puppeteer (launches Chromium, clicks Next button, 2s wait per page) | Overkill -- page data is static HTML with AJAX pagination. ~150MB RAM, 10-15 sec. No date formatting (raw `DD/MM/YYYY HH:MM` strings). Called 4 times for C1/C2/C3/D1 but returns ALL berths each time |
+| **Manual single scraper** | `node hutchison-wrapper.js` -> `hutchison-scraper.js` -> Puppeteer (693 lines! human-like mouse simulation, 3 extraction strategies, screenshot debugging) | Massive overengineering. Screenshot debris (8 PNG files). Failed silently most of the time (0 vessels found in DailyScrapeLog for weeks) |
+
+**Table structure (10 columns, always consistent):**
+- [0] Vessel Name, [1] Vessel ID, [2] In Voy, [3] Out Voy
+- [4] Arrival (ETA) `DD/MM/YYYY HH:MM`, [5] Departure (ETD) `DD/MM/YYYY HH:MM`
+- [6] Berth Terminal (C1C2, D1, D2, A2, A3), [7] Release port (number)
+- [8] Status (Berthed/Vessel Departed/Gate-Opened/Gate-Closed)
+- [9] Gate Closing Time `DD-MMM-YYYY HH:MM` (different format!) or status text or empty
+
+**Actual code changes made (session 13):**
+
+1. **REWRITTEN: `browser-automation/scrapers/hutchison-full-schedule-scraper.js`**
+   - Replaced Puppeteer with `axios` + `node-html-parser` -- no browser launch needed
+   - HTTP pagination: GET page 1 for session/cookies, POST `wwv_flow.show` for pages 2+
+   - Dynamic pagination: parses `<select>` options, handles any number of pages
+   - Added `parseArgs()`, `scrapeSingleVessel()` (early-exit when vessel found)
+   - Added `formatDate()` (ETA/ETD: `DD/MM/YYYY HH:MM` -> ISO)
+   - Added `formatGateClosingDate()` (Gate Closing: `DD-MMM-YYYY HH:MM` -> ISO, returns null for non-date values like "Gate-Closed")
+   - Cron mode output unchanged: `{ success, terminal, vessels: [...] }`
+   - Single mode output: `{ success, vessel_found, vessel_name, voyage_code, berth, eta, etd, cutoff, raw_data }`
+
+2. **REWRITTEN: `app/Services/VesselTrackingService.php`** (`hutchison_browser()` method)
+   - Was: calls `hutchison-wrapper.js` via `BrowserAutomationService::runNodeScript` (90s timeout, Puppeteer)
+   - Now: calls `node scrapers/hutchison-full-schedule-scraper.js --vessel X --voyage Y` via `proc_open` (60s timeout, HTTP)
+   - Handles `vessel_found: false`, timeout, and error responses (same pattern as `tips_browser()`, `esco()`, `lcit()`)
+
+3. **DELETED JS files:** `browser-automation/hutchison-wrapper.js`, `browser-automation/scrapers/hutchison-scraper.js`
+4. **DELETED debug files:** 8 `hutchison-no-data-*.png` screenshots, `hutchison-scraping.log`
+
+**Performance improvement:** ~10-15 seconds (Puppeteer) -> ~900ms (4 HTTP requests). No Chromium process needed.
+
+**Test results (2026-03-06):**
+
+| Test | Result |
+|------|--------|
+| Cron mode (`C1` arg) | Works -- 59 vessels, all dates ISO formatted, ~900ms |
+| Single mode (`--vessel "WAN HAI 509" --voyage "S160"`) | Works -- `vessel_found: true`, ETA=`2026-03-06T06:00:00`, berth=C1C2, found on page 2 (early exit) |
+| Single mode with cutoff (`--vessel "ONE MILLAU"`) | Works -- cutoff=`2026-03-06T20:00:00` (parsed from `DD-MMM-YYYY HH:MM` format) |
+| Not-found (`--vessel "NONEXISTENT"`) | Works -- `vessel_found: false` |
+| PHP live (artisan tinker, cache cleared) | Works -- `vessel_found: true`, `search_method: hutchison_scraper` |
+| PHP not-found (artisan tinker) | Works -- graceful `vessel_found: false`, `search_method: hutchison_not_found` |
 
 ---
 

@@ -16,10 +16,14 @@ class VesselTrackingService
      * Multiple ports can use the same terminal/scraper
      */
     protected $portToTerminal = [
-        // Hutchison Ports
-        'C1' => 'hutchison',
-        'C2' => 'hutchison',
-        'C1C2' => 'hutchison', // Legacy support
+        // Hutchison Ports (berths: C1C2, D1, D2, A2, A3)
+        'C1' => 'hutchison',   // Legacy — actual berth is C1C2
+        'C2' => 'hutchison',   // Legacy — actual berth is C1C2
+        'C1C2' => 'hutchison',
+        'D1' => 'hutchison',
+        'D2' => 'hutchison',
+        'A2' => 'hutchison',
+        'A3' => 'hutchison',
 
         // TIPS
         'B4' => 'tips',
@@ -39,10 +43,6 @@ class VesselTrackingService
 
         // ShipmentLink
         'B2' => 'shipmentlink',
-
-        // Additional ports that may use existing scrapers
-        'A3' => 'lcb1', // Assuming A3 uses same system as A0/B1
-        'D1' => 'lcb1', // Assuming D1 uses same system as A0/B1/A3
 
         // Siam Commercial
         'SIAM' => 'siam',
@@ -65,7 +65,7 @@ class VesselTrackingService
             'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::',
             'vessel_full' => 'WAN HAI 517 S093',
             'method' => 'hutchison_browser',
-            'ports' => ['C1', 'C2', 'C1C2']
+            'ports' => ['C1', 'C2', 'C1C2', 'D1', 'D2', 'A2', 'A3']
         ],
         'tips' => [
             'name' => 'TIPS',
@@ -334,116 +334,128 @@ class VesselTrackingService
 
     protected function hutchison_browser($config)
     {
+        $vesselName = $config['vessel_name'] ?? '';
+        $voyageCode = $config['voyage_code'] ?? '';
+
+        \Log::info("Hutchison check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
         try {
-            // Hutchison site has vessel and voyage in separate columns, so only pass vessel name
-            $vesselName = $config['vessel_name'];
-            $expectedVoyageCode = $config['voyage_code'] ?? null;
+            $command = sprintf(
+                'cd %s && timeout 60s node scrapers/hutchison-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
+            );
 
-            \Log::info("Starting Hutchison Ports browser automation", [
-                'vessel_name' => $vesselName,
-                'expected_voyage' => $expectedVoyageCode
-            ]);
+            $descriptors = [
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
+            ];
 
-            $browserAutomationPath = base_path('browser-automation');
-            $scriptPath = $browserAutomationPath . '/hutchison-wrapper.js';
+            $process = proc_open($command, $descriptors, $pipes);
 
-            // Use the new BrowserAutomationService to handle Node.js version issues
-            $result = BrowserAutomationService::runNodeScript($scriptPath, [$vesselName], 90);
+            if (is_resource($process)) {
+                fclose($pipes[0]);
 
-            $jsonOutput = $result['stdout'];
-            $logOutput = $result['stderr'];
-            $returnCode = $result['return_code'];
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
 
-            // Log the browser automation logs for debugging
-            if (!empty($logOutput)) {
-                \Log::info("Hutchison browser automation logs: " . $logOutput);
-            }
+                fclose($pipes[1]);
+                fclose($pipes[2]);
 
-            // Check if we have valid JSON output regardless of return code
-            if (!empty($jsonOutput)) {
-                $result = json_decode($jsonOutput, true);
+                $returnCode = proc_close($process);
 
-                if (json_last_error() === JSON_ERROR_NONE && isset($result['success'])) {
-                        if ($result['success']) {
-                            // Validate voyage code if we have an expected one
-                            $voyageFound = true;
-                            if ($expectedVoyageCode && isset($result['voyage_code'])) {
-                                $voyageFound = (strtoupper($result['voyage_code']) === strtoupper($expectedVoyageCode));
+                if (!empty($logOutput)) {
+                    \Log::info("Hutchison scraper logs:", ['logs' => $logOutput]);
+                }
 
-                                if (!$voyageFound) {
-                                    \Log::info("Vessel found but voyage code mismatch", [
-                                        'expected' => $expectedVoyageCode,
-                                        'found' => $result['voyage_code']
-                                    ]);
+                if (!$jsonOutput) {
+                    \Log::warning("Hutchison scraper failed: no JSON output (exit code: {$returnCode})");
 
-                                    // Update result to indicate voyage not found
-                                    $result['voyage_found'] = false;
-                                    $result['message'] = "Vessel {$vesselName} found but voyage {$expectedVoyageCode} not found (found: {$result['voyage_code']})";
-                                } else {
-                                    $result['voyage_found'] = true;
-                                }
-                            }
-
-                            $result['vessel_found'] = true;
-
-                            \Log::info("Hutchison browser automation completed", [
-                                'vessel_name' => $vesselName,
-                                'vessel_found' => true,
-                                'voyage_found' => $voyageFound,
-                                'result' => $result
-                            ]);
-                        } else {
-                            \Log::info("Hutchison browser automation completed - vessel not found", [
-                                'vessel_name' => $vesselName,
-                                'result' => $result
-                            ]);
-
-                            // Ensure success field is properly set when vessel not found
-                            $result['success'] = true; // The scraping succeeded, just no vessel found
-                            $result['vessel_found'] = false;
-                            $result['voyage_found'] = false;
-                            $result['eta'] = null;
-
-                            // Add terminal and vessel info for consistency
-                            if (!isset($result['terminal'])) {
-                                $result['terminal'] = 'Hutchison Ports';
-                            }
-                            if (!isset($result['vessel_name'])) {
-                                $result['vessel_name'] = $vesselName;
-                            }
-                            if (!isset($result['voyage_code'])) {
-                                $result['voyage_code'] = $expectedVoyageCode ?? null;
-                            }
-                        }
-
-                return $result;
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'hutchison_timeout_fallback',
+                        'message' => 'Hutchison terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
+                        'checked_at' => now()
+                    ];
+                }
             } else {
-                \Log::error("Invalid JSON from Hutchison browser automation: " . $jsonOutput);
-                throw new \Exception("Invalid JSON response from browser automation");
+                throw new \Exception("Failed to start Hutchison scraper process");
             }
-        } else {
-            \Log::error("Hutchison browser automation failed - no output", [
-                'return_code' => $returnCode,
-                'log_output' => $logOutput
-            ]);
-            throw new \Exception("Browser automation failed with no output. Return code: {$returnCode}");
-        }
+
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from Hutchison scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("Hutchison scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("Hutchison terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'hutchison_not_found',
+                    'message' => 'Vessel not in current Hutchison schedule',
+                    'no_data_reason' => 'The terminal was accessible, but the specified vessel was not found in the current schedule.',
+                    'checked_at' => now()
+                ];
+            }
+
+            // Vessel found
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => true,
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'] ?? null,
+                'etd' => $result['etd'] ?? null,
+                'berth' => $result['berth'] ?? null,
+                'cutoff' => $result['cutoff'] ?? null,
+                'raw_data' => $result['raw_data'] ?? null,
+                'search_method' => 'hutchison_scraper',
+                'checked_at' => now()
+            ];
 
         } catch (\Exception $e) {
-            \Log::error("Hutchison browser automation exception: " . $e->getMessage());
+            \Log::error("Hutchison scraper exception", [
+                'error' => $e->getMessage(),
+                'vessel' => $vesselName,
+                'voyage' => $voyageCode
+            ]);
 
             return [
                 'success' => false,
                 'terminal' => 'Hutchison Ports',
-                'vessel_name' => $config['vessel_name'] ?? '',
-                'voyage_code' => $config['voyage_code'] ?? '',
-                'vessel_full' => $config['vessel_full'] ?? '',
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
                 'vessel_found' => false,
                 'voyage_found' => false,
-                'full_name_found' => false,
-                'search_method' => 'browser_automation_failed',
                 'eta' => null,
                 'error' => $e->getMessage(),
+                'search_method' => 'hutchison_scraper_error',
                 'checked_at' => now()
             ];
         }
