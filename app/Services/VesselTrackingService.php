@@ -449,56 +449,33 @@ class VesselTrackingService
         }
     }
 
-    protected function tips($config)
-    {
-        // TIPS - Container ship schedule
-        $response = Http::timeout(30)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Referer' => 'https://www.tips.co.th/',
-            ])
-            ->get($config['url']);
-
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
-        }
-
-        return $this->parseVesselData($response->body(), $config);
-    }
 
     protected function tips_browser($config)
     {
+        $vesselName = $config['vessel_name'] ?? 'SRI SUREE';
+        $voyageCode = $config['voyage_code'] ?? '';
+
+        \Log::info("TIPS check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
         try {
-            $vesselName = $config['vessel_name'] ?? 'SRI SUREE';
-            $voyageCode = $config['voyage_code'] ?? '';
-
-            \Log::info("Starting TIPS browser automation", [
-                'vessel' => $vesselName,
-                'voyage' => $voyageCode,
-                'terminal' => 'B4'
-            ]);
-
-            $browserAutomationPath = base_path('browser-automation');
-
-            // Use proc_open to call the TIPS wrapper with vessel name and voyage
+            // Use the unified TIPS full-schedule scraper in single mode
             $command = sprintf(
-                "cd %s && timeout 120 node tips-wrapper.js %s %s",
-                escapeshellarg($browserAutomationPath),
+                'cd %s && timeout 30s node scrapers/tips-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
             );
 
             $descriptors = [
-                0 => ['pipe', 'r'],  // stdin
-                1 => ['pipe', 'w'],  // stdout (JSON)
-                2 => ['pipe', 'w']   // stderr (logs)
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
             ];
 
             $process = proc_open($command, $descriptors, $pipes);
 
             if (is_resource($process)) {
-                fclose($pipes[0]); // Close stdin
+                fclose($pipes[0]);
 
                 $jsonOutput = stream_get_contents($pipes[1]);
                 $logOutput = stream_get_contents($pipes[2]);
@@ -508,70 +485,96 @@ class VesselTrackingService
 
                 $returnCode = proc_close($process);
 
-                // Log the browser automation logs for debugging
                 if (!empty($logOutput)) {
-                    \Log::info("TIPS browser automation logs:", ['logs' => $logOutput]);
+                    \Log::info("TIPS scraper logs:", ['logs' => $logOutput]);
                 }
 
-                if (!empty($jsonOutput)) {
-                    $result = json_decode($jsonOutput, true);
+                if (!$jsonOutput) {
+                    \Log::warning("TIPS scraper failed: no JSON output (exit code: {$returnCode})");
 
-                    if ($result && isset($result['success'])) {
-                        \Log::info("TIPS browser automation result:", $result);
-
-                        return [
-                            'success' => $result['success'],
-                            'terminal' => $result['terminal'] ?? 'TIPS',
-                            'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                            'voyage_code' => $result['voyage_code'] ?? $voyageCode,
-                            'vessel_found' => $result['vessel_found'] ?? false,
-                            'voyage_found' => $result['voyage_found'] ?? false,
-                            'eta' => $result['eta'],
-                            'search_method' => 'tips_browser_automation',
-                            'pages_scanned' => $result['pages_scanned'] ?? null,
-                            'checked_at' => now()
-                        ];
-                    }
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'tips_timeout_fallback',
+                        'message' => 'TIPS terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
+                        'checked_at' => now()
+                    ];
                 }
+            } else {
+                throw new \Exception("Failed to start TIPS scraper process");
+            }
 
-                // If we get here, something went wrong
-                \Log::error("TIPS browser automation failed", [
-                    'return_code' => $returnCode,
-                    'json_output' => $jsonOutput,
-                    'log_output' => $logOutput
-                ]);
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from TIPS scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("TIPS scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("TIPS terminal accessible but {$vesselName} not found in current schedule");
 
                 return [
-                    'success' => false,
-                    'terminal' => 'TIPS',
-                    'vessel_name' => $vesselName,
-                    'voyage_code' => $voyageCode,
+                    'success' => true,
+                    'terminal' => $config['name'],
                     'vessel_found' => false,
                     'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
                     'eta' => null,
-                    'error' => 'Browser automation process failed',
-                    'search_method' => 'tips_browser_automation_failed',
+                    'etd' => null,
+                    'search_method' => 'tips_not_found',
+                    'message' => 'Vessel not in current TIPS schedule',
+                    'no_data_reason' => 'The terminal was accessible, but the specified vessel was not found in the current schedule.',
                     'checked_at' => now()
                 ];
             }
 
+            // Vessel found
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => true,
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'] ?? null,
+                'etd' => $result['etd'] ?? null,
+                'berth' => $result['berth'] ?? 'B4',
+                'cutoff' => $result['cutoff'] ?? null,
+                'raw_data' => $result['raw_data'] ?? null,
+                'search_method' => 'tips_scraper',
+                'checked_at' => now()
+            ];
+
         } catch (\Exception $e) {
-            \Log::error("TIPS browser automation exception", [
+            \Log::error("TIPS scraper exception", [
                 'error' => $e->getMessage(),
-                'vessel' => $vesselName ?? 'unknown',
-                'voyage' => $voyageCode ?? 'unknown'
+                'vessel' => $vesselName,
+                'voyage' => $voyageCode
             ]);
 
             return [
                 'success' => false,
                 'terminal' => 'TIPS',
-                'vessel_name' => $vesselName ?? 'unknown',
-                'voyage_code' => $voyageCode ?? 'unknown',
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
                 'vessel_found' => false,
                 'voyage_found' => false,
                 'eta' => null,
                 'error' => $e->getMessage(),
-                'search_method' => 'tips_browser_automation_error',
+                'search_method' => 'tips_scraper_error',
                 'checked_at' => now()
             ];
         }
@@ -1130,377 +1133,6 @@ class VesselTrackingService
                 'checked_at' => now()
             ];
         }
-    }
-
-    protected function ectt($config)
-    {
-        // ECTT - Note: This URL goes to cookie policy, may need to find actual schedule page
-        $baseUrl = 'https://www.ectt.co.th';
-        
-        // First, get the main page to find the actual schedule link
-        $response = Http::timeout(30)->get($baseUrl);
-        
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
-        }
-
-        // Look for schedule or vessel links
-        $html = $response->body();
-        $scheduleLinks = $this->findScheduleLinks($html, $baseUrl);
-        
-        if (!empty($scheduleLinks)) {
-            foreach ($scheduleLinks as $link) {
-                try {
-                    $scheduleResponse = Http::timeout(30)->get($link);
-                    if ($scheduleResponse->successful()) {
-                        $result = $this->parseVesselData($scheduleResponse->body(), $config);
-                        if ($result['vessel_found']) {
-                            return $result;
-                        }
-                    }
-                } catch (\Exception $e) {
-                    continue; // Try next link
-                }
-            }
-        }
-
-        return [
-            'success' => true,
-            'terminal' => $config['name'],
-            'vessel' => $config['vessel'],
-            'vessel_found' => false,
-            'eta' => null,
-            'message' => 'Could not locate vessel schedule page',
-            'checked_at' => now()
-        ];
-    }
-
-    protected function parseVesselData($html, $config)
-    {
-        $vesselName = $config['vessel_name'];
-        $voyageCode = $config['voyage_code'];
-        $fullVesselName = $config['vessel_full'];
-        
-        // First try to find the vessel name (most important)
-        $vesselNameFound = str_contains(strtoupper($html), strtoupper($vesselName));
-        
-        // Try to find the voyage code - with multiple variations for different websites
-        $voyageCodeFound = false;
-        $voyageSearchVariations = [$voyageCode];
-        
-        // Add variations for voyage codes that might have prefixes (IMPROVED for spaces)
-        if (preg_match('/^([A-Z]+)\.?\s*(.+)$/', $voyageCode, $matches)) {
-            // For "V. 2528S" -> also try "2528S" (remove prefix with space)
-            $voyageSearchVariations[] = $matches[2];
-        }
-        if (preg_match('/^(.+?)([A-Z\d]+)$/', $voyageCode, $matches)) {
-            // For "V. 2528S" -> also try "V2528S" (remove dots and spaces)
-            $noPrefixVersion = str_replace(['.', ' '], '', $voyageCode);
-            if (!in_array($noPrefixVersion, $voyageSearchVariations)) {
-                $voyageSearchVariations[] = $noPrefixVersion;
-            }
-        }
-        
-        // Additional handling for space-separated prefixes like "V. 2528S"
-        if (str_contains($voyageCode, ' ')) {
-            $parts = explode(' ', $voyageCode);
-            if (count($parts) >= 2) {
-                // Take the last part (the actual voyage number)
-                $lastPart = end($parts);
-                if (!in_array($lastPart, $voyageSearchVariations)) {
-                    $voyageSearchVariations[] = $lastPart;
-                }
-            }
-        }
-        
-        foreach ($voyageSearchVariations as $variation) {
-            if (str_contains(strtoupper($html), strtoupper($variation))) {
-                $voyageCodeFound = true;
-                break;
-            }
-        }
-        
-        // Also try the full name as fallback
-        $fullNameFound = str_contains(strtoupper($html), strtoupper($fullVesselName));
-        
-        // Determine if vessel is found (vessel name is most important)
-        $vesselFound = $vesselNameFound || $fullNameFound;
-        
-        if ($vesselFound) {
-            // Extract ETA - try multiple search patterns
-            $eta = null;
-            $vesselSection = '';
-            
-            if ($vesselNameFound) {
-                $eta = $this->extractETAFromHTML($html, $vesselName, $voyageCode);
-                $vesselSection = $this->extractVesselSection($html, $vesselName);
-            } elseif ($fullNameFound) {
-                $eta = $this->extractETAFromHTML($html, $fullVesselName, $voyageCode);
-                $vesselSection = $this->extractVesselSection($html, $fullVesselName);
-            }
-            
-            // If no ETA found with vessel name, try with voyage code variations
-            if (!$eta && $voyageCodeFound) {
-                foreach ($voyageSearchVariations as $variation) {
-                    if (str_contains(strtoupper($html), strtoupper($variation))) {
-                        $voyageEta = $this->extractETAFromHTML($html, $variation, $voyageCode);
-                        if ($voyageEta) {
-                            $eta = $voyageEta;
-                            $vesselSection .= "\n--- Voyage Section ---\n" . $this->extractVesselSection($html, $variation);
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            return [
-                'success' => true,
-                'terminal' => $config['name'],
-                'vessel_name' => $vesselName,
-                'voyage_code' => $voyageCode,
-                'vessel_full' => $fullVesselName,
-                'vessel_found' => $vesselNameFound,
-                'voyage_found' => $voyageCodeFound,
-                'full_name_found' => $fullNameFound,
-                'search_method' => $this->getSearchMethod($vesselNameFound, $voyageCodeFound, $fullNameFound),
-                'voyage_variations_tried' => $voyageSearchVariations,
-                'eta' => $eta,
-                'raw_data' => $vesselSection,
-                'checked_at' => now()
-            ];
-        }
-
-        return [
-            'success' => true,
-            'terminal' => $config['name'],
-            'vessel_name' => $vesselName,
-            'voyage_code' => $voyageCode,
-            'vessel_full' => $fullVesselName,
-            'vessel_found' => false,
-            'voyage_found' => false,
-            'full_name_found' => false,
-            'eta' => null,
-            'message' => 'Neither vessel name nor voyage code found in schedule',
-            'voyage_variations_tried' => $voyageSearchVariations,
-            'checked_at' => now()
-        ];
-    }
-    
-    protected function getSearchMethod($vesselFound, $voyageFound, $fullFound)
-    {
-        if ($vesselFound && $voyageFound) {
-            return 'vessel_name_and_voyage';
-        } elseif ($vesselFound) {
-            return 'vessel_name_only';
-        } elseif ($voyageFound) {
-            return 'voyage_code_only';
-        } elseif ($fullFound) {
-            return 'full_name_match';
-        }
-        
-        return 'not_found';
-    }
-
-    protected function extractETAFromHTML($html, $vesselName, $voyageCode = null)
-    {
-        // First try: Extract ETA from table row containing the vessel (IMPROVED)
-        $tableEta = $this->extractETAFromTable($html, $vesselName, $voyageCode);
-        if ($tableEta) {
-            return $tableEta;
-        }
-
-        // Fallback: Original method for non-table formats
-        $datePatterns = [
-            '/(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2})/', // DD/MM/YYYY HH:MM
-            '/(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})/', // YYYY-MM-DD HH:MM
-            '/(\d{1,2}-\d{1,2}-\d{4})\s*(\d{1,2}:\d{2})/', // DD-MM-YYYY HH:MM
-            '/ETA[:\s]*(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2})/i',
-            '/Estimated[:\s]*(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2})/i',
-        ];
-
-        // Find vessel section in HTML
-        $vesselSection = $this->extractVesselSection($html, $vesselName);
-        
-        foreach ($datePatterns as $pattern) {
-            if (preg_match($pattern, $vesselSection, $matches)) {
-                try {
-                    $dateStr = $matches[1] . ' ' . ($matches[2] ?? '00:00');
-                    $eta = Carbon::parse($dateStr);
-                    return $eta->format('Y-m-d H:i:s');
-                } catch (\Exception $e) {
-                    continue;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Extract ETA from HTML table structure (improved for both TIPS and Hutchison)
-     */
-    protected function extractETAFromTable($html, $vesselName, $voyageCode = null)
-    {
-        // Method 1: Find all table rows and check each one precisely
-        if (preg_match_all('/<tr[^>]*>(.*?)<\/tr>/s', $html, $allRows)) {
-            foreach ($allRows[0] as $row) {
-                // Check if this row contains our vessel name
-                if (stripos($row, $vesselName) === false) {
-                    continue;
-                }
-                
-                // Extract all cells from this specific row
-                if (preg_match_all('/<td[^>]*>(.*?)<\/td>/s', $row, $cellMatches)) {
-                    $cells = $cellMatches[1];
-                    $cleanCells = [];
-                    
-                    // Clean up all cells
-                    foreach ($cells as $cellIndex => $cell) {
-                        $cellText = html_entity_decode(strip_tags($cell), ENT_QUOTES | ENT_HTML401, 'UTF-8');
-                        $cellText = trim(preg_replace('/\s+/', ' ', $cellText));
-                        $cleanCells[$cellIndex] = $cellText;
-                    }
-                    
-                    // Validate this is the correct vessel by checking vessel name + voyage code
-                    $isCorrectVessel = false;
-                    $vesselCellIndex = -1;
-                    $voyageCellIndex = -1;
-                    
-                    // Find vessel name cell
-                    foreach ($cleanCells as $cellIndex => $cellText) {
-                        if (stripos($cellText, $vesselName) !== false) {
-                            $vesselCellIndex = $cellIndex;
-                            break;
-                        }
-                    }
-                    
-                    // If voyage code provided, validate it's in the same row
-                    if ($voyageCode) {
-                        // Create voyage variations to try (IMPROVED for spaces)
-                        $voyageVariations = [$voyageCode];
-                        if (preg_match('/^([A-Z]+)\.?\s*(.+)$/', $voyageCode, $matches)) {
-                            $voyageVariations[] = $matches[2]; // Remove prefix like "V. "
-                        }
-                        $voyageVariations[] = str_replace(['.', ' '], '', $voyageCode); // Remove dots and spaces
-                        
-                        // Additional handling for space-separated prefixes
-                        if (str_contains($voyageCode, ' ')) {
-                            $parts = explode(' ', $voyageCode);
-                            if (count($parts) >= 2) {
-                                $lastPart = end($parts);
-                                if (!in_array($lastPart, $voyageVariations)) {
-                                    $voyageVariations[] = $lastPart;
-                                }
-                            }
-                        }
-                        
-                        foreach ($cleanCells as $cellIndex => $cellText) {
-                            foreach ($voyageVariations as $variation) {
-                                if (stripos($cellText, $variation) !== false) {
-                                    $voyageCellIndex = $cellIndex;
-                                    $isCorrectVessel = true;
-                                    break 2;
-                                }
-                            }
-                        }
-                    } else {
-                        // If no voyage code, accept any row with vessel name
-                        $isCorrectVessel = ($vesselCellIndex >= 0);
-                    }
-                    
-                    if ($isCorrectVessel) {
-                        // Extract ETA from this specific row
-                        // Prioritize cells that look like ETA (with time format)
-                        $bestETA = null;
-                        $fallbackETA = null;
-                        
-                        $datePatterns = [
-                            '/(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2})/', // DD/MM/YYYY HH:MM
-                            '/(\d{1,2}\/\d{1,2}\/\d{4})/',                    // DD/MM/YYYY only
-                        ];
-                        
-                        foreach ($cleanCells as $cellIndex => $cellText) {
-                            foreach ($datePatterns as $patternIndex => $pattern) {
-                                if (preg_match($pattern, $cellText, $matches)) {
-                                    try {
-                                        // Handle both full datetime and date-only formats
-                                        if (isset($matches[2])) {
-                                            $dateStr = $matches[1] . ' ' . $matches[2]; // Full datetime
-                                        } else {
-                                            $dateStr = $matches[1] . ' 00:00'; // Date only
-                                        }
-                                        
-                                        $eta = Carbon::createFromFormat('d/m/Y H:i', $dateStr);
-                                        $formattedETA = $eta->format('Y-m-d H:i:s');
-                                        
-                                        // For TIPS: ETA should be around cell 6 (estimate column)
-                                        // For Hutchison: Could be different structure
-                                        if (isset($matches[2])) {
-                                            // Prefer dates with specific times
-                                            if (!$bestETA) {
-                                                $bestETA = $formattedETA;
-                                            }
-                                        } else {
-                                            // Keep as fallback if no better ETA found
-                                            if (!$fallbackETA) {
-                                                $fallbackETA = $formattedETA;
-                                            }
-                                        }
-                                    } catch (\Exception $e) {
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        return $bestETA ?: $fallbackETA;
-                    }
-                }
-            }
-        }
-        
-        return null;
-    }
-
-    protected function extractVesselSection($html, $vesselName)
-    {
-        // Find the section of HTML that contains the vessel information
-        $pos = stripos($html, $vesselName);
-        if ($pos === false) {
-            return '';
-        }
-
-        // Extract ~500 characters around the vessel name for context
-        $start = max(0, $pos - 250);
-        $length = 500;
-        
-        return substr($html, $start, $length);
-    }
-
-    protected function findScheduleLinks($html, $baseUrl = '')
-    {
-        $links = [];
-        
-        // Common schedule-related link patterns
-        $patterns = [
-            '/href=["\']([^"\']*schedule[^"\']*)["\']/',
-            '/href=["\']([^"\']*vessel[^"\']*)["\']/',
-            '/href=["\']([^"\']*berth[^"\']*)["\']/',
-            '/href=["\']([^"\']*ship[^"\']*)["\']/',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match_all($pattern, $html, $matches)) {
-                foreach ($matches[1] as $link) {
-                    if (strpos($link, 'http') !== 0 && $baseUrl) {
-                        $link = rtrim($baseUrl, '/') . '/' . ltrim($link, '/');
-                    }
-                    $links[] = $link;
-                }
-            }
-        }
-
-        return array_unique($links);
     }
 
     protected function displayResult($terminalCode, $result)

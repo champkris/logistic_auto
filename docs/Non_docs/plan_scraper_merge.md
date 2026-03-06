@@ -131,11 +131,11 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 |--------|------|--------|
 | `everbuild_browser()` | `VesselTrackingService.php` | No port mapping routes to it — dead code |
 | `jwd_browser()` | `VesselTrackingService.php` | Replaced by `jwd_http_request()` (no Puppeteer needed) |
-| `tips()` | `VesselTrackingService.php` | Old HTTP-based TIPS method, replaced by `tips_browser()` |
-| ~~`esco()` (HTTP version)~~ | ~~`VesselTrackingService.php`~~ | ~~DONE (session 11) — rewritten to call unified JS scraper~~ |
-| `parseVesselData()` | `VesselTrackingService.php` | Generic HTML parser only used by dead `tips()` method + `generic_scrape()` |
-| `extractETAFromHTML()` | `VesselTrackingService.php` | Only used by `parseVesselData()` |
-| `extractETAFromTable()` | `VesselTrackingService.php` | Only used by `parseVesselData()` |
+| ~~`tips()`~~ | ~~`VesselTrackingService.php`~~ | ~~DONE (session 12) -- deleted~~ |
+| ~~`esco()` (HTTP version)~~ | ~~`VesselTrackingService.php`~~ | ~~DONE (session 11) -- rewritten to call unified JS scraper~~ |
+| ~~`parseVesselData()`~~ | ~~`VesselTrackingService.php`~~ | ~~DONE (session 12) -- deleted (along with `ectt()`, `getSearchMethod()`, `extractVesselSection()`, `findScheduleLinks()`)~~ |
+| ~~`extractETAFromHTML()`~~ | ~~`VesselTrackingService.php`~~ | ~~DONE (session 12) -- deleted~~ |
+| ~~`extractETAFromTable()`~~ | ~~`VesselTrackingService.php`~~ | ~~DONE (session 12) -- deleted~~ |
 
 ---
 
@@ -220,19 +220,52 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 
 ---
 
-### Phase 3: TIPS (Puppeteer, good merge candidate)
+### Phase 3: TIPS (Puppeteer -> HTTP + add single mode) -- DONE (session 12)
 
-**Why now:** Column mapping bug (Finding 1) is fixed in cron scraper. Cron scraper's DataTables approach is more reliable than single scraper's heuristic date extraction.
+**Discovery:** TIPS serves static HTML -- no JavaScript rendering needed. Neither old approach used direct HTTP properly:
 
-**JS changes to `tips-full-schedule-scraper.js`:**
-1. Parse `--vessel`/`--voyage` args
-2. If args provided: scrape full table (DataTables page size=100), filter by vessel+voyage
-3. Port `generateVoyageVariations()` from `tips-scraper.js` for fuzzy voyage matching
-4. Return flat object in filter mode
+| Path | Old behavior | Problem |
+|------|-------------|---------|
+| **Daily cron** | `node tips-full-schedule-scraper.js` -> Puppeteer (launches Chromium, changes DataTables page size) | Overkill -- page is static HTML. ~150MB RAM, 5-8 sec. Only extracted 4 fields (no ETD, no closing time) |
+| **Manual single scraper** | `node tips-wrapper.js` -> `tips-scraper.js` -> Puppeteer (775 lines! human-like mouse simulation, screenshot debugging) | Massive overengineering for static HTML. Fragile regex ETA extraction instead of structured column parsing |
 
-**PHP changes:** Update `tips_browser()` to call full-schedule scraper with args.
+**Fix:** Rewrote JS scraper to use `axios` + `node-html-parser` (same as ESCO). Now both cron and single mode use correct transport (HTTP) AND correct parsing (structured table columns).
 
-**Files retired:** `tips-wrapper.js`, `tips-scraper.js`
+**TIPS table structure (11 columns per data row):**
+- [0] Vessel Name, [1] Id, [2] Radio Call Sign, [3] I/B Voyage, [4] O/B Voyage
+- [5] ETA (estimate), [6] ETD (estimate), [7] ATA (actual), [8] ATD (actual)
+- [9] Closing Time, [10] Service Code
+- Date format: `DD/MM/YYYY HH:MM` (same as ESCO)
+
+**Actual code changes made (session 12):**
+
+1. **REWRITTEN: `browser-automation/scrapers/tips-full-schedule-scraper.js`**
+   - Replaced Puppeteer with `axios` + `node-html-parser` -- no browser launch needed
+   - Added `parseArgs()`, `scrapeSingleVessel()`, `formatDate()`, `generateVoyageVariations()`
+   - Uses actual dates (ATA/ATD) if available, otherwise estimates (ETA/ETD)
+   - Cron mode output unchanged: `{ success, terminal, vessels: [...] }`
+   - Single mode output: `{ success, vessel_found, vessel_name, voyage_code, berth, eta, etd, cutoff, raw_data }`
+
+2. **REWRITTEN: `app/Services/VesselTrackingService.php`** (`tips_browser()` method)
+   - Was: calls `tips-wrapper.js` via proc_open (120s timeout, Puppeteer)
+   - Now: calls `node scrapers/tips-full-schedule-scraper.js --vessel X --voyage Y` (30s timeout, HTTP)
+   - Handles `vessel_found: false`, timeout, and error responses (same pattern as `esco()` and `lcit()`)
+
+3. **DELETED JS files:** `browser-automation/tips-wrapper.js`, `browser-automation/scrapers/tips-scraper.js`
+
+4. **DELETED PHP methods:** `tips()`, `ectt()`, `parseVesselData()`, `getSearchMethod()`, `extractETAFromHTML()`, `extractETAFromTable()`, `extractVesselSection()`, `findScheduleLinks()` -- all dead code, only called by each other or by dead methods
+
+**Performance improvement:** ~5-8 seconds (Puppeteer) -> ~1-2 seconds (HTTP GET). No Chromium process needed.
+
+**Test results (2026-03-06):**
+
+| Test | Result |
+|------|--------|
+| Cron mode (no args) | Works -- 47 vessels, all dates ISO formatted |
+| Single mode (`--vessel "LADY OF LUCK" --voyage "284N"`) | Works -- `vessel_found: true`, ETA=`2026-03-17T23:00:00`, berth=B4 |
+| Not-found (`--vessel "NONEXISTENT"`) | Works -- `vessel_found: false` |
+| PHP live (artisan tinker, cache cleared) | Works -- `vessel_found: true`, `search_method: tips_scraper` |
+| PHP not-found (artisan tinker) | Works -- graceful `vessel_found: false`, `search_method: tips_not_found` |
 
 ---
 
