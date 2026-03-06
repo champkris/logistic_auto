@@ -447,50 +447,6 @@ JS;
     /**
      * Scrape full schedule from Shipmentlink terminal (SIAM, KERRY)
      */
-    public function scrapeShipmentlinkFullSchedule(string $terminal): ?array
-    {
-        $nodePath = self::getNodePath();
-        $scriptPath = base_path('browser-automation/scrapers/shipmentlink-full-schedule-scraper.js');
-
-        if (!file_exists($scriptPath)) {
-            Log::error("Shipmentlink full schedule scraper not found", ['path' => $scriptPath]);
-            return null;
-        }
-
-        $command = sprintf(
-            '%s %s %s',
-            escapeshellarg($nodePath),
-            escapeshellarg($scriptPath),
-            escapeshellarg($terminal)
-        );
-
-        Log::info("Running Shipmentlink full schedule scraper", [
-            'terminal' => $terminal,
-            'command' => $command
-        ]);
-
-        $output = shell_exec($command);
-
-        if (!$output) {
-            Log::error("No output from Shipmentlink scraper");
-            return null;
-        }
-
-        $result = json_decode($output, true);
-
-        if (!$result) {
-            Log::error("Failed to parse Shipmentlink scraper output", ['output' => $output]);
-            return null;
-        }
-
-        Log::info("Shipmentlink full schedule scraping complete", [
-            'terminal' => $terminal,
-            'vessel_count' => count($result['vessels'] ?? [])
-        ]);
-
-        return $result;
-    }
-
     /**
      * Scrape full schedule from TIPS terminal
      */
@@ -611,35 +567,6 @@ JS;
         }
 
         Log::info("LCIT full schedule scraping complete", [
-            'vessel_count' => count($result['vessels'] ?? [])
-        ]);
-
-        return $result;
-    }
-
-    /**
-     * Scrape full schedule from ShipmentLink B2 (LAEM CHABANG) terminal
-     */
-    public function scrapeShipmentlinkB2FullSchedule(): ?array
-    {
-        $nodePath = self::getNodePath();
-        $scriptPath = base_path('browser-automation/scrapers/shipmentlink-full-schedule-scraper.js');
-
-        if (!file_exists($scriptPath)) {
-            Log::error("ShipmentLink full schedule scraper not found", ['path' => $scriptPath]);
-            return null;
-        }
-
-        $command = sprintf(
-            '%s %s',
-            escapeshellarg($nodePath),
-            escapeshellarg($scriptPath)
-        );
-
-        $output = shell_exec($command);
-        $result = json_decode($output, true);
-
-        Log::info("ShipmentLink full schedule scraping complete", [
             'vessel_count' => count($result['vessels'] ?? [])
         ]);
 

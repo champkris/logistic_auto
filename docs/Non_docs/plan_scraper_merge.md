@@ -29,7 +29,7 @@ This means **duplicate JS scripts**, **duplicate PHP methods**, and **different 
 | **ESCO** | `esco-full-schedule-scraper.js` | _(none — PHP calls full-schedule + filters)_ | `BAS::scrapeEscoFullSchedule()` | `VTS::esco()` | Puppeteer |
 | **LCIT** | `lcit-full-schedule-scraper.js` | `lcit-wrapper.js` + `lcit-scraper.js` | `BAS::scrapeLcitFullSchedule()` | `VTS::lcit()` | HTTPS/XML |
 | **LCB1** | _(queue-based: `ScrapeLCB1Vessel.php` → JS scraper)_ | ~~`lcb1-wrapper.js` + `lcb1-scraper.js`~~ → `lcb1-full-schedule-scraper.js --vessel` | `ScrapeLCB1Vessels.php` | `VTS::lcb1()` | HTTPS + queue |
-| **ShipmentLink** | `shipmentlink-full-schedule-scraper.js` | `shipmentlink-wrapper.js` + `shipmentlink-https-scraper.js` | `BAS::scrapeShipmentlinkFullSchedule()` | `VTS::shipmentlink_browser()` | HTTPS |
+| **ShipmentLink** | _(queue-based: `ScrapeShipmentLinkVessel.php` → JS scraper)_ | ~~`shipmentlink-wrapper.js` + `shipmentlink-https-scraper.js`~~ → `shipmentlink-full-schedule-scraper.js --vessel` | `ScrapeShipmentLinkVessels.php` | `VTS::shipmentlink_browser()` | HTTPS + queue |
 | **JWD** | _(none — to be created as PHP command)_ | `jwd-scraper.js` | _(none)_ | `VTS::jwd_browser()` + `VTS::jwd_http_request()` | HTTP GET (returns all vessels in one request) |
 | **Kerry** | _(queue-based: `ScrapeKerryVessel.php`)_ | _(PHP HTTP: `VTS::kerry_http_request()`)_ | `ScrapeKerryVessels.php` | `VTS::kerry_http_request()` | PHP HTTP |
 | **Everbuild** | _(none)_ | `everbuild-wrapper.js` + `everbuild-scraper.js` | _(none)_ | `VTS::everbuild_browser()` | Puppeteer |
@@ -103,18 +103,20 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 | `browser-automation/scrapers/esco-full-schedule-scraper.js` | Unified ESCO scraper (cron + single) |
 | `browser-automation/scrapers/lcit-full-schedule-scraper.js` | Unified LCIT scraper (cron + single) |
 | `browser-automation/scrapers/lcb1-full-schedule-scraper.js` | Unified LCB1 scraper (single only — cron uses queue jobs) |
-| `browser-automation/scrapers/shipmentlink-full-schedule-scraper.js` | Unified ShipmentLink scraper (cron + single) |
-| `browser-automation/scrapers/lcb1-vessel-codes.json` | Cached LCB1 vessel name → code mapping (371 entries) |
-| `browser-automation/scrapers/shipmentlink-vessel-codes.json` | Data file for ShipmentLink vessel codes |
+| `browser-automation/scrapers/shipmentlink-full-schedule-scraper.js` | Unified ShipmentLink scraper (single only — cron uses queue jobs, full-schedule mode removed to prevent IP block) |
+| `browser-automation/scrapers/lcb1-vessel-codes.json` | Cached LCB1 vessel name → code mapping (371 entries, auto-refreshed) |
+| `browser-automation/scrapers/shipmentlink-vessel-codes.json` | Cached ShipmentLink vessel name → code mapping (~813 entries, auto-refreshed) |
 
-### New files to CREATE
+### New files CREATED (across all phases)
 
-| File | Role |
-|------|------|
-| `app/Console/Commands/ScrapeJwdSchedule.php` | JWD cron command — HTTP GET, parse all vessels, store to DB |
-| `app/Jobs/ScrapeLCB1Vessel.php` | LCB1 queue job — calls JS scraper per vessel, stores to DB |
-| `app/Console/Commands/ScrapeLCB1Vessels.php` | LCB1 cron dispatcher — queries shipments, dispatches queue jobs |
-| `browser-automation/scrapers/lcb1-vessel-codes.json` | Cached vessel name → code mapping (auto-refreshed on miss) |
+| File | Role | Phase |
+|------|------|-------|
+| `app/Console/Commands/ScrapeJwdSchedule.php` | JWD cron command — HTTP GET, parse all vessels, store to DB | Phase 7 |
+| `app/Jobs/ScrapeLCB1Vessel.php` | LCB1 queue job — calls JS scraper per vessel, stores to DB | Phase 5 |
+| `app/Console/Commands/ScrapeLCB1Vessels.php` | LCB1 cron dispatcher — queries shipments, dispatches queue jobs | Phase 5 |
+| `app/Jobs/ScrapeShipmentLinkVessel.php` | ShipmentLink queue job — calls JS scraper per vessel, stores to DB | Phase 6 |
+| `app/Console/Commands/ScrapeShipmentLinkVessels.php` | ShipmentLink cron dispatcher — queries B2 shipments, dispatches queue jobs | Phase 6 |
+| `browser-automation/scrapers/lcb1-vessel-codes.json` | Cached vessel name → code mapping (auto-refreshed on miss) | Phase 5 |
 
 ### Files that REMAIN UNCHANGED (not merged)
 
@@ -122,8 +124,6 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 |------|--------|
 | `app/Jobs/ScrapeKerryVessel.php` | Kerry uses PHP HTTP + queue — not a JS scraper |
 | `app/Console/Commands/ScrapeKerryVessels.php` | Kerry queue dispatcher — separate system |
-| `app/Jobs/ScrapeLCB1Vessel.php` | LCB1 queue job — NEW in Phase 5 |
-| `app/Console/Commands/ScrapeLCB1Vessels.php` | LCB1 queue dispatcher — NEW in Phase 5 |
 
 ### PHP methods to CONSOLIDATE
 
@@ -525,16 +525,106 @@ php artisan tinker
 
 ---
 
-### Phase 6: ShipmentLink (HTTPS, smart vessel code lookup)
+### Phase 6: ShipmentLink (HTTPS, queue-based, single-vessel only) — DONE (session 15)
 
-**JS changes to `shipmentlink-full-schedule-scraper.js`:**
-1. Parse `--vessel`/`--voyage` args
-2. If args provided: search vessel code by name from `shipmentlink-vessel-codes.json`, then query only that vessel's schedule
-3. Return flat object in filter mode
+**Architecture decision:** ShipmentLink API only supports per-vessel queries (no bulk/wildcard). The old full-schedule cron mode looped through all 813 vessel codes (50ms delay each), which triggered an IP-level block from ShipmentLink's WAF. We removed the full-schedule cron mode entirely and replaced it with a queue-based approach (same as Kerry/LCB1) that only scrapes vessels with active in-progress shipments.
 
-**PHP changes:** Update `shipmentlink_browser()` method.
+**IMPORTANT — Rate Limiting / IP Block:**
+- ShipmentLink (owned by Evergreen Marine, Taiwan) has **IP-level blocking** (not HTTP 429)
+- 40 req/min works fine (tested from separate machine)
+- Scraping all 813 vessels at ~20 req/sec (the old cron mode) triggers a block — the IP gets **CONNECTION REFUSED** for hours or possibly permanently
+- **NEVER run the scraper without `--vessel` arg** — the full-schedule cron mode has been removed to prevent this
+- The production server IP must not be blocked — only use queue-based scraping (max ~5-10 vessels per cron cycle)
 
-**Files retired:** `shipmentlink-wrapper.js`, `shipmentlink-scraper.js`, `shipmentlink-https-scraper.js`
+**Vessel code cache:** `shipmentlink-vessel-codes.json` contains ~813 vessel name -> 4-letter code mappings. Cache auto-refreshes on miss (same pattern as LCB1). Codes are stable (no mismatches found), but ~19% of vessels rotate over time (fleet turnover). Comparison on 2026-03-07: 665 match, 148 new, 152 removed, 0 code mismatches.
+
+**Voyage format discovery:** ShipmentLink uses multiple voyage formats unlike the standard `NNNN-NNNS`:
+- `1179-084B` (EVER BUILD — dash-separated)
+- `1TUHVN1MA` (CMA CGM — alphanumeric)
+- `26002N` (K-OCEAN — numeric+letter)
+- `0IZODS1NC` (ALS FLORA — alphanumeric)
+
+The old regex `(\d{4}-\d{3}[SN])` only matched the first format. Fixed to extract the last space-separated token from the voyage header (e.g. `"CMA CGM MAGELLAN 1TUHVN1MA"` → vessel=`CMA CGM MAGELLAN`, voyage=`1TUHVN1MA`).
+
+**Actual code changes made (session 15):**
+
+1. **REWRITTEN: `browser-automation/scrapers/shipmentlink-full-schedule-scraper.js`**
+   - Removed `scrapeFullSchedule()`, `getAllVesselCodes()`, `delay()` — the full-schedule cron mode that caused IP blocks
+   - Added `parseArgs()` — parses `--vessel` and `--voyage` CLI args (now required)
+   - Added `scrapeSingleVessel(vesselName, voyageCode)` — looks up vessel code from JSON cache, fetches that vessel's schedule, finds LAEM CHABANG ETA
+   - Added vessel code cache management: `loadCache()`, `saveCache()`, `fetchLiveVesselMapping()`, `lookupInCache()`, `findVesselCode()` — three-tier lookup (cache hit → live refresh → stale code retry), same pattern as LCB1
+   - Added `findVesselMatch()` for voyage matching (exact → partial/contains → fallback to first)
+   - Added `buildSuccessResult()` for consistent output format
+   - Fixed voyage regex: was `(\d{4}-\d{3}[SN])`, now splits by whitespace and takes last token
+   - Added retry + timeout to `makeRequest()` (was bare `https.get` with no timeout)
+   - Running without `--vessel` now exits with error instead of triggering 813 API calls
+   - Single mode output: `{ success, vessel_found, vessel_name, voyage_code, berth, eta, etd, raw_data }`
+
+2. **REWRITTEN: `app/Services/VesselTrackingService.php`** (`shipmentlink_browser()` method)
+   - Was: called `shipmentlink-https-scraper.js` with combined `"VESSEL VOYAGE"` string, complex error handling for multiple response formats
+   - Now: calls `shipmentlink-full-schedule-scraper.js --vessel "X" --voyage "Y"`, same clean pattern as `lcb1()` method
+   - Handles three cases: vessel found with ETA, vessel not found, scraper error
+
+3. **NEW: `app/Jobs/ScrapeShipmentLinkVessel.php`**
+   - Queue job: `ShouldQueue`, `$tries=2`, `$backoff=30`, `RateLimited('shipmentlink-api')`
+   - Calls JS scraper via `proc_open`, saves to `vessel_schedules` via `updateOrCreate`
+   - Same pattern as `ScrapeLCB1Vessel.php` and `ScrapeKerryVessel.php`
+
+4. **NEW: `app/Console/Commands/ScrapeShipmentLinkVessels.php`**
+   - Signature: `vessel:scrape-shipmentlink {--dry-run}`
+   - Queries `where('status', 'in-progress')->where('port_terminal', 'B2')->whereBetween('client_requested_delivery_date', [now()->subMonth(), now()->addMonth()])`
+   - Deduplicates by vessel_name + voyage, dispatches jobs to `shipmentlink-scraper` queue
+
+5. **MODIFIED: `app/Providers/AppServiceProvider.php`**
+   - Added `RateLimiter::for('shipmentlink-api', fn($job) => Limit::perMinute((int) env('SHIPMENTLINK_RATE_LIMIT', 40)))`
+
+6. **MODIFIED: `bootstrap/app.php`**
+   - Added `Artisan::call('vessel:scrape-shipmentlink')` to schedule (after LCB1)
+
+7. **MODIFIED: `app/Livewire/ScheduleManager.php`**
+   - Added `Artisan::call('vessel:scrape-shipmentlink')` to "Run Now" button
+
+8. **REMOVED dead code from `app/Services/BrowserAutomationService.php`:**
+   - Deleted `scrapeShipmentlinkFullSchedule()` method — called the old full-schedule cron mode
+   - Deleted `scrapeShipmentlinkB2FullSchedule()` method — same
+
+9. **REMOVED dead code from `app/Console/Commands/ScrapeVesselSchedules.php`:**
+   - Deleted `scrapeShipmentlink()` method
+   - Deleted `scrapeShipmentlinkB2()` method
+   - Removed both `case 'shipmentlink':` entries from switch (one was duplicate/unreachable)
+   - Updated comments in `$scrapableTerminals` to note queue-based approach
+
+10. **DELETED files:**
+    - `browser-automation/shipmentlink-wrapper.js` (385 lines — dead Puppeteer code, PHP already called https-scraper instead)
+    - `browser-automation/scrapers/shipmentlink-https-scraper.js` (219 lines — replaced by unified scraper)
+    - `browser-automation/scrapers/shipmentlink-scraper.js` (old scraper)
+    - `browser-automation/scrapers/debug-shipmentlink-structure.js` (debug script)
+    - 8 `shipmentlink-error-*.png` screenshots (debug artifacts)
+
+**Test results (2026-03-07):**
+
+| Test | Result |
+|------|--------|
+| JS single mode (vessel found + ETA) | `CMA CGM MAGELLAN / 1TUHVN1MA` → ETA 2026-05-07, ETD 2026-05-09 |
+| JS single mode (vessel exists, no LCB schedule) | `EVER BUILD` → vessel_found: true, eta: null |
+| JS single mode (vessel not found) | `NONEXISTENT` → vessel_found: false |
+| JS no-args (safety check) | Exits with error + usage message (no 813-call loop) |
+| PHP live ETA (artisan tinker) | Works — returns correct ETA via `checkVesselETAByName` |
+| PHP not-found (artisan tinker) | Works — graceful `shipmentlink_not_found` |
+| Cron command (`--dry-run`) | Works — "No active B2 shipments" (correct, DB has 0 in-progress B2) |
+| End-to-end queue flow | **Not tested** — 0 in-progress B2 shipments + IP blocked after full-schedule test |
+
+**Production setup:**
+
+Same as LCB1/Kerry — add `shipmentlink-scraper` queue to supervisor worker:
+```ini
+[program:shipmentlink-scraper]
+command=php /path/to/artisan queue:work --queue=shipmentlink-scraper --tries=2 --backoff=30 --sleep=3 --timeout=60
+numprocs=1
+```
+Or add `shipmentlink-scraper` to the existing multi-queue worker's `--queue` list.
+
+Optional env variable: `SHIPMENTLINK_RATE_LIMIT=40` (default 40/min)
 
 ---
 

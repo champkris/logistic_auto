@@ -28,5 +28,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('lcb1-api', function (object $job) {
             return Limit::perMinute((int) env('LCB1_RATE_LIMIT', 40));
         });
+
+        RateLimiter::for('shipmentlink-api', function (object $job) {
+            return Limit::perMinute((int) env('SHIPMENTLINK_RATE_LIMIT', 40));
+        });
     }
 }

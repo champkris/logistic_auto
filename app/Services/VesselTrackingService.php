@@ -1023,133 +1023,120 @@ class VesselTrackingService
 
     protected function shipmentlink_browser($config)
     {
+        $vesselName = $config['vessel_name'] ?? '';
+        $voyageCode = $config['voyage_code'] ?? '';
+
+        \Log::info("ShipmentLink check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
         try {
-            $vesselName = $config['vessel_name'] ?? 'EVER BUILD';
-            $voyageCode = $config['voyage_code'] ?? '';
-
-            // Build search string with voyage if available
-            $searchString = $voyageCode ? "{$vesselName} {$voyageCode}" : $vesselName;
-
-            \Log::info("Starting ShipmentLink HTTPS scraper", [
-                'vessel' => $vesselName,
-                'voyage' => $voyageCode,
-                'search_string' => $searchString
-            ]);
-
-            $browserAutomationPath = base_path('browser-automation');
-
-            // Use the new HTTPS-based scraper (much faster than Puppeteer)
             $command = sprintf(
-                "cd %s && timeout 30 node scrapers/shipmentlink-https-scraper.js %s",
-                escapeshellarg($browserAutomationPath),
-                escapeshellarg($searchString)
+                'cd %s && timeout 30s node scrapers/shipmentlink-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
             );
-            
+
             $descriptors = [
-                0 => ['pipe', 'r'],  // stdin
-                1 => ['pipe', 'w'],  // stdout (JSON)
-                2 => ['pipe', 'w']   // stderr (logs)
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
             ];
-            
+
             $process = proc_open($command, $descriptors, $pipes);
-            
+
             if (is_resource($process)) {
-                fclose($pipes[0]); // Close stdin
-                
+                fclose($pipes[0]);
+
                 $jsonOutput = stream_get_contents($pipes[1]);
                 $logOutput = stream_get_contents($pipes[2]);
-                
+
                 fclose($pipes[1]);
                 fclose($pipes[2]);
-                
+
                 $returnCode = proc_close($process);
-                
-                // Log the browser automation logs for debugging
+
                 if (!empty($logOutput)) {
-                    \Log::info("ShipmentLink browser automation logs:", ['logs' => $logOutput]);
+                    \Log::info("ShipmentLink scraper logs:", ['logs' => $logOutput]);
                 }
-                
+
                 if (!$jsonOutput) {
-                    throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
-                }
-                
-                $output = $jsonOutput;
-            } else {
-                throw new \Exception("Failed to start browser automation process");
-            }
-            
-            if (!$output) {
-                throw new \Exception("Browser automation failed: no output");
-            }
-            
-            // Parse the JSON result
-            $result = json_decode(trim($output), true);
-            
-            if (!$result) {
-                throw new \Exception("Invalid JSON from browser automation: " . substr($output, 0, 200));
-            }
-            
-            // Check if this is a "no data found" scenario vs actual error
-            if (!$result['success']) {
-                $errorMessage = $result['error'] ?? $result['message'] ?? 'Unknown error';
-                
-                // Handle "no data found" as a valid result, not an error
-                if (str_contains($errorMessage, 'No current schedule data') || 
-                    str_contains($errorMessage, 'no schedule data available') ||
-                    str_contains($errorMessage, 'no schedule data') ||
-                    isset($result['details']) && str_contains($result['details'], 'no schedule data')) {
-                    
-                    \Log::info("Terminal {$config['name']}: No schedule data found for {$vesselName} - this is expected for vessels without current schedules");
-                    
+                    \Log::warning("ShipmentLink scraper failed: no JSON output (exit code: {$returnCode})");
+
                     return [
                         'success' => true,
                         'terminal' => $config['name'],
-                        'vessel_found' => true,
+                        'vessel_found' => false,
                         'voyage_found' => false,
-                        'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                        'voyage_code' => null,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
                         'eta' => null,
                         'etd' => null,
-                        'search_method' => 'browser_automation',
-                        'message' => $errorMessage,
-                        'no_data_reason' => 'Vessel exists but no current schedule available',
-                        'raw_data' => $result,
+                        'search_method' => 'shipmentlink_timeout_fallback',
+                        'message' => 'ShipmentLink terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
                         'checked_at' => now()
                     ];
                 }
-                
-                // This is an actual automation error
-                throw new \Exception("Browser automation error: " . $errorMessage);
+            } else {
+                throw new \Exception("Failed to start ShipmentLink scraper process");
             }
-            
-            // Convert to Laravel expected format
+
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from ShipmentLink scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("ShipmentLink scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("ShipmentLink terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'shipmentlink_not_found',
+                    'message' => 'Vessel not in current ShipmentLink schedule',
+                    'no_data_reason' => 'The terminal was accessible, but the specified vessel was not found in the current schedule.',
+                    'checked_at' => now()
+                ];
+            }
+
+            // Vessel found
             return [
                 'success' => true,
                 'terminal' => $config['name'],
                 'vessel_found' => true,
-                'voyage_found' => !empty($result['voyage_code']),
+                'voyage_found' => true,
                 'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                'voyage_code' => $result['voyage_code'],
-                'eta' => $result['eta'],
-                'etd' => $result['etd'],
-                'port' => $result['port'] ?? null,
-                'service' => $result['service'] ?? null,
-                'search_method' => 'shipmentlink_browser_automation',
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'] ?? null,
+                'etd' => $result['etd'] ?? null,
+                'berth' => $result['berth'] ?? 'B2',
+                'search_method' => 'shipmentlink_scraper',
                 'raw_data' => $result['raw_data'] ?? null,
                 'checked_at' => now()
             ];
-            
+
         } catch (\Exception $e) {
-            \Log::error("ShipmentLink Browser Automation Error: " . $e->getMessage());
-            
+            \Log::error("ShipmentLink scraper error: " . $e->getMessage());
+
             return [
                 'success' => false,
                 'terminal' => $config['name'],
-                'vessel_found' => false,
-                'voyage_found' => false,
-                'eta' => null,
-                'error' => 'Browser automation failed: ' . $e->getMessage(),
-                'search_method' => 'shipmentlink_browser_automation_failed',
+                'error' => $e->getMessage(),
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'search_method' => 'shipmentlink_error',
                 'checked_at' => now()
             ];
         }

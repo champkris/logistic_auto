@@ -32,7 +32,7 @@ Continuation of: `finding_and_problem_ETA.md` (Session 1)
 | **TIPS** | B4 | NATTHA BHUM / 050N | **WORKS** | vessel_found=true, ETA=07/03/2026 |
 | **ESCO** | B3 | (full schedule) | **WORKS** | Returns 32 vessels including STARSHIP AQUILA |
 | **LCB1** | A0/B1 | KOTA LAYANG / 609W | **WORKS** | Found at B1, ETA=2026-03-03 20:00 |
-| **ShipmentLink** | B2 | (tested) | **WORKS** | Scraper runs correctly |
+| **ShipmentLink** | B2 | CMA CGM MAGELLAN / 1TUHVN1MA | **WORKS** | HTTPS scraper, ETA=2026-05-07 (session 15) |
 | **JWD** | JWD | (tested) | **WORKS** | Scraper runs correctly |
 | **Kerry** | KLN | (skipped) | **SKIPPED** | API now requires password; will test later |
 | **Siam** | SIAM | (skipped) | **SKIPPED** | n8n webhook placeholder |
@@ -382,7 +382,7 @@ These share no code, have inconsistent normalization (Finding 2), and bugs fixed
 | **TIPS** | `tips-scraper.js` via `tips-wrapper.js` | `tips-full-schedule-scraper.js` | Puppeteer |
 | **Hutchison** | `hutchison-scraper.js` via `hutchison-wrapper.js` | `hutchison-full-schedule-scraper.js` | Puppeteer |
 | **LCB1** | `lcb1-scraper.js` via `lcb1-wrapper.js` | `lcb1-full-schedule-scraper.js` | Puppeteer (single) / HTTPS (cron) |
-| **ShipmentLink** | `shipmentlink-wrapper.js` (450 lines) | `shipmentlink-full-schedule-scraper.js` | Puppeteer (single) / HTTPS (cron) |
+| **ShipmentLink** | ~~`shipmentlink-wrapper.js`~~ DELETED | `shipmentlink-full-schedule-scraper.js` (unified, single-only) | Queue-based `ScrapeShipmentLinkVessel` job (session 15) |
 | **JWD** | `jwd-scraper.js` | None | Puppeteer |
 | **Kerry** | `kerry_http_request()` in PHP | Queue-based `ScrapeKerryVessel` job | PHP HTTP (no Node.js) |
 
@@ -557,7 +557,7 @@ All shipments with `tracking_status = 'not_found'` from production:
 | **P2** | Add port_terminal validation in shipment form | F5 | Blade/controller files | **SKIP** — will fix in next big update |
 | ~~**P3**~~ | ~~Production: install Chromium system libs~~ | F3 | ~~Server admin task~~ | **DONE** (session 6) — guide in `session6_How_to_install_Chromium.md` |
 | **P3** | Production: deploy latest code | — | `git pull` on server | TODO |
-| **P4** | Merge single & cron scrapers (8 phases) | F7 | All scraper files + `VesselTrackingService.php` | **IN PROGRESS** — Phase 1 (LCIT) DONE (session 10), Phase 2 (ESCO) DONE (session 11), Phase 3 (TIPS) DONE (session 12), Phase 4 (Hutchison) DONE (session 13), Phase 5 (LCB1) DONE (session 14), Phase 7 (JWD cron) DONE (session 7), Phase 8 (Everbuild cleanup) DONE (session 9), phase 6 (ShipmentLink) TODO |
+| **P4** | Merge single & cron scrapers (8 phases) | F7 | All scraper files + `VesselTrackingService.php` | **DONE** — Phase 1 (LCIT) session 10, Phase 2 (ESCO) session 11, Phase 3 (TIPS) session 12, Phase 4 (Hutchison) session 13, Phase 5 (LCB1) session 14, Phase 6 (ShipmentLink) session 15, Phase 7 (JWD cron) session 7, Phase 8 (Everbuild cleanup) session 9 |
 | ~~**P4.1**~~ | ~~Kerry scraper: filter by ±1 month `client_requested_delivery_date`~~ | F6 | ~~`ScrapeKerryVessels.php`~~ | **DONE** (session 8) — see details below |
 | **P4.2** | Auto-update berth + UI indicator when berth changes within same terminal | F7 | Migration (add `original_port_terminal`), `CheckAllShipmentsETA.php`, `ShipmentClientController.php`, shipment list Blade | TODO — affects terminals with multiple berths: **LCIT** (B5, C3), **LCB1** (A0, B1), **Hutchison** (C1C2, D1, D2, A2, A3). When ETA check returns a different berth (same terminal), update `port_terminal` on shipment, save original, and show colored indicator in GUI "ท่าเรือ" column (e.g. **C3** <small>was B5</small>). **LCB1 note (session 14):** The queue job stores `port_terminal` from the shipment (e.g. `A0`), but the actual berth from LCB1's API (column [6]) may differ (e.g. `B1`). The actual berth is stored in the `berth` field. DB lookup uses `WHERE port_terminal = 'B1'` which won't find records stored with `port_terminal = 'A0'`. Also, deduplication by `vessel_name + voyage` means only one job is dispatched even if shipments exist for both A0 and B1 — the second berth's cache miss falls back to live scraper (which works, just slower). |
 | **P4.3** | Berth change detection: update shipment DB + UI when vessel moves berth within same terminal | F7 | `CheckAllShipmentsETA.php`, `ShipmentClientController.php`, shipment list Blade, migration | TODO (next major update) — When ETA check returns the same vessel+voyage+terminal but a **different berth** (e.g. shipment says `C1C2` but scraper returns `D1`), the system should: (1) update `port_terminal` on the shipment to the new berth, (2) store the original berth for audit trail, (3) show a visual indicator in the shipment list UI (e.g. **D1** <small>was C1C2</small>). Currently the berth mismatch is silently ignored. Affected terminals: **Hutchison** (C1C2, D1, D2, A2, A3), **LCIT** (B5, C3), **LCB1** (A0, B1). **LCB1 note (session 14):** Same issue as P4.2 — `ScrapeLCB1Vessel` job uses shipment's `port_terminal` as the `updateOrCreate` match key, not the actual berth returned by LCB1's API. Fix should use the actual berth from scraper response as `port_terminal`, and update the shipment if it differs. |
@@ -573,7 +573,7 @@ All shipments with `tracking_status = 'not_found'` from production:
 
 **Why `subMonth()`/`addMonth()` not `subDays(31)`/`addDays(31)`:** Carbon's `subMonth()` uses calendar month arithmetic (e.g., Mar 31 → subMonth() = Mar 3 due to Feb 31 overflow). We considered `subDays(31)` for consistency, but the overflow behavior is acceptable — it only shifts the boundary by a few days on edge months, and the purpose is just to exclude clearly stale records (months old). `subMonth()` reads more clearly.
 
-**Why only Kerry needs this:** Kerry is the only cron scraper that queries the `shipments` table to decide what to scrape. All other terminals (Hutchison, TIPS, ESCO, LCIT, LCB1, ShipmentLink, JWD) scrape the full schedule from the terminal website regardless of shipment records.
+**Why only Kerry needs this at the time:** Kerry was the only queue-based cron scraper that queries the `shipments` table. Since then, LCB1 (session 14) and ShipmentLink (session 15) also use the same queue-based pattern with the same `whereBetween` date filter.
 
 **Code change (`ScrapeKerryVessels.php` line 23):**
 ```php
@@ -616,7 +616,7 @@ All shipments with `tracking_status = 'not_found'` from production:
 | `browser-automation/lcb1-wrapper.js` | LCB1 wrapper — becomes unused after merge (F7) | F7 |
 | **ShipmentLink scrapers** | | |
 | `browser-automation/scrapers/shipmentlink-full-schedule-scraper.js` | ShipmentLink cron scraper — HTTPS, merge target (F7) | F7 |
-| `browser-automation/shipmentlink-wrapper.js` | ShipmentLink wrapper — 450 lines, becomes unused after merge (F7) | F7 |
+| ~~`browser-automation/shipmentlink-wrapper.js`~~ | DELETED (session 15) — replaced by unified scraper + queue job | F7 |
 | **JWD scraper** | | |
 | `browser-automation/scrapers/jwd-scraper.js` | JWD single scraper — no cron scraper exists, needs decision (F7) | F7 |
 

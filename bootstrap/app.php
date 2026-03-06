@@ -36,6 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
                         // Dispatch LCB1 queue jobs (returns immediately)
                         \Illuminate\Support\Facades\Artisan::call('vessel:scrape-lcb1');
 
+                        // Dispatch ShipmentLink queue jobs (returns immediately)
+                        \Illuminate\Support\Facades\Artisan::call('vessel:scrape-shipmentlink');
+
                         \Illuminate\Support\Facades\Log::info("Executed scheduled vessel scraping", [
                             'schedule_id' => $scheduleItem->id,
                             'schedule_name' => $scheduleItem->name,

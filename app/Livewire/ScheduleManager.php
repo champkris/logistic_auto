@@ -142,6 +142,8 @@ class ScheduleManager extends Component
             \Illuminate\Support\Facades\Artisan::call('vessel:scrape-jwd');
             // Dispatch LCB1 queue jobs (returns immediately)
             \Illuminate\Support\Facades\Artisan::call('vessel:scrape-lcb1');
+            // Dispatch ShipmentLink queue jobs (returns immediately)
+            \Illuminate\Support\Facades\Artisan::call('vessel:scrape-shipmentlink');
             $message = 'Vessel scraping initiated! This may take a few minutes.';
         } else {
             // Run ETA check command
