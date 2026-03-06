@@ -585,9 +585,9 @@ class VesselTrackingService
         \Log::info("LCIT check for vessel: {$vesselName}, voyage: {$voyageCode}");
 
         try {
-            // Use the LCIT scraper wrapper for cleaner output
+            // Use the unified LCIT full-schedule scraper in single mode
             $command = sprintf(
-                'cd %s && timeout 120s node lcit-wrapper.js %s %s',
+                'cd %s && timeout 120s node scrapers/lcit-full-schedule-scraper.js --vessel %s --voyage %s',
                 escapeshellarg(base_path('browser-automation')),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
@@ -706,6 +706,26 @@ class VesselTrackingService
 
                 // Other errors
                 throw new \Exception("LCIT scraper error: " . $errorMessage);
+            }
+
+            // Handle vessel_found: false from unified scraper
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("LCIT terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'lcit_not_found',
+                    'message' => 'Vessel not found in LCIT schedule',
+                    'no_data_reason' => 'Vessel not in current terminal schedule',
+                    'checked_at' => now()
+                ];
             }
 
             // Success - vessel found

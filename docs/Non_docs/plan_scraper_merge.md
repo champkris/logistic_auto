@@ -141,32 +141,39 @@ node scrapers/tips-full-schedule-scraper.js --vessel "NATTHA BHUM" --voyage "050
 
 ## Implementation Phases
 
-### Phase 1: LCIT (easiest — same HTTPS API, different params)
+### Phase 1: LCIT (easiest — same HTTPS API, different params) — DONE (session 10)
 
 **Why easiest:** Both scrapers already call the same LCIT XML API. Single scraper passes `?vessel=SAMAL&voy=2606S`, cron passes `?vessel=%&voy=` (wildcard). No Puppeteer.
 
-**JS changes to `lcit-full-schedule-scraper.js`:**
-1. Parse `--vessel` and `--voyage` CLI args
-2. If args provided: use them as API params (not wildcard `%`)
-3. If args provided: filter result to matching vessel, return flat object:
-   ```json
-   { "success": true, "vessel_found": true, "vessel_name": "SAMAL", "voyage_code": "2606S", "eta": "2026-03-07 17:00", "etd": "...", "berth": "B5" }
-   ```
-4. If no args: behave exactly as before (return `{ success, vessels: [...] }`)
+**Actual code changes made (session 10):**
 
-**PHP changes to `VesselTrackingService.php`:**
-1. Update `lcit()` method to call `lcit-full-schedule-scraper.js --vessel X --voyage Y` via `proc_open()`
-2. Remove dependency on `lcit-wrapper.js` and `lcit-scraper.js`
+1. **MODIFIED: `browser-automation/scrapers/lcit-full-schedule-scraper.js`**
+   - Added `parseArgs()` function — parses `--vessel` and `--voyage` CLI args
+   - Added `scrapeSingleVessel(vesselName, voyageCode)` method — passes real vessel/voyage to API (not wildcard `%`), finds best voyage match (exact > includes > first), returns flat object with `vessel_found` boolean
+   - Added `formatDate(dateStr)` method — converts LCIT date format `"DD MMM YY/HH:MM"` → ISO `"YYYY-MM-DDThh:mm:00"` (ported from old `lcit-scraper.js`)
+   - Updated `main()` — routes to `scrapeSingleVessel()` when `--vessel` arg present, otherwise `scrapeFullSchedule()` (unchanged)
+   - Cron mode output unchanged: `{ success, terminal, vessels: [...] }`
+   - Single mode output: `{ success, vessel_found, vessel_name, voyage_code, berth, eta, etd, cutoff, opengate, raw_data }`
 
-**Test:**
-```bash
-# Cron mode (unchanged):
-node scrapers/lcit-full-schedule-scraper.js
-# Single mode:
-node scrapers/lcit-full-schedule-scraper.js --vessel "SAMAL" --voyage "2606S"
-```
+2. **MODIFIED: `app/Services/VesselTrackingService.php`** (`lcit()` method ~line 589)
+   - Changed command from `node lcit-wrapper.js {vessel} {voyage}` to `node scrapers/lcit-full-schedule-scraper.js --vessel {vessel} --voyage {voyage}`
+   - Added handling for `vessel_found: false` response (new scraper returns `success: true, vessel_found: false` instead of old `success: false` for not-found)
 
-**Files retired:** `lcit-wrapper.js`, `lcit-scraper.js`, `lcit-scraper-old.js`
+3. **DELETED:** `browser-automation/lcit-wrapper.js`, `browser-automation/scrapers/lcit-scraper.js`, `browser-automation/scrapers/lcit-scraper-old.js`
+
+**Why the API approach is efficient:** LCIT API natively supports `?vessel=X&voy=Y` filtering. In single mode we pass real params instead of wildcard `%`, so the API returns only matching results (typically 1-2 rows) instead of 700+ vessels. Much faster than scrape-all-then-filter.
+
+**Note on multi-berth:** LCIT has berths B5 and C3. Both map to terminal `lcit`. The API returns vessels from all berths regardless of which port the user selected. The `berth` field in the response reflects the actual berth assignment. This is pre-existing behavior — see P4.2 in `finding_and_problem_ETA_2.md` for planned berth-change UI indicator.
+
+**Test results (2026-03-06):**
+
+| Test | Result |
+|------|--------|
+| Cron mode (no args) | Works — returns all vessels, output unchanged |
+| Single mode (`--vessel "POS HOCHIMINH" --voyage "1061S"`) | Works — `vessel_found: true`, ETA=`2026-03-18T00:40:00`, berth=B5 |
+| Not-found (`--vessel "NONEXISTENT" --voyage "999X"`) | Works — `vessel_found: false` |
+| PHP live (artisan tinker, cache cleared) | Works — `vessel_found: true`, ETA correct |
+| PHP not-found (artisan tinker) | Works — graceful `vessel_found: false`, `search_method: lcit_not_found` |
 
 ---
 

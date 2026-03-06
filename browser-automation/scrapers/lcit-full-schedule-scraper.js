@@ -41,6 +41,90 @@ class LcitFullScheduleScraper {
     }
   }
 
+  async scrapeSingleVessel(vesselName, voyageCode) {
+    try {
+      console.error(`🔍 LCIT single vessel lookup: ${vesselName}, voyage: ${voyageCode || 'any'}`);
+
+      // Pass real vessel/voyage to API (not wildcard %) — returns only matching results
+      const url = `${this.apiUrl}?vessel=${encodeURIComponent(vesselName)}&voy=${encodeURIComponent(voyageCode || '')}`;
+
+      const xmlData = await this.makeRequest(url);
+      const vessels = this.parseXML(xmlData);
+
+      if (vessels.length === 0) {
+        console.error(`❌ Vessel not found in LCIT schedule`);
+        return {
+          success: true,
+          vessel_found: false,
+          vessel_name: vesselName,
+          voyage_code: voyageCode || null,
+          message: 'Vessel not found in schedule',
+          details: 'The terminal API was accessible, but the specified vessel was not found in the current schedule.'
+        };
+      }
+
+      // Find best match: prefer exact voyage match, otherwise take first
+      let match = vessels[0];
+      if (voyageCode) {
+        const voyageUpper = voyageCode.toUpperCase();
+        const exactMatch = vessels.find(v => {
+          const voy = (v.voyage || '').toUpperCase();
+          return voy === voyageUpper || voy.includes(voyageUpper) || voyageUpper.includes(voy);
+        });
+        if (exactMatch) {
+          match = exactMatch;
+          console.error(`✅ Exact voyage match: ${match.voyage}`);
+        } else {
+          console.error(`⚠️ No exact voyage match for "${voyageCode}", using first: ${match.voyage}`);
+        }
+      }
+
+      console.error(`✅ Found: ${match.vessel_name} / ${match.voyage}`);
+
+      return {
+        success: true,
+        vessel_found: true,
+        vessel_name: match.vessel_name || vesselName,
+        voyage_code: match.voyage || voyageCode,
+        berth: match.berth,
+        eta: this.formatDate(match.eta),
+        etd: this.formatDate(match.etd),
+        cutoff: this.formatDate(match.cutoff),
+        opengate: this.formatDate(match.opengate),
+        raw_data: {
+          table_row: [match.berth, match.vessel_name, match.voyage, null, match.cutoff, match.opengate, match.eta, match.etd],
+          status: match.status
+        }
+      };
+
+    } catch (error) {
+      console.error(`❌ LCIT single vessel error:`, error.message);
+      return {
+        success: false,
+        error: error.message,
+        vessel_name: vesselName,
+        voyage_code: voyageCode || null,
+        details: 'Scraper encountered an error while querying LCIT API'
+      };
+    }
+  }
+
+  // Format LCIT date "DD MMM YY/HH:MM" → ISO format "YYYY-MM-DDThh:mm:00"
+  formatDate(dateStr) {
+    if (!dateStr || dateStr === '') return null;
+    const match = dateStr.trim().match(/(\d{1,2})\s+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(\d{2})\/(\d{2}):(\d{2})/i);
+    if (match) {
+      const [, day, month, year, hour, minute] = match;
+      const months = {
+        'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
+        'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
+        'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
+      };
+      return `20${year}-${months[month.toUpperCase()]}-${day.padStart(2, '0')}T${hour}:${minute}:00`;
+    }
+    return dateStr.trim();
+  }
+
   makeRequest(url) {
     return new Promise((resolve, reject) => {
       const options = {
@@ -183,12 +267,32 @@ class LcitFullScheduleScraper {
   }
 }
 
+function parseArgs(argv) {
+  const args = { vessel: null, voyage: null };
+  for (let i = 2; i < argv.length; i++) {
+    if (argv[i] === '--vessel' && argv[i + 1]) {
+      args.vessel = argv[++i];
+    } else if (argv[i] === '--voyage' && argv[i + 1]) {
+      args.voyage = argv[++i];
+    }
+  }
+  return args;
+}
+
 async function main() {
   const scraper = new LcitFullScheduleScraper();
+  const args = parseArgs(process.argv);
 
   try {
-    const result = await scraper.scrapeFullSchedule();
-    console.log(JSON.stringify(result));
+    if (args.vessel) {
+      // Single vessel mode — pass real params to API (no wildcard)
+      const result = await scraper.scrapeSingleVessel(args.vessel, args.voyage);
+      console.log(JSON.stringify(result));
+    } else {
+      // Cron mode — scrape all vessels
+      const result = await scraper.scrapeFullSchedule();
+      console.log(JSON.stringify(result));
+    }
   } catch (error) {
     console.error('Fatal error:', error);
     console.log(JSON.stringify({
