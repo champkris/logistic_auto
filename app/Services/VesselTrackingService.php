@@ -16,10 +16,14 @@ class VesselTrackingService
      * Multiple ports can use the same terminal/scraper
      */
     protected $portToTerminal = [
-        // Hutchison Ports
-        'C1' => 'hutchison',
-        'C2' => 'hutchison',
-        'C1C2' => 'hutchison', // Legacy support
+        // Hutchison Ports (berths: C1C2, D1, D2, A2, A3)
+        'C1' => 'hutchison',   // Legacy — actual berth is C1C2
+        'C2' => 'hutchison',   // Legacy — actual berth is C1C2
+        'C1C2' => 'hutchison',
+        'D1' => 'hutchison',
+        'D2' => 'hutchison',
+        'A2' => 'hutchison',
+        'A3' => 'hutchison',
 
         // TIPS
         'B4' => 'tips',
@@ -40,15 +44,12 @@ class VesselTrackingService
         // ShipmentLink
         'B2' => 'shipmentlink',
 
-        // Additional ports that may use existing scrapers
-        'A3' => 'lcb1', // Assuming A3 uses same system as A0/B1
-        'D1' => 'lcb1', // Assuming D1 uses same system as A0/B1/A3
-
         // Siam Commercial
         'SIAM' => 'siam',
 
         // Kerry Logistics
         'KERRY' => 'kerry',
+        'KLN' => 'kerry',
 
         // JWD Terminal
         'JWD' => 'jwd',
@@ -64,7 +65,7 @@ class VesselTrackingService
             'url' => 'https://online.hutchisonports.co.th/hptpcs/f?p=114:13:::::',
             'vessel_full' => 'WAN HAI 517 S093',
             'method' => 'hutchison_browser',
-            'ports' => ['C1', 'C2', 'C1C2']
+            'ports' => ['C1', 'C2', 'C1C2', 'D1', 'D2', 'A2', 'A3']
         ],
         'tips' => [
             'name' => 'TIPS',
@@ -123,7 +124,7 @@ class VesselTrackingService
             'voyage_code' => '230N',
             'search_url' => 'https://terminaltracking.ksp.kln.com/SearchVesselVisit/List',
             'method' => 'kerry_http_request',
-            'ports' => ['KERRY']
+            'ports' => ['KERRY', 'KLN']
         ],
         'jwd' => [
             'name' => 'JWD Terminal',
@@ -193,6 +194,10 @@ class VesselTrackingService
      */
     protected function checkVesselETAWithParsedName($parsedVessel, $portCode)
     {
+        // Normalize vessel name and voyage before any lookup
+        $parsedVessel['vessel_name'] = preg_replace('/\s+/', ' ', trim($parsedVessel['vessel_name']));
+        $parsedVessel['voyage_code'] = trim(preg_replace('/^V\.?\s*/i', '', trim($parsedVessel['voyage_code'] ?? '')));
+
         // OPTIMIZATION: Check local database first (from daily scrapes)
         $dbSchedule = VesselSchedule::findVessel($parsedVessel['vessel_name'], $portCode, $parsedVessel['voyage_code']);
 
@@ -329,171 +334,29 @@ class VesselTrackingService
 
     protected function hutchison_browser($config)
     {
+        $vesselName = $config['vessel_name'] ?? '';
+        $voyageCode = $config['voyage_code'] ?? '';
+
+        \Log::info("Hutchison check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
         try {
-            // Hutchison site has vessel and voyage in separate columns, so only pass vessel name
-            $vesselName = $config['vessel_name'];
-            $expectedVoyageCode = $config['voyage_code'] ?? null;
-
-            \Log::info("Starting Hutchison Ports browser automation", [
-                'vessel_name' => $vesselName,
-                'expected_voyage' => $expectedVoyageCode
-            ]);
-
-            $browserAutomationPath = base_path('browser-automation');
-            $scriptPath = $browserAutomationPath . '/hutchison-wrapper.js';
-
-            // Use the new BrowserAutomationService to handle Node.js version issues
-            $result = BrowserAutomationService::runNodeScript($scriptPath, [$vesselName], 90);
-
-            $jsonOutput = $result['stdout'];
-            $logOutput = $result['stderr'];
-            $returnCode = $result['return_code'];
-
-            // Log the browser automation logs for debugging
-            if (!empty($logOutput)) {
-                \Log::info("Hutchison browser automation logs: " . $logOutput);
-            }
-
-            // Check if we have valid JSON output regardless of return code
-            if (!empty($jsonOutput)) {
-                $result = json_decode($jsonOutput, true);
-
-                if (json_last_error() === JSON_ERROR_NONE && isset($result['success'])) {
-                        if ($result['success']) {
-                            // Validate voyage code if we have an expected one
-                            $voyageFound = true;
-                            if ($expectedVoyageCode && isset($result['voyage_code'])) {
-                                $voyageFound = (strtoupper($result['voyage_code']) === strtoupper($expectedVoyageCode));
-
-                                if (!$voyageFound) {
-                                    \Log::info("Vessel found but voyage code mismatch", [
-                                        'expected' => $expectedVoyageCode,
-                                        'found' => $result['voyage_code']
-                                    ]);
-
-                                    // Update result to indicate voyage not found
-                                    $result['voyage_found'] = false;
-                                    $result['message'] = "Vessel {$vesselName} found but voyage {$expectedVoyageCode} not found (found: {$result['voyage_code']})";
-                                } else {
-                                    $result['voyage_found'] = true;
-                                }
-                            }
-
-                            $result['vessel_found'] = true;
-
-                            \Log::info("Hutchison browser automation completed", [
-                                'vessel_name' => $vesselName,
-                                'vessel_found' => true,
-                                'voyage_found' => $voyageFound,
-                                'result' => $result
-                            ]);
-                        } else {
-                            \Log::info("Hutchison browser automation completed - vessel not found", [
-                                'vessel_name' => $vesselName,
-                                'result' => $result
-                            ]);
-
-                            // Ensure success field is properly set when vessel not found
-                            $result['success'] = true; // The scraping succeeded, just no vessel found
-                            $result['vessel_found'] = false;
-                            $result['voyage_found'] = false;
-                            $result['eta'] = null;
-
-                            // Add terminal and vessel info for consistency
-                            if (!isset($result['terminal'])) {
-                                $result['terminal'] = 'Hutchison Ports';
-                            }
-                            if (!isset($result['vessel_name'])) {
-                                $result['vessel_name'] = $vesselName;
-                            }
-                            if (!isset($result['voyage_code'])) {
-                                $result['voyage_code'] = $expectedVoyageCode ?? null;
-                            }
-                        }
-
-                return $result;
-            } else {
-                \Log::error("Invalid JSON from Hutchison browser automation: " . $jsonOutput);
-                throw new \Exception("Invalid JSON response from browser automation");
-            }
-        } else {
-            \Log::error("Hutchison browser automation failed - no output", [
-                'return_code' => $returnCode,
-                'log_output' => $logOutput
-            ]);
-            throw new \Exception("Browser automation failed with no output. Return code: {$returnCode}");
-        }
-
-        } catch (\Exception $e) {
-            \Log::error("Hutchison browser automation exception: " . $e->getMessage());
-
-            return [
-                'success' => false,
-                'terminal' => 'Hutchison Ports',
-                'vessel_name' => $config['vessel_name'] ?? '',
-                'voyage_code' => $config['voyage_code'] ?? '',
-                'vessel_full' => $config['vessel_full'] ?? '',
-                'vessel_found' => false,
-                'voyage_found' => false,
-                'full_name_found' => false,
-                'search_method' => 'browser_automation_failed',
-                'eta' => null,
-                'error' => $e->getMessage(),
-                'checked_at' => now()
-            ];
-        }
-    }
-
-    protected function tips($config)
-    {
-        // TIPS - Container ship schedule
-        $response = Http::timeout(30)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Referer' => 'https://www.tips.co.th/',
-            ])
-            ->get($config['url']);
-
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
-        }
-
-        return $this->parseVesselData($response->body(), $config);
-    }
-
-    protected function tips_browser($config)
-    {
-        try {
-            $vesselName = $config['vessel_name'] ?? 'SRI SUREE';
-            $voyageCode = $config['voyage_code'] ?? '';
-
-            \Log::info("Starting TIPS browser automation", [
-                'vessel' => $vesselName,
-                'voyage' => $voyageCode,
-                'terminal' => 'B4'
-            ]);
-
-            $browserAutomationPath = base_path('browser-automation');
-
-            // Use proc_open to call the TIPS wrapper with vessel name and voyage
             $command = sprintf(
-                "cd %s && timeout 120 node tips-wrapper.js %s %s 2>/dev/null",
-                escapeshellarg($browserAutomationPath),
+                'cd %s && timeout 60s node scrapers/hutchison-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
             );
 
             $descriptors = [
-                0 => ['pipe', 'r'],  // stdin
-                1 => ['pipe', 'w'],  // stdout (JSON)
-                2 => ['pipe', 'w']   // stderr (logs)
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
             ];
 
             $process = proc_open($command, $descriptors, $pipes);
 
             if (is_resource($process)) {
-                fclose($pipes[0]); // Close stdin
+                fclose($pipes[0]);
 
                 $jsonOutput = stream_get_contents($pipes[1]);
                 $logOutput = stream_get_contents($pipes[2]);
@@ -503,70 +366,227 @@ class VesselTrackingService
 
                 $returnCode = proc_close($process);
 
-                // Log the browser automation logs for debugging
                 if (!empty($logOutput)) {
-                    \Log::info("TIPS browser automation logs:", ['logs' => $logOutput]);
+                    \Log::info("Hutchison scraper logs:", ['logs' => $logOutput]);
                 }
 
-                if (!empty($jsonOutput)) {
-                    $result = json_decode($jsonOutput, true);
+                if (!$jsonOutput) {
+                    \Log::warning("Hutchison scraper failed: no JSON output (exit code: {$returnCode})");
 
-                    if ($result && isset($result['success'])) {
-                        \Log::info("TIPS browser automation result:", $result);
-
-                        return [
-                            'success' => $result['success'],
-                            'terminal' => $result['terminal'] ?? 'TIPS',
-                            'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                            'voyage_code' => $result['voyage_code'] ?? $voyageCode,
-                            'vessel_found' => $result['vessel_found'] ?? false,
-                            'voyage_found' => $result['voyage_found'] ?? false,
-                            'eta' => $result['eta'],
-                            'search_method' => 'tips_browser_automation',
-                            'pages_scanned' => $result['pages_scanned'] ?? null,
-                            'checked_at' => now()
-                        ];
-                    }
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'hutchison_timeout_fallback',
+                        'message' => 'Hutchison terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
+                        'checked_at' => now()
+                    ];
                 }
+            } else {
+                throw new \Exception("Failed to start Hutchison scraper process");
+            }
 
-                // If we get here, something went wrong
-                \Log::error("TIPS browser automation failed", [
-                    'return_code' => $returnCode,
-                    'json_output' => $jsonOutput,
-                    'log_output' => $logOutput
-                ]);
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from Hutchison scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("Hutchison scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("Hutchison terminal accessible but {$vesselName} not found in current schedule");
 
                 return [
-                    'success' => false,
-                    'terminal' => 'TIPS',
-                    'vessel_name' => $vesselName,
-                    'voyage_code' => $voyageCode,
+                    'success' => true,
+                    'terminal' => $config['name'],
                     'vessel_found' => false,
                     'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
                     'eta' => null,
-                    'error' => 'Browser automation process failed',
-                    'search_method' => 'tips_browser_automation_failed',
+                    'etd' => null,
+                    'search_method' => 'hutchison_not_found',
+                    'message' => 'Vessel not in current Hutchison schedule',
+                    'no_data_reason' => 'The terminal was accessible, but the specified vessel was not found in the current schedule.',
                     'checked_at' => now()
                 ];
             }
 
+            // Vessel found
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => true,
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'] ?? null,
+                'etd' => $result['etd'] ?? null,
+                'berth' => $result['berth'] ?? null,
+                'cutoff' => $result['cutoff'] ?? null,
+                'raw_data' => $result['raw_data'] ?? null,
+                'search_method' => 'hutchison_scraper',
+                'checked_at' => now()
+            ];
+
         } catch (\Exception $e) {
-            \Log::error("TIPS browser automation exception", [
+            \Log::error("Hutchison scraper exception", [
                 'error' => $e->getMessage(),
-                'vessel' => $vesselName ?? 'unknown',
-                'voyage' => $voyageCode ?? 'unknown'
+                'vessel' => $vesselName,
+                'voyage' => $voyageCode
+            ]);
+
+            return [
+                'success' => false,
+                'terminal' => 'Hutchison Ports',
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'vessel_found' => false,
+                'voyage_found' => false,
+                'eta' => null,
+                'error' => $e->getMessage(),
+                'search_method' => 'hutchison_scraper_error',
+                'checked_at' => now()
+            ];
+        }
+    }
+
+
+    protected function tips_browser($config)
+    {
+        $vesselName = $config['vessel_name'] ?? 'SRI SUREE';
+        $voyageCode = $config['voyage_code'] ?? '';
+
+        \Log::info("TIPS check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
+        try {
+            // Use the unified TIPS full-schedule scraper in single mode
+            $command = sprintf(
+                'cd %s && timeout 30s node scrapers/tips-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
+            );
+
+            $descriptors = [
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
+            ];
+
+            $process = proc_open($command, $descriptors, $pipes);
+
+            if (is_resource($process)) {
+                fclose($pipes[0]);
+
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
+
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+
+                $returnCode = proc_close($process);
+
+                if (!empty($logOutput)) {
+                    \Log::info("TIPS scraper logs:", ['logs' => $logOutput]);
+                }
+
+                if (!$jsonOutput) {
+                    \Log::warning("TIPS scraper failed: no JSON output (exit code: {$returnCode})");
+
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'tips_timeout_fallback',
+                        'message' => 'TIPS terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
+                        'checked_at' => now()
+                    ];
+                }
+            } else {
+                throw new \Exception("Failed to start TIPS scraper process");
+            }
+
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from TIPS scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("TIPS scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("TIPS terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'tips_not_found',
+                    'message' => 'Vessel not in current TIPS schedule',
+                    'no_data_reason' => 'The terminal was accessible, but the specified vessel was not found in the current schedule.',
+                    'checked_at' => now()
+                ];
+            }
+
+            // Vessel found
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => true,
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'] ?? null,
+                'etd' => $result['etd'] ?? null,
+                'berth' => $result['berth'] ?? 'B4',
+                'cutoff' => $result['cutoff'] ?? null,
+                'raw_data' => $result['raw_data'] ?? null,
+                'search_method' => 'tips_scraper',
+                'checked_at' => now()
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error("TIPS scraper exception", [
+                'error' => $e->getMessage(),
+                'vessel' => $vesselName,
+                'voyage' => $voyageCode
             ]);
 
             return [
                 'success' => false,
                 'terminal' => 'TIPS',
-                'vessel_name' => $vesselName ?? 'unknown',
-                'voyage_code' => $voyageCode ?? 'unknown',
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
                 'vessel_found' => false,
                 'voyage_found' => false,
                 'eta' => null,
                 'error' => $e->getMessage(),
-                'search_method' => 'tips_browser_automation_error',
+                'search_method' => 'tips_scraper_error',
                 'checked_at' => now()
             ];
         }
@@ -580,9 +600,9 @@ class VesselTrackingService
         \Log::info("LCIT check for vessel: {$vesselName}, voyage: {$voyageCode}");
 
         try {
-            // Use the LCIT scraper wrapper for cleaner output
+            // Use the unified LCIT full-schedule scraper in single mode
             $command = sprintf(
-                'cd %s && timeout 120s node lcit-wrapper.js %s %s',
+                'cd %s && timeout 120s node scrapers/lcit-full-schedule-scraper.js --vessel %s --voyage %s',
                 escapeshellarg(base_path('browser-automation')),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
@@ -703,6 +723,26 @@ class VesselTrackingService
                 throw new \Exception("LCIT scraper error: " . $errorMessage);
             }
 
+            // Handle vessel_found: false from unified scraper
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("LCIT terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'lcit_not_found',
+                    'message' => 'Vessel not found in LCIT schedule',
+                    'no_data_reason' => 'Vessel not in current terminal schedule',
+                    'checked_at' => now()
+                ];
+            }
+
             // Success - vessel found
             \Log::info("LCIT successful check for {$vesselName}", ['result' => $result]);
 
@@ -738,128 +778,244 @@ class VesselTrackingService
 
     protected function esco($config)
     {
-        // ESCO - Berth Schedule
-        $response = Http::timeout(30)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            ])
-            ->get($config['url']);
+        $vesselName = $config['vessel_name'] ?? '';
+        $voyageCode = $config['voyage_code'] ?? '';
 
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
-        }
+        \Log::info("ESCO check for vessel: {$vesselName}, voyage: {$voyageCode}");
 
-        return $this->parseVesselData($response->body(), $config);
-    }
-
-    protected function lcb1($config)
-    {
-        // LCB1 - Use Browser Automation (required for dynamic content)
         try {
-            $vesselName = $config['vessel_name'] ?? 'MARSA PRIDE';
-            $voyageCode = $config['voyage_code'] ?? '';
+            // Use the unified ESCO full-schedule scraper in single mode
+            $command = sprintf(
+                'cd %s && timeout 30s node scrapers/esco-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
+            );
 
-            // Use the new BrowserAutomationService
-            $browserAutomationPath = base_path('browser-automation');
-            $scriptPath = $browserAutomationPath . '/laravel-wrapper.js';
+            $descriptors = [
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
+            ];
 
-            // Pass vessel name and voyage code to scraper
-            $args = [$vesselName];
-            if (!empty($voyageCode)) {
-                $args[] = $voyageCode;
-            }
+            $process = proc_open($command, $descriptors, $pipes);
 
-            $result = BrowserAutomationService::runNodeScript($scriptPath, $args, 60);
+            if (is_resource($process)) {
+                fclose($pipes[0]);
 
-            $jsonOutput = $result['stdout'];
-            $logOutput = $result['stderr'];
-            $returnCode = $result['return_code'];
-                
-            // Log the browser automation logs for debugging
-            if (!empty($logOutput)) {
-                \Log::info("Browser automation logs:", ['logs' => $logOutput]);
-            }
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
 
-            if (!$jsonOutput) {
-                throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
-            }
+                fclose($pipes[1]);
+                fclose($pipes[2]);
 
-            $output = $jsonOutput;
-            
-            if (!$output) {
-                throw new \Exception("Browser automation failed: no output");
-            }
-            
-            // Parse the JSON result
-            $result = json_decode(trim($output), true);
-            
-            if (!$result) {
-                throw new \Exception("Invalid JSON from browser automation: " . substr($output, 0, 200));
-            }
-            
-            // Log the parsed result for debugging
-            \Log::info("LCB1 Browser Automation Result:", ['result' => $result]);
+                $returnCode = proc_close($process);
 
-            // Check if this is a "no data found" scenario vs actual error
-            if (!$result['success']) {
-                $errorMessage = $result['error'] ?? $result['message'] ?? 'Unknown error';
+                if (!empty($logOutput)) {
+                    \Log::info("ESCO scraper logs:", ['logs' => $logOutput]);
+                }
 
-                // Handle "no data found" as a valid result, not an error
-                if (str_contains($errorMessage, 'No current schedule data') ||
-                    str_contains($errorMessage, 'no schedule data available') ||
-                    str_contains($errorMessage, 'no schedule data') ||
-                    isset($result['details']) && str_contains($result['details'], 'no schedule data')) {
-
-                    \Log::info("Terminal {$config['name']}: No schedule data found for {$vesselName} - this is expected for vessels without current schedules");
+                if (!$jsonOutput) {
+                    \Log::warning("ESCO scraper failed: no JSON output (exit code: {$returnCode})");
 
                     return [
                         'success' => true,
                         'terminal' => $config['name'],
-                        'vessel_found' => true,
+                        'vessel_found' => false,
                         'voyage_found' => false,
-                        'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                        'voyage_code' => null,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
                         'eta' => null,
                         'etd' => null,
-                        'search_method' => 'browser_automation',
-                        'message' => $errorMessage,
-                        'no_data_reason' => 'Vessel exists but no current schedule available',
-                        'raw_data' => $result,
+                        'search_method' => 'esco_timeout_fallback',
+                        'message' => 'ESCO terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
                         'checked_at' => now()
                     ];
                 }
-
-                // This is an actual automation error
-                throw new \Exception("Browser automation error: " . $errorMessage);
+            } else {
+                throw new \Exception("Failed to start ESCO scraper process");
             }
 
-            // Convert to Laravel expected format
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from ESCO scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("ESCO scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("ESCO terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'esco_not_found',
+                    'message' => 'Vessel not found in ESCO schedule',
+                    'no_data_reason' => 'Vessel not in current terminal schedule',
+                    'checked_at' => now()
+                ];
+            }
+
+            // Success - vessel found
+            \Log::info("ESCO successful check for {$vesselName}", ['result' => $result]);
+
             return [
                 'success' => true,
                 'terminal' => $config['name'],
-                'port_terminal' => $result['port_terminal'] ?? null,  // Specific terminal (A0, B1, etc.)
                 'vessel_found' => true,
-                'voyage_found' => !empty($result['voyage_code']),
+                'voyage_found' => !empty($result['voyage_code']) && $result['voyage_code'] !== 'Unknown',
                 'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                'voyage_code' => $result['voyage_code'],
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
                 'eta' => $result['eta'],
                 'etd' => $result['etd'],
-                'search_method' => 'browser_automation',
+                'berth' => $result['berth'],
+                'search_method' => 'esco_scraper',
                 'raw_data' => $result['raw_data'] ?? null,
                 'checked_at' => now()
             ];
-            
+
         } catch (\Exception $e) {
-            \Log::error("LCB1 Browser Automation Error: " . $e->getMessage());
-            
+            \Log::error("ESCO terminal error: " . $e->getMessage());
+
             return [
                 'success' => false,
                 'terminal' => $config['name'],
-                'vessel_found' => false,
-                'voyage_found' => false,
-                'eta' => null,
-                'error' => 'Browser automation failed: ' . $e->getMessage(),
-                'search_method' => 'browser_automation_failed',
+                'error' => $e->getMessage(),
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'search_method' => 'esco_error',
+                'checked_at' => now()
+            ];
+        }
+    }
+
+    protected function lcb1($config)
+    {
+        $vesselName = $config['vessel_name'] ?? '';
+        $voyageCode = $config['voyage_code'] ?? '';
+
+        \Log::info("LCB1 check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
+        try {
+            $command = sprintf(
+                'cd %s && timeout 30s node scrapers/lcb1-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
+            );
+
+            $descriptors = [
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
+            ];
+
+            $process = proc_open($command, $descriptors, $pipes);
+
+            if (is_resource($process)) {
+                fclose($pipes[0]);
+
+                $jsonOutput = stream_get_contents($pipes[1]);
+                $logOutput = stream_get_contents($pipes[2]);
+
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+
+                $returnCode = proc_close($process);
+
+                if (!empty($logOutput)) {
+                    \Log::info("LCB1 scraper logs:", ['logs' => $logOutput]);
+                }
+
+                if (!$jsonOutput) {
+                    \Log::warning("LCB1 scraper failed: no JSON output (exit code: {$returnCode})");
+
+                    return [
+                        'success' => true,
+                        'terminal' => $config['name'],
+                        'vessel_found' => false,
+                        'voyage_found' => false,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
+                        'eta' => null,
+                        'etd' => null,
+                        'search_method' => 'lcb1_timeout_fallback',
+                        'message' => 'LCB1 terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
+                        'checked_at' => now()
+                    ];
+                }
+            } else {
+                throw new \Exception("Failed to start LCB1 scraper process");
+            }
+
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from LCB1 scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("LCB1 scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("LCB1 terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'lcb1_not_found',
+                    'message' => 'Vessel not in current LCB1 schedule',
+                    'no_data_reason' => 'The terminal was accessible, but the specified vessel was not found in the current schedule.',
+                    'checked_at' => now()
+                ];
+            }
+
+            // Vessel found
+            return [
+                'success' => true,
+                'terminal' => $config['name'],
+                'vessel_found' => true,
+                'voyage_found' => true,
+                'vessel_name' => $result['vessel_name'] ?? $vesselName,
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'] ?? null,
+                'etd' => $result['etd'] ?? null,
+                'berth' => $result['berth'] ?? null,
+                'search_method' => 'lcb1_scraper',
+                'raw_data' => $result['raw_data'] ?? null,
+                'checked_at' => now()
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error("LCB1 scraper error: " . $e->getMessage());
+
+            return [
+                'success' => false,
+                'terminal' => $config['name'],
+                'error' => $e->getMessage(),
+                'vessel_name' => $vesselName,
+                'voyage_code' => $voyageCode,
+                'search_method' => 'lcb1_error',
                 'checked_at' => now()
             ];
         }
@@ -867,626 +1023,123 @@ class VesselTrackingService
 
     protected function shipmentlink_browser($config)
     {
+        $vesselName = $config['vessel_name'] ?? '';
+        $voyageCode = $config['voyage_code'] ?? '';
+
+        \Log::info("ShipmentLink check for vessel: {$vesselName}, voyage: {$voyageCode}");
+
         try {
-            $vesselName = $config['vessel_name'] ?? 'EVER BUILD';
-            $voyageCode = $config['voyage_code'] ?? '';
-
-            // Build search string with voyage if available
-            $searchString = $voyageCode ? "{$vesselName} {$voyageCode}" : $vesselName;
-
-            \Log::info("Starting ShipmentLink HTTPS scraper", [
-                'vessel' => $vesselName,
-                'voyage' => $voyageCode,
-                'search_string' => $searchString
-            ]);
-
-            $browserAutomationPath = base_path('browser-automation');
-
-            // Use the new HTTPS-based scraper (much faster than Puppeteer)
             $command = sprintf(
-                "cd %s && timeout 30 node scrapers/shipmentlink-https-scraper.js %s 2>/dev/null",
-                escapeshellarg($browserAutomationPath),
-                escapeshellarg($searchString)
+                'cd %s && timeout 30s node scrapers/shipmentlink-full-schedule-scraper.js --vessel %s --voyage %s',
+                escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($vesselName),
+                escapeshellarg($voyageCode ?: '')
             );
-            
+
             $descriptors = [
-                0 => ['pipe', 'r'],  // stdin
-                1 => ['pipe', 'w'],  // stdout (JSON)
-                2 => ['pipe', 'w']   // stderr (logs)
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
             ];
-            
+
             $process = proc_open($command, $descriptors, $pipes);
-            
+
             if (is_resource($process)) {
-                fclose($pipes[0]); // Close stdin
-                
+                fclose($pipes[0]);
+
                 $jsonOutput = stream_get_contents($pipes[1]);
                 $logOutput = stream_get_contents($pipes[2]);
-                
+
                 fclose($pipes[1]);
                 fclose($pipes[2]);
-                
+
                 $returnCode = proc_close($process);
-                
-                // Log the browser automation logs for debugging
+
                 if (!empty($logOutput)) {
-                    \Log::info("ShipmentLink browser automation logs:", ['logs' => $logOutput]);
+                    \Log::info("ShipmentLink scraper logs:", ['logs' => $logOutput]);
                 }
-                
+
                 if (!$jsonOutput) {
-                    throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
-                }
-                
-                $output = $jsonOutput;
-            } else {
-                throw new \Exception("Failed to start browser automation process");
-            }
-            
-            if (!$output) {
-                throw new \Exception("Browser automation failed: no output");
-            }
-            
-            // Parse the JSON result
-            $result = json_decode(trim($output), true);
-            
-            if (!$result) {
-                throw new \Exception("Invalid JSON from browser automation: " . substr($output, 0, 200));
-            }
-            
-            // Check if this is a "no data found" scenario vs actual error
-            if (!$result['success']) {
-                $errorMessage = $result['error'] ?? $result['message'] ?? 'Unknown error';
-                
-                // Handle "no data found" as a valid result, not an error
-                if (str_contains($errorMessage, 'No current schedule data') || 
-                    str_contains($errorMessage, 'no schedule data available') ||
-                    str_contains($errorMessage, 'no schedule data') ||
-                    isset($result['details']) && str_contains($result['details'], 'no schedule data')) {
-                    
-                    \Log::info("Terminal {$config['name']}: No schedule data found for {$vesselName} - this is expected for vessels without current schedules");
-                    
+                    \Log::warning("ShipmentLink scraper failed: no JSON output (exit code: {$returnCode})");
+
                     return [
                         'success' => true,
                         'terminal' => $config['name'],
-                        'vessel_found' => true,
+                        'vessel_found' => false,
                         'voyage_found' => false,
-                        'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                        'voyage_code' => null,
+                        'vessel_name' => $vesselName,
+                        'voyage_code' => $voyageCode,
                         'eta' => null,
                         'etd' => null,
-                        'search_method' => 'browser_automation',
-                        'message' => $errorMessage,
-                        'no_data_reason' => 'Vessel exists but no current schedule available',
-                        'raw_data' => $result,
+                        'search_method' => 'shipmentlink_timeout_fallback',
+                        'message' => 'ShipmentLink terminal not accessible',
+                        'no_data_reason' => 'Terminal website experiencing connectivity issues',
                         'checked_at' => now()
                     ];
                 }
-                
-                // This is an actual automation error
-                throw new \Exception("Browser automation error: " . $errorMessage);
+            } else {
+                throw new \Exception("Failed to start ShipmentLink scraper process");
             }
-            
-            // Convert to Laravel expected format
+
+            $result = json_decode(trim($jsonOutput), true);
+
+            if (!$result) {
+                throw new \Exception("Invalid JSON from ShipmentLink scraper: " . substr($jsonOutput, 0, 200));
+            }
+
+            if (!$result['success']) {
+                throw new \Exception("ShipmentLink scraper error: " . ($result['error'] ?? 'Unknown error'));
+            }
+
+            // Handle vessel_found: false
+            if (isset($result['vessel_found']) && $result['vessel_found'] === false) {
+                \Log::info("ShipmentLink terminal accessible but {$vesselName} not found in current schedule");
+
+                return [
+                    'success' => true,
+                    'terminal' => $config['name'],
+                    'vessel_found' => false,
+                    'voyage_found' => false,
+                    'vessel_name' => $vesselName,
+                    'voyage_code' => $voyageCode,
+                    'eta' => null,
+                    'etd' => null,
+                    'search_method' => 'shipmentlink_not_found',
+                    'message' => 'Vessel not in current ShipmentLink schedule',
+                    'no_data_reason' => 'The terminal was accessible, but the specified vessel was not found in the current schedule.',
+                    'checked_at' => now()
+                ];
+            }
+
+            // Vessel found
             return [
                 'success' => true,
                 'terminal' => $config['name'],
                 'vessel_found' => true,
-                'voyage_found' => !empty($result['voyage_code']),
+                'voyage_found' => true,
                 'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                'voyage_code' => $result['voyage_code'],
-                'eta' => $result['eta'],
-                'etd' => $result['etd'],
-                'port' => $result['port'] ?? null,
-                'service' => $result['service'] ?? null,
-                'search_method' => 'shipmentlink_browser_automation',
+                'voyage_code' => $result['voyage_code'] ?? $voyageCode,
+                'eta' => $result['eta'] ?? null,
+                'etd' => $result['etd'] ?? null,
+                'berth' => $result['berth'] ?? 'B2',
+                'search_method' => 'shipmentlink_scraper',
                 'raw_data' => $result['raw_data'] ?? null,
                 'checked_at' => now()
             ];
-            
+
         } catch (\Exception $e) {
-            \Log::error("ShipmentLink Browser Automation Error: " . $e->getMessage());
-            
+            \Log::error("ShipmentLink scraper error: " . $e->getMessage());
+
             return [
                 'success' => false,
                 'terminal' => $config['name'],
-                'vessel_found' => false,
-                'voyage_found' => false,
-                'eta' => null,
-                'error' => 'Browser automation failed: ' . $e->getMessage(),
-                'search_method' => 'shipmentlink_browser_automation_failed',
-                'checked_at' => now()
-            ];
-        }
-    }
-
-    protected function everbuild_browser($config)
-    {
-        try {
-            $vesselName = $config['vessel_name'];
-            \Log::info("Starting Everbuild browser automation for vessel: {$vesselName}");
-            
-            $browserAutomationPath = base_path('browser-automation');
-            
-            // FIXED: Use proc_open to separate stdout (JSON) from stderr (logs)
-            $command = "cd {$browserAutomationPath} && timeout 60 node everbuild-wrapper.js '{$vesselName}'";
-            
-            $descriptors = [
-                0 => ['pipe', 'r'],  // stdin
-                1 => ['pipe', 'w'],  // stdout (JSON)
-                2 => ['pipe', 'w']   // stderr (logs)
-            ];
-            
-            $process = proc_open($command, $descriptors, $pipes);
-            
-            if (is_resource($process)) {
-                fclose($pipes[0]); // Close stdin
-                
-                $jsonOutput = stream_get_contents($pipes[1]);
-                $logOutput = stream_get_contents($pipes[2]);
-                
-                fclose($pipes[1]);
-                fclose($pipes[2]);
-                
-                $returnCode = proc_close($process);
-                
-                // Log the browser automation logs for debugging
-                if (!empty($logOutput)) {
-                    \Log::info("Everbuild browser automation logs:", ['logs' => $logOutput]);
-                }
-                
-                if (!$jsonOutput) {
-                    throw new \Exception("Browser automation failed: no JSON output (exit code: {$returnCode})");
-                }
-                
-                $output = $jsonOutput;
-            } else {
-                throw new \Exception("Failed to start browser automation process");
-            }
-            
-            if (!$output) {
-                throw new \Exception("Browser automation failed: no output");
-            }
-            
-            // Parse the JSON result
-            $result = json_decode(trim($output), true);
-            
-            if (!$result) {
-                throw new \Exception("Invalid JSON from browser automation: " . substr($output, 0, 200));
-            }
-            
-            // Check if this is a "no data found" scenario vs actual error
-            if (!$result['success']) {
-                $errorMessage = $result['error'] ?? $result['message'] ?? 'Unknown error';
-                
-                // Handle "no data found" as a valid result, not an error
-                if (str_contains($errorMessage, 'No current schedule data') || 
-                    str_contains($errorMessage, 'no schedule data available') ||
-                    str_contains($errorMessage, 'no schedule data') ||
-                    isset($result['details']) && str_contains($result['details'], 'no schedule data')) {
-                    
-                    \Log::info("Terminal {$config['name']}: No schedule data found for {$vesselName} - this is expected for vessels without current schedules");
-                    
-                    return [
-                        'success' => true,
-                        'terminal' => $config['name'],
-                        'vessel_found' => true,
-                        'voyage_found' => false,
-                        'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                        'voyage_code' => null,
-                        'eta' => null,
-                        'etd' => null,
-                        'search_method' => 'browser_automation',
-                        'message' => $errorMessage,
-                        'no_data_reason' => 'Vessel exists but no current schedule available',
-                        'raw_data' => $result,
-                        'checked_at' => now()
-                    ];
-                }
-                
-                // This is an actual automation error
-                throw new \Exception("Browser automation error: " . $errorMessage);
-            }
-            
-            // Convert to Laravel expected format
-            return [
-                'success' => true,
-                'terminal' => $config['name'],
-                'vessel_found' => true,
-                'voyage_found' => !empty($result['voyage_code']),
-                'vessel_name' => $result['vessel_name'] ?? $vesselName,
-                'voyage_code' => $result['voyage_code'],
-                'eta' => $result['eta'],
-                'etd' => $result['etd'],
-                'search_method' => 'browser_automation',
-                'raw_data' => $result['raw_data'] ?? null,
-                'checked_at' => now()
-            ];
-            
-        } catch (\Exception $e) {
-            \Log::error("Everbuild Browser Automation Error: " . $e->getMessage());
-            
-            return [
-                'success' => false,
-                'terminal' => $config['name'],
-                'vessel_found' => false,
-                'voyage_found' => false,
-                'eta' => null,
-                'error' => 'Browser automation failed: ' . $e->getMessage(),
-                'search_method' => 'browser_automation_failed',
-                'checked_at' => now()
-            ];
-        }
-    }
-
-    protected function ectt($config)
-    {
-        // ECTT - Note: This URL goes to cookie policy, may need to find actual schedule page
-        $baseUrl = 'https://www.ectt.co.th';
-        
-        // First, get the main page to find the actual schedule link
-        $response = Http::timeout(30)->get($baseUrl);
-        
-        if (!$response->successful()) {
-            throw new \Exception("HTTP Error: " . $response->status());
-        }
-
-        // Look for schedule or vessel links
-        $html = $response->body();
-        $scheduleLinks = $this->findScheduleLinks($html, $baseUrl);
-        
-        if (!empty($scheduleLinks)) {
-            foreach ($scheduleLinks as $link) {
-                try {
-                    $scheduleResponse = Http::timeout(30)->get($link);
-                    if ($scheduleResponse->successful()) {
-                        $result = $this->parseVesselData($scheduleResponse->body(), $config);
-                        if ($result['vessel_found']) {
-                            return $result;
-                        }
-                    }
-                } catch (\Exception $e) {
-                    continue; // Try next link
-                }
-            }
-        }
-
-        return [
-            'success' => true,
-            'terminal' => $config['name'],
-            'vessel' => $config['vessel'],
-            'vessel_found' => false,
-            'eta' => null,
-            'message' => 'Could not locate vessel schedule page',
-            'checked_at' => now()
-        ];
-    }
-
-    protected function parseVesselData($html, $config)
-    {
-        $vesselName = $config['vessel_name'];
-        $voyageCode = $config['voyage_code'];
-        $fullVesselName = $config['vessel_full'];
-        
-        // First try to find the vessel name (most important)
-        $vesselNameFound = str_contains(strtoupper($html), strtoupper($vesselName));
-        
-        // Try to find the voyage code - with multiple variations for different websites
-        $voyageCodeFound = false;
-        $voyageSearchVariations = [$voyageCode];
-        
-        // Add variations for voyage codes that might have prefixes (IMPROVED for spaces)
-        if (preg_match('/^([A-Z]+)\.?\s*(.+)$/', $voyageCode, $matches)) {
-            // For "V. 2528S" -> also try "2528S" (remove prefix with space)
-            $voyageSearchVariations[] = $matches[2];
-        }
-        if (preg_match('/^(.+?)([A-Z\d]+)$/', $voyageCode, $matches)) {
-            // For "V. 2528S" -> also try "V2528S" (remove dots and spaces)
-            $noPrefixVersion = str_replace(['.', ' '], '', $voyageCode);
-            if (!in_array($noPrefixVersion, $voyageSearchVariations)) {
-                $voyageSearchVariations[] = $noPrefixVersion;
-            }
-        }
-        
-        // Additional handling for space-separated prefixes like "V. 2528S"
-        if (str_contains($voyageCode, ' ')) {
-            $parts = explode(' ', $voyageCode);
-            if (count($parts) >= 2) {
-                // Take the last part (the actual voyage number)
-                $lastPart = end($parts);
-                if (!in_array($lastPart, $voyageSearchVariations)) {
-                    $voyageSearchVariations[] = $lastPart;
-                }
-            }
-        }
-        
-        foreach ($voyageSearchVariations as $variation) {
-            if (str_contains(strtoupper($html), strtoupper($variation))) {
-                $voyageCodeFound = true;
-                break;
-            }
-        }
-        
-        // Also try the full name as fallback
-        $fullNameFound = str_contains(strtoupper($html), strtoupper($fullVesselName));
-        
-        // Determine if vessel is found (vessel name is most important)
-        $vesselFound = $vesselNameFound || $fullNameFound;
-        
-        if ($vesselFound) {
-            // Extract ETA - try multiple search patterns
-            $eta = null;
-            $vesselSection = '';
-            
-            if ($vesselNameFound) {
-                $eta = $this->extractETAFromHTML($html, $vesselName, $voyageCode);
-                $vesselSection = $this->extractVesselSection($html, $vesselName);
-            } elseif ($fullNameFound) {
-                $eta = $this->extractETAFromHTML($html, $fullVesselName, $voyageCode);
-                $vesselSection = $this->extractVesselSection($html, $fullVesselName);
-            }
-            
-            // If no ETA found with vessel name, try with voyage code variations
-            if (!$eta && $voyageCodeFound) {
-                foreach ($voyageSearchVariations as $variation) {
-                    if (str_contains(strtoupper($html), strtoupper($variation))) {
-                        $voyageEta = $this->extractETAFromHTML($html, $variation, $voyageCode);
-                        if ($voyageEta) {
-                            $eta = $voyageEta;
-                            $vesselSection .= "\n--- Voyage Section ---\n" . $this->extractVesselSection($html, $variation);
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            return [
-                'success' => true,
-                'terminal' => $config['name'],
+                'error' => $e->getMessage(),
                 'vessel_name' => $vesselName,
                 'voyage_code' => $voyageCode,
-                'vessel_full' => $fullVesselName,
-                'vessel_found' => $vesselNameFound,
-                'voyage_found' => $voyageCodeFound,
-                'full_name_found' => $fullNameFound,
-                'search_method' => $this->getSearchMethod($vesselNameFound, $voyageCodeFound, $fullNameFound),
-                'voyage_variations_tried' => $voyageSearchVariations,
-                'eta' => $eta,
-                'raw_data' => $vesselSection,
+                'search_method' => 'shipmentlink_error',
                 'checked_at' => now()
             ];
         }
-
-        return [
-            'success' => true,
-            'terminal' => $config['name'],
-            'vessel_name' => $vesselName,
-            'voyage_code' => $voyageCode,
-            'vessel_full' => $fullVesselName,
-            'vessel_found' => false,
-            'voyage_found' => false,
-            'full_name_found' => false,
-            'eta' => null,
-            'message' => 'Neither vessel name nor voyage code found in schedule',
-            'voyage_variations_tried' => $voyageSearchVariations,
-            'checked_at' => now()
-        ];
-    }
-    
-    protected function getSearchMethod($vesselFound, $voyageFound, $fullFound)
-    {
-        if ($vesselFound && $voyageFound) {
-            return 'vessel_name_and_voyage';
-        } elseif ($vesselFound) {
-            return 'vessel_name_only';
-        } elseif ($voyageFound) {
-            return 'voyage_code_only';
-        } elseif ($fullFound) {
-            return 'full_name_match';
-        }
-        
-        return 'not_found';
-    }
-
-    protected function extractETAFromHTML($html, $vesselName, $voyageCode = null)
-    {
-        // First try: Extract ETA from table row containing the vessel (IMPROVED)
-        $tableEta = $this->extractETAFromTable($html, $vesselName, $voyageCode);
-        if ($tableEta) {
-            return $tableEta;
-        }
-
-        // Fallback: Original method for non-table formats
-        $datePatterns = [
-            '/(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2})/', // DD/MM/YYYY HH:MM
-            '/(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})/', // YYYY-MM-DD HH:MM
-            '/(\d{1,2}-\d{1,2}-\d{4})\s*(\d{1,2}:\d{2})/', // DD-MM-YYYY HH:MM
-            '/ETA[:\s]*(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2})/i',
-            '/Estimated[:\s]*(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2})/i',
-        ];
-
-        // Find vessel section in HTML
-        $vesselSection = $this->extractVesselSection($html, $vesselName);
-        
-        foreach ($datePatterns as $pattern) {
-            if (preg_match($pattern, $vesselSection, $matches)) {
-                try {
-                    $dateStr = $matches[1] . ' ' . ($matches[2] ?? '00:00');
-                    $eta = Carbon::parse($dateStr);
-                    return $eta->format('Y-m-d H:i:s');
-                } catch (\Exception $e) {
-                    continue;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Extract ETA from HTML table structure (improved for both TIPS and Hutchison)
-     */
-    protected function extractETAFromTable($html, $vesselName, $voyageCode = null)
-    {
-        // Method 1: Find all table rows and check each one precisely
-        if (preg_match_all('/<tr[^>]*>(.*?)<\/tr>/s', $html, $allRows)) {
-            foreach ($allRows[0] as $row) {
-                // Check if this row contains our vessel name
-                if (stripos($row, $vesselName) === false) {
-                    continue;
-                }
-                
-                // Extract all cells from this specific row
-                if (preg_match_all('/<td[^>]*>(.*?)<\/td>/s', $row, $cellMatches)) {
-                    $cells = $cellMatches[1];
-                    $cleanCells = [];
-                    
-                    // Clean up all cells
-                    foreach ($cells as $cellIndex => $cell) {
-                        $cellText = html_entity_decode(strip_tags($cell), ENT_QUOTES | ENT_HTML401, 'UTF-8');
-                        $cellText = trim(preg_replace('/\s+/', ' ', $cellText));
-                        $cleanCells[$cellIndex] = $cellText;
-                    }
-                    
-                    // Validate this is the correct vessel by checking vessel name + voyage code
-                    $isCorrectVessel = false;
-                    $vesselCellIndex = -1;
-                    $voyageCellIndex = -1;
-                    
-                    // Find vessel name cell
-                    foreach ($cleanCells as $cellIndex => $cellText) {
-                        if (stripos($cellText, $vesselName) !== false) {
-                            $vesselCellIndex = $cellIndex;
-                            break;
-                        }
-                    }
-                    
-                    // If voyage code provided, validate it's in the same row
-                    if ($voyageCode) {
-                        // Create voyage variations to try (IMPROVED for spaces)
-                        $voyageVariations = [$voyageCode];
-                        if (preg_match('/^([A-Z]+)\.?\s*(.+)$/', $voyageCode, $matches)) {
-                            $voyageVariations[] = $matches[2]; // Remove prefix like "V. "
-                        }
-                        $voyageVariations[] = str_replace(['.', ' '], '', $voyageCode); // Remove dots and spaces
-                        
-                        // Additional handling for space-separated prefixes
-                        if (str_contains($voyageCode, ' ')) {
-                            $parts = explode(' ', $voyageCode);
-                            if (count($parts) >= 2) {
-                                $lastPart = end($parts);
-                                if (!in_array($lastPart, $voyageVariations)) {
-                                    $voyageVariations[] = $lastPart;
-                                }
-                            }
-                        }
-                        
-                        foreach ($cleanCells as $cellIndex => $cellText) {
-                            foreach ($voyageVariations as $variation) {
-                                if (stripos($cellText, $variation) !== false) {
-                                    $voyageCellIndex = $cellIndex;
-                                    $isCorrectVessel = true;
-                                    break 2;
-                                }
-                            }
-                        }
-                    } else {
-                        // If no voyage code, accept any row with vessel name
-                        $isCorrectVessel = ($vesselCellIndex >= 0);
-                    }
-                    
-                    if ($isCorrectVessel) {
-                        // Extract ETA from this specific row
-                        // Prioritize cells that look like ETA (with time format)
-                        $bestETA = null;
-                        $fallbackETA = null;
-                        
-                        $datePatterns = [
-                            '/(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2})/', // DD/MM/YYYY HH:MM
-                            '/(\d{1,2}\/\d{1,2}\/\d{4})/',                    // DD/MM/YYYY only
-                        ];
-                        
-                        foreach ($cleanCells as $cellIndex => $cellText) {
-                            foreach ($datePatterns as $patternIndex => $pattern) {
-                                if (preg_match($pattern, $cellText, $matches)) {
-                                    try {
-                                        // Handle both full datetime and date-only formats
-                                        if (isset($matches[2])) {
-                                            $dateStr = $matches[1] . ' ' . $matches[2]; // Full datetime
-                                        } else {
-                                            $dateStr = $matches[1] . ' 00:00'; // Date only
-                                        }
-                                        
-                                        $eta = Carbon::createFromFormat('d/m/Y H:i', $dateStr);
-                                        $formattedETA = $eta->format('Y-m-d H:i:s');
-                                        
-                                        // For TIPS: ETA should be around cell 6 (estimate column)
-                                        // For Hutchison: Could be different structure
-                                        if (isset($matches[2])) {
-                                            // Prefer dates with specific times
-                                            if (!$bestETA) {
-                                                $bestETA = $formattedETA;
-                                            }
-                                        } else {
-                                            // Keep as fallback if no better ETA found
-                                            if (!$fallbackETA) {
-                                                $fallbackETA = $formattedETA;
-                                            }
-                                        }
-                                    } catch (\Exception $e) {
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        return $bestETA ?: $fallbackETA;
-                    }
-                }
-            }
-        }
-        
-        return null;
-    }
-
-    protected function extractVesselSection($html, $vesselName)
-    {
-        // Find the section of HTML that contains the vessel information
-        $pos = stripos($html, $vesselName);
-        if ($pos === false) {
-            return '';
-        }
-
-        // Extract ~500 characters around the vessel name for context
-        $start = max(0, $pos - 250);
-        $length = 500;
-        
-        return substr($html, $start, $length);
-    }
-
-    protected function findScheduleLinks($html, $baseUrl = '')
-    {
-        $links = [];
-        
-        // Common schedule-related link patterns
-        $patterns = [
-            '/href=["\']([^"\']*schedule[^"\']*)["\']/',
-            '/href=["\']([^"\']*vessel[^"\']*)["\']/',
-            '/href=["\']([^"\']*berth[^"\']*)["\']/',
-            '/href=["\']([^"\']*ship[^"\']*)["\']/',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match_all($pattern, $html, $matches)) {
-                foreach ($matches[1] as $link) {
-                    if (strpos($link, 'http') !== 0 && $baseUrl) {
-                        $link = rtrim($baseUrl, '/') . '/' . ltrim($link, '/');
-                    }
-                    $links[] = $link;
-                }
-            }
-        }
-
-        return array_unique($links);
     }
 
     protected function displayResult($terminalCode, $result)

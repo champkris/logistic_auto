@@ -348,6 +348,10 @@ class ShipmentManager extends Component
     private function resolveVessel()
     {
         if (!empty($this->vessel_name)) {
+            // Normalize vessel name
+            $this->vessel_name = trim($this->vessel_name);
+            $this->vessel_name = preg_replace('/\s+/', ' ', $this->vessel_name);
+
             // Try to find existing vessel
             $vessel = Vessel::where('vessel_name', $this->vessel_name)->first();
 
@@ -592,6 +596,13 @@ class ShipmentManager extends Component
             if ($this->cargo_description) $cargoDetails['description'] = $this->cargo_description;
             if ($this->cargo_weight) $cargoDetails['weight_kg'] = $this->cargo_weight;
             if ($this->cargo_volume) $cargoDetails['volume_cbm'] = $this->cargo_volume;
+
+            // Normalize voyage before saving
+            if ($this->voyage) {
+                $this->voyage = trim($this->voyage);
+                $this->voyage = preg_replace('/^V\.?\s*/i', '', $this->voyage);
+                $this->voyage = trim($this->voyage);
+            }
 
             // Resolve vessel (create if new or find existing)
             $resolvedVesselId = $this->resolveVessel();

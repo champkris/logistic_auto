@@ -25,3 +25,5 @@ Thumbs.db
 
 # Organized folders
 /test
+/.playwright-mcp
+/helper_script

@@ -1,63 +1,181 @@
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const { parse } = require('node-html-parser');
 
-class LCB1CurlScraper {
+const CACHE_FILE = path.join(__dirname, 'lcb1-vessel-codes.json');
+
+class LCB1Scraper {
   constructor() {
     this.baseUrl = 'https://www.lcb1.com';
+    this.vesselCache = null;
   }
 
-  async scrapeFullSchedule() {
-    console.error('🔍 Fetching vessel list...');
-    const vessels = await this.getAllVessels();
-    console.error(`📦 Found ${vessels.length} vessels`);
+  loadCache() {
+    if (this.vesselCache) return this.vesselCache;
+    try {
+      const data = fs.readFileSync(CACHE_FILE, 'utf8');
+      this.vesselCache = JSON.parse(data);
+      console.error(`Loaded ${Object.keys(this.vesselCache).length} vessels from cache`);
+    } catch {
+      this.vesselCache = {};
+    }
+    return this.vesselCache;
+  }
 
-    const allSchedules = [];
-    let processedCount = 0;
+  saveCache(mapping) {
+    this.vesselCache = mapping;
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(mapping, null, 2));
+    console.error(`Saved ${Object.keys(mapping).length} vessels to cache`);
+  }
 
-    for (const vessel of vessels) {
-      try {
-        const schedules = await this.getVesselSchedule(vessel);
-        allSchedules.push(...schedules);
-        processedCount++;
+  async fetchLiveVesselMapping() {
+    console.error('Fetching live vessel list from LCB1...');
+    const html = await this.makeRequest('/BerthSchedule', 'GET');
+    const root = parse(html);
+    const select = root.querySelector('#txtVesselName');
+    if (!select) return null;
 
-        if (processedCount % 50 === 0) {
-          console.error(`   Processed ${processedCount}/${vessels.length} vessels...`);
-        }
-      } catch (error) {
-        console.error(`   ⚠️  Error with ${vessel}: ${error.message}`);
+    const mapping = {};
+    for (const opt of select.querySelectorAll('option')) {
+      const name = opt.text.trim().toUpperCase();
+      const code = (opt.getAttribute('value') || '').trim();
+      if (name && code) {
+        mapping[name] = code;
       }
+    }
+    return mapping;
+  }
 
-      await this.delay(100);
+  lookupInCache(vesselName) {
+    const cache = this.loadCache();
+    const normalizedName = vesselName.toUpperCase().trim();
+
+    // Exact match
+    if (cache[normalizedName]) return cache[normalizedName];
+
+    // Partial match (contains)
+    for (const [name, code] of Object.entries(cache)) {
+      if (name.includes(normalizedName) || normalizedName.includes(name)) {
+        return code;
+      }
     }
 
-    console.error(`✅ Scraped ${allSchedules.length} schedules from ${vessels.length} vessels`);
+    return null;
+  }
 
+  async findVesselCode(vesselName, forceRefresh = false) {
+    // Try cache first (unless forced refresh)
+    if (!forceRefresh) {
+      const cached = this.lookupInCache(vesselName);
+      if (cached) {
+        console.error(`Cache hit: ${vesselName} → ${cached}`);
+        return cached;
+      }
+      console.error(`Cache miss for "${vesselName}", fetching live...`);
+    }
+
+    // Live fetch and refresh entire cache
+    const mapping = await this.fetchLiveVesselMapping();
+    if (!mapping) return null;
+
+    this.saveCache(mapping);
+    return this.lookupInCache(vesselName);
+  }
+
+  async scrapeSingleVessel(vesselName, voyageCode) {
+    console.error(`Looking up vessel: ${vesselName}, voyage: ${voyageCode || '(any)'}`);
+
+    const vesselCode = await this.findVesselCode(vesselName);
+    if (!vesselCode) {
+      console.error(`Vessel "${vesselName}" not found in LCB1 dropdown`);
+      return {
+        success: true,
+        vessel_found: false,
+        vessel_name: vesselName,
+        voyage_code: voyageCode || null,
+        message: 'Vessel not found in LCB1 vessel list'
+      };
+    }
+
+    console.error(`Found vessel code: ${vesselCode} for ${vesselName}`);
+    const postData = `vesselName=${encodeURIComponent(vesselCode)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
+    const html = await this.makeRequest('/BerthSchedule/Detail', 'POST', postData);
+    const schedules = this.parseScheduleHTML(html, vesselName);
+
+    // If no data and code came from cache, the code might be stale — refresh and retry
+    if (schedules.length === 0 && !this.lastWasLiveRefresh) {
+      console.error(`No data with cached code ${vesselCode}, refreshing cache...`);
+      this.lastWasLiveRefresh = true;
+      const freshCode = await this.findVesselCode(vesselName, true);
+      if (freshCode && freshCode !== vesselCode) {
+        console.error(`Code changed: ${vesselCode} → ${freshCode}, retrying...`);
+        const retryPostData = `vesselName=${encodeURIComponent(freshCode)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
+        const retryHtml = await this.makeRequest('/BerthSchedule/Detail', 'POST', retryPostData);
+        const retrySchedules = this.parseScheduleHTML(retryHtml, vesselName);
+        if (retrySchedules.length > 0) {
+          const match = this.findVesselMatch(retrySchedules, voyageCode);
+          return this.buildSuccessResult(match, voyageCode);
+        }
+      }
+    }
+
+    if (schedules.length === 0) {
+      console.error(`No schedule data found for ${vesselName}`);
+      return {
+        success: true,
+        vessel_found: false,
+        vessel_name: vesselName,
+        voyage_code: voyageCode || null,
+        message: 'No schedule data found for this vessel'
+      };
+    }
+
+    const match = this.findVesselMatch(schedules, voyageCode);
+    return this.buildSuccessResult(match, voyageCode);
+  }
+
+  buildSuccessResult(match, voyageCode) {
     return {
       success: true,
-      terminals: ['A0', 'B1', 'A3'],
-      vessels: allSchedules,
-      scraped_at: new Date().toISOString()
+      vessel_found: true,
+      vessel_name: match.vessel_name,
+      voyage_code: match.voyage || voyageCode || null,
+      berth: match.port_terminal || null,
+      eta: match.eta,
+      etd: match.etd,
+      raw_data: match.raw_data
     };
   }
 
-  async getAllVessels() {
-    const html = await this.makeRequest('/BerthSchedule', 'GET');
-    const root = parse(html);
+  findVesselMatch(schedules, voyageCode) {
+    if (!voyageCode || schedules.length === 1) {
+      return schedules[0];
+    }
 
-    const select = root.querySelector('#txtVesselName');
-    if (!select) return [];
+    const normalizedVoyage = voyageCode.toUpperCase().trim();
 
-    const options = select.querySelectorAll('option');
-    return options
-      .map(opt => opt.text.trim())
-      .filter(name => name && name !== 'Select' && name.length > 2);
-  }
+    // Exact match on voyage_in or voyage_out
+    const exactMatch = schedules.find(s => {
+      const voyIn = (s.raw_data.voyage_in || '').toUpperCase().trim();
+      const voyOut = (s.raw_data.voyage_out || '').toUpperCase().trim();
+      return voyIn === normalizedVoyage || voyOut === normalizedVoyage;
+    });
 
-  async getVesselSchedule(vesselName) {
-    const postData = `vesselName=${encodeURIComponent(vesselName)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
+    if (exactMatch) return exactMatch;
 
-    const html = await this.makeRequest('/BerthSchedule/Detail', 'POST', postData);
-    return this.parseScheduleHTML(html, vesselName);
+    // Partial match (contains)
+    const partialMatch = schedules.find(s => {
+      const voyIn = (s.raw_data.voyage_in || '').toUpperCase().trim();
+      const voyOut = (s.raw_data.voyage_out || '').toUpperCase().trim();
+      return voyIn.includes(normalizedVoyage) || normalizedVoyage.includes(voyIn) ||
+             voyOut.includes(normalizedVoyage) || normalizedVoyage.includes(voyOut);
+    });
+
+    if (partialMatch) return partialMatch;
+
+    // Fallback to first result (P4.5 -- voyage mismatch, will be fixed later)
+    return schedules[0];
   }
 
   parseScheduleHTML(html, vesselName) {
@@ -85,15 +203,14 @@ class LCB1CurlScraper {
 
         // Check if this row matches our vessel
         if (rowVessel && rowVessel.toUpperCase().includes(vesselName.toUpperCase())) {
-          const eta = this.parseDate(berthingTime);
-          const etd = this.parseDate(departureTime);
+          const eta = this.formatDate(berthingTime);
+          const etd = this.formatDate(departureTime);
 
           if (eta) {
             schedules.push({
-              vessel_name: vesselName,
+              vessel_name: rowVessel,
               voyage: voyageIn || voyageOut || null,
               port_terminal: terminal || 'A0',
-              berth: terminal || null,
               eta: eta,
               etd: etd,
               source: 'lcb1',
@@ -114,7 +231,7 @@ class LCB1CurlScraper {
     return schedules;
   }
 
-  parseDate(dateStr) {
+  formatDate(dateStr) {
     if (!dateStr || dateStr === '' || dateStr === '-') return null;
 
     try {
@@ -122,7 +239,7 @@ class LCB1CurlScraper {
       const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2}):(\d{2})/);
       if (match) {
         const [, day, month, year, hour, minute] = match;
-        return `${year}-${month}-${day} ${hour}:${minute}:00`;
+        return `${year}-${month}-${day}T${hour}:${minute}:00`;
       }
 
       return null;
@@ -131,12 +248,27 @@ class LCB1CurlScraper {
     }
   }
 
-  makeRequest(path, method = 'GET', postData = null) {
+  async makeRequest(path, method = 'GET', postData = null, retries = 2) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        return await this._doRequest(path, method, postData);
+      } catch (err) {
+        if (attempt < retries) {
+          console.error(`Request failed (attempt ${attempt}/${retries}): ${err.message}, retrying...`);
+        } else {
+          throw err;
+        }
+      }
+    }
+  }
+
+  _doRequest(path, method = 'GET', postData = null) {
     return new Promise((resolve, reject) => {
       const options = {
         hostname: 'www.lcb1.com',
         path: path,
         method: method,
+        timeout: 30000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -154,6 +286,11 @@ class LCB1CurlScraper {
         res.on('end', () => { resolve(data); });
       });
 
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Request timed out after 30s'));
+      });
+
       req.on('error', reject);
 
       if (postData) {
@@ -163,21 +300,38 @@ class LCB1CurlScraper {
       req.end();
     });
   }
-
-  delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
 }
 
-// Main execution
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const parsed = {};
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--vessel' && args[i + 1]) {
+      parsed.vessel = args[++i];
+    } else if (args[i] === '--voyage' && args[i + 1]) {
+      parsed.voyage = args[++i];
+    }
+  }
+
+  return parsed;
+}
+
 async function main() {
-  const scraper = new LCB1CurlScraper();
+  const scraper = new LCB1Scraper();
+  const args = parseArgs();
+
+  if (!args.vessel) {
+    console.error('Usage: node lcb1-full-schedule-scraper.js --vessel "VESSEL NAME" [--voyage "VOYAGE"]');
+    console.log(JSON.stringify({ success: false, error: 'Missing --vessel argument' }));
+    process.exit(1);
+  }
 
   try {
-    const result = await scraper.scrapeFullSchedule();
+    const result = await scraper.scrapeSingleVessel(args.vessel, args.voyage || '');
     console.log(JSON.stringify(result));
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('Error:', error.message);
     console.log(JSON.stringify({ success: false, error: error.message }));
     process.exit(1);
   }

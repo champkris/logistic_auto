@@ -30,12 +30,12 @@ class ScrapeVesselSchedules extends Command
      * Terminals that support full schedule scraping (no vessel name required)
      */
     protected $scrapableTerminals = [
-        'hutchison' => ['C1', 'C2', 'C3', 'D1'],
+        'hutchison' => ['C1C2'], // One call returns all berths (C1C2, D1, D2, A2, A3)
         'tips' => ['TIPS'],
         'esco' => ['B3'], // ESCO is separate website from LCIT
         'lcit' => ['B5', 'C3'], // LCIT API covers both B5 and C3
-        // LCB1 (A0, B1, A3) - keep as live-scrape only (no schedules available)
-        // ShipmentLink B2 - keep as live-scrape only due to connection issues
+        // LCB1 (A0, B1, A3) - queue-based via vessel:scrape-lcb1
+        // ShipmentLink B2 - queue-based via vessel:scrape-shipmentlink
     ];
 
     /**
@@ -107,10 +107,6 @@ class ScrapeVesselSchedules extends Command
                     $count = $this->scrapeHutchison($terminals);
                     break;
 
-                case 'shipmentlink':
-                    $count = $this->scrapeShipmentlink($terminals);
-                    break;
-
                 case 'tips':
                     $count = $this->scrapeTips();
                     break;
@@ -121,10 +117,6 @@ class ScrapeVesselSchedules extends Command
 
                 case 'lcit':
                     $count = $this->scrapeLcit();
-                    break;
-
-                case 'shipmentlink':
-                    $count = $this->scrapeShipmentlinkB2();
                     break;
 
                 case 'lcb1':
@@ -218,45 +210,6 @@ class ScrapeVesselSchedules extends Command
     /**
      * Scrape Shipmentlink terminals (SIAM, KERRY)
      */
-    protected function scrapeShipmentlink(array $terminals): int
-    {
-        $count = 0;
-        $automation = new BrowserAutomationService();
-
-        foreach ($terminals as $terminal) {
-            try {
-                $this->line("   Processing {$terminal}...");
-
-                $result = $automation->scrapeShipmentlinkFullSchedule($terminal);
-
-                if (!$result || !isset($result['vessels']) || !is_array($result['vessels'])) {
-                    $this->warn("   No data returned for {$terminal}");
-                    continue;
-                }
-
-                foreach ($result['vessels'] as $vessel) {
-                    $this->storeVesselSchedule([
-                        'vessel_name' => $vessel['vessel_name'] ?? '',
-                        'voyage_code' => $vessel['voyage'] ?? null,
-                        'port_terminal' => $terminal,
-                        'berth' => $vessel['berth'] ?? null,
-                        'eta' => $vessel['eta'] ?? null,
-                        'etd' => $vessel['etd'] ?? null,
-                        'cutoff' => null,
-                        'opengate' => null,
-                        'source' => 'shipmentlink',
-                        'raw_data' => $vessel,
-                    ]);
-                    $count++;
-                }
-            } catch (\Exception $e) {
-                $this->error("   Error scraping {$terminal}: " . $e->getMessage());
-            }
-        }
-
-        return $count;
-    }
-
     /**
      * Scrape TIPS terminal
      */
@@ -468,46 +421,6 @@ class ScrapeVesselSchedules extends Command
         } catch (\Exception $e) {
             return null;
         }
-    }
-
-    /**
-     * Scrape ShipmentLink B2 (LAEM CHABANG) terminal
-     */
-    protected function scrapeShipmentlinkB2(): int
-    {
-        $count = 0;
-        $automation = new BrowserAutomationService();
-
-        try {
-            $this->line("   Processing B2 (ShipmentLink)...");
-
-            $result = $automation->scrapeShipmentlinkB2FullSchedule();
-
-            if (!$result || !isset($result['vessels']) || !is_array($result['vessels'])) {
-                $this->warn("   No data returned for ShipmentLink");
-                return 0;
-            }
-
-            foreach ($result['vessels'] as $vessel) {
-                $this->storeVesselSchedule([
-                    'vessel_name' => $vessel['vessel_name'] ?? '',
-                    'voyage_code' => $vessel['voyage'] ?? null,
-                    'port_terminal' => $vessel['port_terminal'] ?? 'B2',
-                    'berth' => $vessel['berth'] ?? 'B2',
-                    'eta' => $vessel['eta'] ?? null,
-                    'etd' => $vessel['etd'] ?? null,
-                    'cutoff' => null,
-                    'opengate' => null,
-                    'source' => 'shipmentlink',
-                    'raw_data' => $vessel['raw_data'] ?? [],
-                ]);
-                $count++;
-            }
-        } catch (\Exception $e) {
-            $this->error("   Error scraping ShipmentLink: " . $e->getMessage());
-        }
-
-        return $count;
     }
 
     /**
