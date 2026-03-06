@@ -20,6 +20,7 @@ class ScrapeKerryVessels extends Command
             ->where('status', 'in-progress')
             ->whereIn('port_terminal', ['KLN', 'KERRY'])
             ->whereNotNull('vessel_id')
+            ->whereBetween('client_requested_delivery_date', [now()->subMonth(), now()->addMonth()])
             ->get();
 
         if ($shipments->isEmpty()) {

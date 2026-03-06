@@ -558,7 +558,31 @@ All shipments with `tracking_status = 'not_found'` from production:
 | ~~**P3**~~ | ~~Production: install Chromium system libs~~ | F3 | ~~Server admin task~~ | **DONE** (session 6) — guide in `session6_How_to_install_Chromium.md` |
 | **P3** | Production: deploy latest code | — | `git pull` on server | TODO |
 | **P4** | Merge single & cron scrapers (8 phases) | F7 | All scraper files + `VesselTrackingService.php` | **IN PROGRESS** — Phase 7 (JWD cron) DONE (session 7), phases 1-6,8 TODO |
+| ~~**P4.1**~~ | ~~Kerry scraper: filter by ±1 month `client_requested_delivery_date`~~ | F6 | ~~`ScrapeKerryVessels.php`~~ | **DONE** (session 8) — see details below |
 | **P5** | Fix data entry errors: vessel name in voyage field (#1073 `VIRA BHUM 140S`, #1059 `LITTLE DOLPHIN  V. 2518S`), vessel typo `KMTC JAKATA` vs `KMTC JAKARTA` | F2/F5 | Manual DB correction or form validation | TODO (low priority — all completed shipments) |
+
+### P4.1: Kerry scraper date filter (session 8)
+
+**Problem:** The Kerry queue scraper (`vessel:scrape-kerry`) dispatched jobs for ALL in-progress KLN/KERRY shipments, including old ones where users forgot to change status to "complete". This wasted API calls on stale shipments.
+
+**Fix:** Added `->whereBetween('client_requested_delivery_date', [now()->subMonth(), now()->addMonth()])` to the shipment query in `ScrapeKerryVessels.php:23`. Only shipments with delivery dates within ±1 calendar month are now scraped.
+
+**Why `subMonth()`/`addMonth()` not `subDays(31)`/`addDays(31)`:** Carbon's `subMonth()` uses calendar month arithmetic (e.g., Mar 31 → subMonth() = Mar 3 due to Feb 31 overflow). We considered `subDays(31)` for consistency, but the overflow behavior is acceptable — it only shifts the boundary by a few days on edge months, and the purpose is just to exclude clearly stale records (months old). `subMonth()` reads more clearly.
+
+**Why only Kerry needs this:** Kerry is the only cron scraper that queries the `shipments` table to decide what to scrape. All other terminals (Hutchison, TIPS, ESCO, LCIT, LCB1, ShipmentLink, JWD) scrape the full schedule from the terminal website regardless of shipment records.
+
+**Code change (`ScrapeKerryVessels.php` line 23):**
+```php
+->whereBetween('client_requested_delivery_date', [now()->subMonth(), now()->addMonth()])
+```
+
+**Test results (2026-03-06, range: 2026-02-06 to 2026-04-06):**
+
+| Metric | Before filter | After filter |
+|--------|--------------|-------------|
+| In-progress KLN shipments | 14 | 11 |
+| Unique vessels dispatched | — | 7 |
+| Excluded (stale) | — | 3 |
 
 ---
 
