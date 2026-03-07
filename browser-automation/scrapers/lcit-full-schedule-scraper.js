@@ -48,8 +48,18 @@ class LcitFullScheduleScraper {
       // Pass real vessel/voyage to API (not wildcard %) — returns only matching results
       const url = `${this.apiUrl}?vessel=${encodeURIComponent(vesselName)}&voy=${encodeURIComponent(voyageCode || '')}`;
 
-      const xmlData = await this.makeRequest(url);
-      const vessels = this.parseXML(xmlData);
+      let xmlData = await this.makeRequest(url);
+      let vessels = this.parseXML(xmlData);
+
+      // If API returned 0 results with a voyage filter, retry without voyage
+      // (LCIT stores voyages like "0N806S1NC" which won't match user's "N806S" server-side)
+      if (vessels.length === 0 && voyageCode) {
+        console.error(`⚠️ No results with voyage filter "${voyageCode}", retrying without voyage...`);
+        const retryUrl = `${this.apiUrl}?vessel=${encodeURIComponent(vesselName)}&voy=`;
+        xmlData = await this.makeRequest(retryUrl);
+        vessels = this.parseXML(xmlData);
+        console.error(`🔄 Retry returned ${vessels.length} vessels`);
+      }
 
       if (vessels.length === 0) {
         console.error(`❌ Vessel not found in LCIT schedule`);

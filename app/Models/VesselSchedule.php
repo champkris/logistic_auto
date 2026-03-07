@@ -92,7 +92,11 @@ class VesselSchedule extends Model
         }
 
         if ($voyageCode) {
-            $query->where('voyage_code', $voyageCode);
+            $query->where(function ($q) use ($voyageCode) {
+                $q->where('voyage_code', $voyageCode)
+                  ->orWhere('voyage_code', 'LIKE', '%' . $voyageCode . '%')
+                  ->orWhereRaw('? LIKE CONCAT(\'%\', voyage_code, \'%\')', [$voyageCode]);
+            });
         }
 
         return $query->first();

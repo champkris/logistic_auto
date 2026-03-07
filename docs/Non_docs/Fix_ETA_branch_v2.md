@@ -51,4 +51,102 @@ The Chrome/Puppeteer error occurred because without Node.js being found, `npm in
 
 ---
 
-<!-- Append Bug 2, 3, etc. below this line -->
+## Bug 2: LCIT voyage mismatch — partial voyage codes don't match
+
+**Date fixed:** 2026-03-08
+
+### Affected shipment
+
+| # | Terminal | Port | Vessel | Voyage (user) | Voyage (LCIT) | Error |
+|---|----------|------|--------|---------------|---------------|-------|
+| 3 | LCIT | B5 | CNC JAGUAR | N806S | 0N806S1NC | "Not Found" — ETA lookup fails silently |
+
+### Root cause
+
+User entered voyage `N806S` but LCIT stores the full voyage as `0N806S1NC`. The lookup failed at **two layers**:
+
+**Layer 1: DB cache lookup (`VesselSchedule::findVessel()`)**
+
+The `vessel_schedules` table (populated by daily cron) stores `voyage_code = '0N806S1NC'`. The query used exact match:
+
+```php
+// app/Models/VesselSchedule.php line 94-96 (BEFORE fix)
+if ($voyageCode) {
+    $query->where('voyage_code', $voyageCode);
+}
+```
+
+`WHERE voyage_code = 'N806S'` → no match against `0N806S1NC`.
+
+**Layer 2: Live LCIT scraper fallback**
+
+When DB cache misses, the code falls back to the live LCIT API. The scraper passed the user's voyage directly to the API:
+
+```js
+// browser-automation/scrapers/lcit-full-schedule-scraper.js line 49 (BEFORE fix)
+const url = `${this.apiUrl}?vessel=${encodeURIComponent(vesselName)}&voy=${encodeURIComponent(voyageCode || '')}`;
+```
+
+LCIT's server does exact matching on the `voy` parameter → `?voy=N806S` returns 0 results.
+
+The scraper already had partial matching logic at lines 70-72:
+
+```js
+return voy === voyageUpper || voy.includes(voyageUpper) || voyageUpper.includes(voy);
+```
+
+But this code never ran because the API returned 0 vessels to match against.
+
+### Fix applied (3 changes)
+
+**Change 1: `app/Models/VesselSchedule.php` line 94-100 — Bidirectional contains matching**
+
+```php
+// AFTER fix
+if ($voyageCode) {
+    $query->where(function ($q) use ($voyageCode) {
+        $q->where('voyage_code', $voyageCode)                              // exact match
+          ->orWhere('voyage_code', 'LIKE', '%' . $voyageCode . '%')        // DB contains user input
+          ->orWhereRaw('? LIKE CONCAT(\'%\', voyage_code, \'%\')', [$voyageCode]); // user input contains DB value
+    });
+}
+```
+
+- `voyage_code LIKE '%N806S%'` → matches `0N806S1NC` (DB value contains user input)
+- `'N806S' LIKE CONCAT('%', voyage_code, '%')` → handles reverse case (user input contains DB value)
+- Both directions needed because we don't know which side has the longer code
+
+**Change 2: `app/Services/VesselTrackingService.php` line 214-217 — Consistent voyage_found flag**
+
+```php
+// BEFORE: exact match
+$voyageMatches = !$parsedVessel['voyage_code'] ||
+                 strcasecmp($dbSchedule->voyage_code, $parsedVessel['voyage_code']) === 0;
+
+// AFTER: bidirectional contains
+$voyageMatches = !$parsedVessel['voyage_code'] ||
+                 stripos($dbSchedule->voyage_code, $parsedVessel['voyage_code']) !== false ||
+                 stripos($parsedVessel['voyage_code'], $dbSchedule->voyage_code) !== false;
+```
+
+This ensures the `voyage_found` response flag reflects the same fuzzy logic used by the DB query.
+
+**Change 3: `browser-automation/scrapers/lcit-full-schedule-scraper.js` line 51-59 — Retry without voyage**
+
+```js
+// AFTER fix — if API returns 0 results with voyage filter, retry without it
+if (vessels.length === 0 && voyageCode) {
+    console.error(`⚠️ No results with voyage filter "${voyageCode}", retrying without voyage...`);
+    const retryUrl = `${this.apiUrl}?vessel=${encodeURIComponent(vesselName)}&voy=`;
+    xmlData = await this.makeRequest(retryUrl);
+    vessels = this.parseXML(xmlData);
+}
+```
+
+First request: `?vessel=CNC+JAGUAR&voy=N806S` → 0 results (LCIT exact match fails).
+Retry: `?vessel=CNC+JAGUAR&voy=` → returns ALL voyages for that vessel.
+Then the existing JS partial matching at lines 70-72 finds `0N806S1NC` contains `N806S` → match.
+
+---
+
+<!-- Append Bug 3, 4, etc. below this line -->

@@ -211,9 +211,10 @@ class VesselTrackingService
                 'age_hours' => $dbSchedule->scraped_at->diffInHours(now())
             ]);
 
-            // Check if voyage code matches (if voyage code was provided)
+            // Check if voyage code matches (contains match — e.g. N806S matches 0N806S1NC)
             $voyageMatches = !$parsedVessel['voyage_code'] ||
-                             strcasecmp($dbSchedule->voyage_code, $parsedVessel['voyage_code']) === 0;
+                             stripos($dbSchedule->voyage_code, $parsedVessel['voyage_code']) !== false ||
+                             stripos($parsedVessel['voyage_code'], $dbSchedule->voyage_code) !== false;
 
             return [
                 'success' => true,
