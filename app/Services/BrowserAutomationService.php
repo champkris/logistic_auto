@@ -40,12 +40,22 @@ class BrowserAutomationService
             'node',                        // Try PATH first (most hosting-friendly)
             '/usr/local/bin/node',         // Common on Linux/Mac
             '/usr/bin/node',                // Alternative Linux path
-            '/opt/homebrew/bin/node',       // Homebrew on Apple Silicon
-            '/opt/homebrew/opt/node@18/bin/node', // Homebrew versioned Node
-            '/opt/homebrew/opt/node@20/bin/node', // Homebrew Node 20
-            '/usr/local/n/versions/node/latest/bin/node', // n version manager
-            '/home/deploy/.nvm/versions/node/latest/bin/node', // nvm on Linux
         ];
+
+        // Dynamically scan nvm directories (handles any node version)
+        $homeDirs = [getenv('HOME'), '/home/vessel-ssh', '/home/deploy'];
+        foreach ($homeDirs as $home) {
+            if ($home) {
+                $nvmDir = $home . '/.nvm/versions/node';
+                if (is_dir($nvmDir)) {
+                    $versions = glob($nvmDir . '/v*/bin/node');
+                    if (!empty($versions)) {
+                        // Use the latest version found
+                        $possiblePaths[] = end($versions);
+                    }
+                }
+            }
+        }
 
         // Test each path by running --version (avoid file_exists for hosting compatibility)
         foreach ($possiblePaths as $path) {
