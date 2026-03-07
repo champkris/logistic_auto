@@ -135,8 +135,29 @@ class HutchisonFullScheduleScraper {
   /**
    * Step 1: GET the page — returns HTML with first 15 vessels + session info
    */
+  /**
+   * Format date as DD-MMM-YY for APEX URL (e.g. "01-MAR-26")
+   */
+  formatApexDate(date) {
+    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mmm = months[date.getMonth()];
+    const yy = String(date.getFullYear()).slice(-2);
+    return `${dd}-${mmm}-${yy}`;
+  }
+
   async fetchPage1() {
-    const response = await axios.get(this.baseUrl, {
+    // Set From Date to 7 days ago so recently departed vessels still appear
+    // (Hutchison default is today, which misses vessels that departed in the past week)
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - 7);
+    const toDate = new Date();
+    toDate.setDate(toDate.getDate() + 7);
+
+    const url = `${this.baseUrl}:::::P17_FROM_DATE,P17_TO_DATE:${this.formatApexDate(fromDate)},${this.formatApexDate(toDate)}`;
+    console.error(`📅 Date range: ${this.formatApexDate(fromDate)} to ${this.formatApexDate(toDate)}`);
+
+    const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },

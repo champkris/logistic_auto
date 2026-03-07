@@ -149,4 +149,70 @@ Then the existing JS partial matching at lines 70-72 finds `0N806S1NC` contains 
 
 ---
 
-<!-- Append Bug 3, 4, etc. below this line -->
+## Bug 3: Hutchison departed vessels not found — default date filter too narrow
+
+**Date fixed:** 2026-03-08
+
+### Affected shipment
+
+| # | Terminal | Port | Vessel | Voyage | Error |
+|---|----------|------|--------|--------|-------|
+| 1 | Hutchison | C1C2 | WAN HAI 358 | 0012S | "Vessel not found in schedule" — vessel departed 01-Mar, searched 08-Mar |
+
+### Root cause
+
+Hutchison's website (Oracle APEX) has a default date filter: **From Date = today, To Date = today + 7 days**. Vessels that departed before today are excluded from the default view.
+
+The scraper fetched the page with no date parameters:
+
+```js
+// browser-automation/scrapers/hutchison-full-schedule-scraper.js (BEFORE fix)
+this.baseUrl = 'https://online.hutchisonports.co.th/hptpcs/f?p=114:17';
+// fetchPage1() just GETs this URL with no date filter
+const response = await axios.get(this.baseUrl, { ... });
+```
+
+WAN HAI 358 / 0012S arrived 01-Mar and departed 01-Mar. When searched on 08-Mar, the default filter (`From Date = 08-MAR-26`) excluded it → scraper returned "vessel not found".
+
+Manually changing From Date to `01-MAR-26` on the website shows the vessel with all data intact.
+
+**Two layers affected:**
+
+- **DB cache**: If the daily cron ran after the vessel departed and aged out of the default view, the vessel would not be re-cached → stale or missing DB entry
+- **Live scraper fallback**: Same default date filter → vessel not found
+
+### Fix applied (1 change)
+
+**Change: `browser-automation/scrapers/hutchison-full-schedule-scraper.js` — Extend date range to include past 7 days**
+
+Added `formatApexDate()` helper and modified `fetchPage1()` to pass `P17_FROM_DATE` (7 days ago) and `P17_TO_DATE` (7 days ahead) via APEX URL parameters:
+
+```js
+// AFTER fix
+formatApexDate(date) {
+    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mmm = months[date.getMonth()];
+    const yy = String(date.getFullYear()).slice(-2);
+    return `${dd}-${mmm}-${yy}`;
+}
+
+async fetchPage1() {
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - 7);
+    const toDate = new Date();
+    toDate.setDate(toDate.getDate() + 7);
+
+    // APEX f?p URL format: f?p=APP:PAGE:SESSION::::ITEM1,ITEM2:VALUE1,VALUE2
+    const url = `${this.baseUrl}:::::P17_FROM_DATE,P17_TO_DATE:${this.formatApexDate(fromDate)},${this.formatApexDate(toDate)}`;
+    const response = await axios.get(url, { ... });
+```
+
+- `P17_FROM_DATE` = 7 days ago → departed vessels still visible
+- `P17_TO_DATE` = 7 days ahead → same as default, keeps upcoming vessels
+- The existing `findVesselMatch()` already handles multiple results (filters by voyage code) → no other changes needed
+- Cron full-schedule scrape now returns ~155 vessels (vs ~75 with default range), improving DB cache coverage
+
+---
+
+<!-- Append Bug 4, 5, etc. below this line -->
