@@ -211,9 +211,10 @@ class VesselTrackingService
                 'age_hours' => $dbSchedule->scraped_at->diffInHours(now())
             ]);
 
-            // Check if voyage code matches (if voyage code was provided)
+            // Check if voyage code matches (contains match — e.g. N806S matches 0N806S1NC)
             $voyageMatches = !$parsedVessel['voyage_code'] ||
-                             strcasecmp($dbSchedule->voyage_code, $parsedVessel['voyage_code']) === 0;
+                             stripos($dbSchedule->voyage_code, $parsedVessel['voyage_code']) !== false ||
+                             stripos($parsedVessel['voyage_code'], $dbSchedule->voyage_code) !== false;
 
             return [
                 'success' => true,
@@ -340,9 +341,11 @@ class VesselTrackingService
         \Log::info("Hutchison check for vessel: {$vesselName}, voyage: {$voyageCode}");
 
         try {
+            $nodePath = BrowserAutomationService::getNodePath();
             $command = sprintf(
-                'cd %s && timeout 60s node scrapers/hutchison-full-schedule-scraper.js --vessel %s --voyage %s',
+                'cd %s && timeout 60s %s scrapers/hutchison-full-schedule-scraper.js --vessel %s --voyage %s',
                 escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($nodePath),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
             );
@@ -471,9 +474,11 @@ class VesselTrackingService
 
         try {
             // Use the unified TIPS full-schedule scraper in single mode
+            $nodePath = BrowserAutomationService::getNodePath();
             $command = sprintf(
-                'cd %s && timeout 30s node scrapers/tips-full-schedule-scraper.js --vessel %s --voyage %s',
+                'cd %s && timeout 30s %s scrapers/tips-full-schedule-scraper.js --vessel %s --voyage %s',
                 escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($nodePath),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
             );
@@ -601,9 +606,11 @@ class VesselTrackingService
 
         try {
             // Use the unified LCIT full-schedule scraper in single mode
+            $nodePath = BrowserAutomationService::getNodePath();
             $command = sprintf(
-                'cd %s && timeout 120s node scrapers/lcit-full-schedule-scraper.js --vessel %s --voyage %s',
+                'cd %s && timeout 120s %s scrapers/lcit-full-schedule-scraper.js --vessel %s --voyage %s',
                 escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($nodePath),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
             );
@@ -785,9 +792,11 @@ class VesselTrackingService
 
         try {
             // Use the unified ESCO full-schedule scraper in single mode
+            $nodePath = BrowserAutomationService::getNodePath();
             $command = sprintf(
-                'cd %s && timeout 30s node scrapers/esco-full-schedule-scraper.js --vessel %s --voyage %s',
+                'cd %s && timeout 30s %s scrapers/esco-full-schedule-scraper.js --vessel %s --voyage %s',
                 escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($nodePath),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
             );
@@ -908,9 +917,11 @@ class VesselTrackingService
         \Log::info("LCB1 check for vessel: {$vesselName}, voyage: {$voyageCode}");
 
         try {
+            $nodePath = BrowserAutomationService::getNodePath();
             $command = sprintf(
-                'cd %s && timeout 30s node scrapers/lcb1-full-schedule-scraper.js --vessel %s --voyage %s',
+                'cd %s && timeout 30s %s scrapers/lcb1-full-schedule-scraper.js --vessel %s --voyage %s',
                 escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($nodePath),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
             );
@@ -1029,9 +1040,11 @@ class VesselTrackingService
         \Log::info("ShipmentLink check for vessel: {$vesselName}, voyage: {$voyageCode}");
 
         try {
+            $nodePath = BrowserAutomationService::getNodePath();
             $command = sprintf(
-                'cd %s && timeout 30s node scrapers/shipmentlink-full-schedule-scraper.js --vessel %s --voyage %s',
+                'cd %s && timeout 30s %s scrapers/shipmentlink-full-schedule-scraper.js --vessel %s --voyage %s',
                 escapeshellarg(base_path('browser-automation')),
+                escapeshellarg($nodePath),
                 escapeshellarg($vesselName),
                 escapeshellarg($voyageCode ?: '')
             );

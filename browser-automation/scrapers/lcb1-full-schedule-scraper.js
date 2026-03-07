@@ -41,7 +41,12 @@ class LCB1Scraper {
       const name = opt.text.trim().toUpperCase();
       const code = (opt.getAttribute('value') || '').trim();
       if (name && code) {
-        mapping[name] = code;
+        if (!mapping[name]) {
+          mapping[name] = [];
+        }
+        if (!mapping[name].includes(code)) {
+          mapping[name].push(code);
+        }
       }
     }
     return mapping;
@@ -52,24 +57,27 @@ class LCB1Scraper {
     const normalizedName = vesselName.toUpperCase().trim();
 
     // Exact match
-    if (cache[normalizedName]) return cache[normalizedName];
+    if (cache[normalizedName]) {
+      const val = cache[normalizedName];
+      return Array.isArray(val) ? val : [val];
+    }
 
     // Partial match (contains)
-    for (const [name, code] of Object.entries(cache)) {
+    for (const [name, codes] of Object.entries(cache)) {
       if (name.includes(normalizedName) || normalizedName.includes(name)) {
-        return code;
+        return Array.isArray(codes) ? codes : [codes];
       }
     }
 
     return null;
   }
 
-  async findVesselCode(vesselName, forceRefresh = false) {
+  async findVesselCodes(vesselName, forceRefresh = false) {
     // Try cache first (unless forced refresh)
     if (!forceRefresh) {
       const cached = this.lookupInCache(vesselName);
       if (cached) {
-        console.error(`Cache hit: ${vesselName} → ${cached}`);
+        console.error(`Cache hit: ${vesselName} → ${cached.length} code(s): ${cached.join(', ')}`);
         return cached;
       }
       console.error(`Cache miss for "${vesselName}", fetching live...`);
@@ -86,8 +94,8 @@ class LCB1Scraper {
   async scrapeSingleVessel(vesselName, voyageCode) {
     console.error(`Looking up vessel: ${vesselName}, voyage: ${voyageCode || '(any)'}`);
 
-    const vesselCode = await this.findVesselCode(vesselName);
-    if (!vesselCode) {
+    let vesselCodes = await this.findVesselCodes(vesselName);
+    if (!vesselCodes || vesselCodes.length === 0) {
       console.error(`Vessel "${vesselName}" not found in LCB1 dropdown`);
       return {
         success: true,
@@ -98,41 +106,47 @@ class LCB1Scraper {
       };
     }
 
-    console.error(`Found vessel code: ${vesselCode} for ${vesselName}`);
-    const postData = `vesselName=${encodeURIComponent(vesselCode)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
-    const html = await this.makeRequest('/BerthSchedule/Detail', 'POST', postData);
-    const schedules = this.parseScheduleHTML(html, vesselName);
+    // Try each code — duplicate vessel names may have different codes, only one has data
+    for (let i = 0; i < vesselCodes.length; i++) {
+      const code = vesselCodes[i];
+      console.error(`Trying code ${i + 1}/${vesselCodes.length}: ${code} for ${vesselName}`);
+      const postData = `vesselName=${encodeURIComponent(code)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
+      const html = await this.makeRequest('/BerthSchedule/Detail', 'POST', postData);
+      const schedules = this.parseScheduleHTML(html, vesselName);
 
-    // If no data and code came from cache, the code might be stale — refresh and retry
-    if (schedules.length === 0 && !this.lastWasLiveRefresh) {
-      console.error(`No data with cached code ${vesselCode}, refreshing cache...`);
-      this.lastWasLiveRefresh = true;
-      const freshCode = await this.findVesselCode(vesselName, true);
-      if (freshCode && freshCode !== vesselCode) {
-        console.error(`Code changed: ${vesselCode} → ${freshCode}, retrying...`);
-        const retryPostData = `vesselName=${encodeURIComponent(freshCode)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
-        const retryHtml = await this.makeRequest('/BerthSchedule/Detail', 'POST', retryPostData);
-        const retrySchedules = this.parseScheduleHTML(retryHtml, vesselName);
-        if (retrySchedules.length > 0) {
-          const match = this.findVesselMatch(retrySchedules, voyageCode);
+      if (schedules.length > 0) {
+        console.error(`Found ${schedules.length} schedule(s) with code ${code}`);
+        const match = this.findVesselMatch(schedules, voyageCode);
+        return this.buildSuccessResult(match, voyageCode);
+      }
+    }
+
+    // All cached codes returned no data — refresh cache and retry with any new codes
+    console.error(`No data with ${vesselCodes.length} cached code(s), refreshing cache...`);
+    const freshCodes = await this.findVesselCodes(vesselName, true);
+    if (freshCodes) {
+      const newCodes = freshCodes.filter(c => !vesselCodes.includes(c));
+      for (const code of newCodes) {
+        console.error(`Trying new code from refresh: ${code}`);
+        const postData = `vesselName=${encodeURIComponent(code)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
+        const html = await this.makeRequest('/BerthSchedule/Detail', 'POST', postData);
+        const schedules = this.parseScheduleHTML(html, vesselName);
+
+        if (schedules.length > 0) {
+          const match = this.findVesselMatch(schedules, voyageCode);
           return this.buildSuccessResult(match, voyageCode);
         }
       }
     }
 
-    if (schedules.length === 0) {
-      console.error(`No schedule data found for ${vesselName}`);
-      return {
-        success: true,
-        vessel_found: false,
-        vessel_name: vesselName,
-        voyage_code: voyageCode || null,
-        message: 'No schedule data found for this vessel'
-      };
-    }
-
-    const match = this.findVesselMatch(schedules, voyageCode);
-    return this.buildSuccessResult(match, voyageCode);
+    console.error(`No schedule data found for ${vesselName}`);
+    return {
+      success: true,
+      vessel_found: false,
+      vessel_name: vesselName,
+      voyage_code: voyageCode || null,
+      message: 'No schedule data found for this vessel'
+    };
   }
 
   buildSuccessResult(match, voyageCode) {
