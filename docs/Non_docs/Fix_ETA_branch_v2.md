@@ -215,4 +215,116 @@ async fetchPage1() {
 
 ---
 
-<!-- Append Bug 4, 5, etc. below this line -->
+## Bug 4: LCB1 duplicate vessel names — scraper picks wrong code
+
+**Date fixed:** 2026-03-08
+
+### Affected shipment
+
+| # | Terminal | Port | Vessel | Voyage | Error |
+|---|----------|------|--------|--------|-------|
+| 2 | LCB1 | A0 | MAERSK NARVIK | 606S | "Not Found" — vessel exists on website but scraper returns no data |
+
+### Root cause
+
+LCB1's vessel dropdown (`<select id="txtVesselName">`) contains **duplicate entries** for some vessel names. For example, "MAERSK NARVIK" appears 3 times with different internal codes (`ER0`, `SE1`, etc.). Only one code has actual schedule data — the others return "No data found."
+
+The scraper built a mapping of `{vessel_name: code}` using a plain object:
+
+```js
+// browser-automation/scrapers/lcb1-full-schedule-scraper.js (BEFORE fix)
+const mapping = {};
+for (const opt of select.querySelectorAll('option')) {
+    const name = opt.text.trim().toUpperCase();
+    const code = (opt.getAttribute('value') || '').trim();
+    if (name && code) {
+        mapping[name] = code;  // last duplicate wins — overwrites earlier codes
+    }
+}
+```
+
+When multiple options share the same name, the **last code overwrites** the earlier ones. If the last code is the empty one (`SE1` for MAERSK NARVIK), the scraper always sends that code → "No data found."
+
+The cache file (`lcb1-vessel-codes.json`) stored `"MAERSK NARVIK": "SE1"` — a single string, losing the other codes entirely.
+
+### Fix applied (3 changes in 1 file)
+
+**File: `browser-automation/scrapers/lcb1-full-schedule-scraper.js`**
+
+**Change 1: `fetchLiveVesselMapping()` — Store arrays of codes per vessel name**
+
+```js
+// AFTER fix
+const mapping = {};
+for (const opt of select.querySelectorAll('option')) {
+    const name = opt.text.trim().toUpperCase();
+    const code = (opt.getAttribute('value') || '').trim();
+    if (name && code) {
+        if (!mapping[name]) {
+            mapping[name] = [];
+        }
+        if (!mapping[name].includes(code)) {
+            mapping[name].push(code);
+        }
+    }
+}
+```
+
+Cache now stores `"MAERSK NARVIK": ["ER0", "SE1"]` — all codes preserved.
+
+**Change 2: `lookupInCache()` — Return array of codes (backward-compatible with old cache format)**
+
+```js
+// AFTER fix
+lookupInCache(vesselName) {
+    const cache = this.loadCache();
+    const normalizedName = vesselName.toUpperCase().trim();
+
+    if (cache[normalizedName]) {
+        const val = cache[normalizedName];
+        return Array.isArray(val) ? val : [val];  // handles old "string" and new ["array"] format
+    }
+
+    for (const [name, codes] of Object.entries(cache)) {
+        if (name.includes(normalizedName) || normalizedName.includes(name)) {
+            return Array.isArray(codes) ? codes : [codes];
+        }
+    }
+    return null;
+}
+```
+
+**Change 3: `scrapeSingleVessel()` — Try each code until one returns schedule data**
+
+```js
+// AFTER fix
+// Try each code — duplicate vessel names may have different codes, only one has data
+for (let i = 0; i < vesselCodes.length; i++) {
+    const code = vesselCodes[i];
+    const postData = `vesselName=${encodeURIComponent(code)}&voyageIn=&voyageOut=&pageSize=100&page=1`;
+    const html = await this.makeRequest('/BerthSchedule/Detail', 'POST', postData);
+    const schedules = this.parseScheduleHTML(html, vesselName);
+
+    if (schedules.length > 0) {
+        const match = this.findVesselMatch(schedules, voyageCode);
+        return this.buildSuccessResult(match, voyageCode);
+    }
+}
+
+// All cached codes returned no data — refresh cache and retry with any new codes
+const freshCodes = await this.findVesselCodes(vesselName, true);
+if (freshCodes) {
+    const newCodes = freshCodes.filter(c => !vesselCodes.includes(c));
+    for (const code of newCodes) { ... }
+}
+```
+
+- For most vessels (no duplicates): array has 1 code → identical behavior to before, single request
+- For duplicates (like MAERSK NARVIK): tries each code sequentially, returns first one with data
+- If all cached codes fail: refreshes cache from live site, tries only the newly discovered codes
+
+Also renamed `findVesselCode()` → `findVesselCodes()` to reflect it now returns an array.
+
+---
+
+<!-- Append Bug 5, 6, etc. below this line -->
